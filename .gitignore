@@ -1,0 +1,24 @@
+# Environment
+.venv/
+venv/
+env/
+*.pyc
+__pycache__/
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Logs (keep directory via logs/.gitkeep)
+logs/*.log
+
+# Instance data
+instance/*.db
+instance/*.sqlite
+instance/remember_token
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

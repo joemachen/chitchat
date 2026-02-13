@@ -1,0 +1,275 @@
+# ChitChat — Technical Overview
+
+This document is a detailed technical overview of the ChitChat codebase for reviewers (e.g., AI assistants) who may suggest improvements, refactors, or new features. It describes architecture, stack, data model, real-time layer, security, and known constraints.
+
+---
+
+## 1. Purpose and scope
+
+**ChitChat** is a **private, small-scale chat application** (target: up to ~10 concurrent users) in the spirit of Discord/mIRC. It is:
+
+- **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
+- **Local-first by default**: Runs on `127.0.0.1` with SQLite; designed so the same codebase can later be deployed online (Phase 3 is on hold).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, and Super Admin moderation (kick, channel CRUD, assign Super Admin, reset stats).
+
+**Explicitly out of scope for now**: Sound/notifications, Phase 3 (online deployment), and image/file uploads (paused).
+
+---
+
+## 2. Technology stack
+
+| Layer | Technology | Version / notes |
+|-------|------------|-----------------|
+| **Language** | Python | 3.11+ recommended (type hints, run scripts) |
+| **Web framework** | Flask | 3.x (`requirements.txt`: `flask>=3.0.0`) |
+| **Real-time** | Flask-SocketIO | 5.3+; WebSockets over eventlet |
+| **Async/WSGI** | eventlet | 0.35+; used as SocketIO async mode and for Acrophobia timers |
+| **ORM / DB** | Flask-SQLAlchemy | 3.1+; SQLite by default |
+| **Auth** | Session + cookie | Flask session; optional “remember me” with signed cookie (itsdangerous, via Flask) and disk fallback for standalone window |
+| **Frontend** | Vanilla JS | No React/Vue; single-page chat UI in one template |
+| **Socket client** | Socket.IO (client) | 4.7.2 (CDN in template) |
+| **Standalone UI** | pywebview | 4.4+; optional native window wrapper |
+
+**Config**: `app/config.py` — `SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, `INVITE_CODE`, `PERMANENT_SESSION_LIFETIME`, etc. Environment variables: `CHITCHAT_SECRET_KEY`, `CHITCHAT_DATABASE_URI`, `CHITCHAT_INVITE_CODE`.
+
+**Entry points**:
+
+- **Browser**: `run.py` — sets up logging, finds an available port (5000–5019), runs `app.socketio.run(app, host="127.0.0.1", port=port, debug=False, use_reloader=False)`.
+- **Standalone window**: `run_standalone.py` — loads the same app URL in a pywebview window; remember-me token can be stored on disk when cookies are unreliable.
+
+---
+
+## 3. Architecture and layout
+
+### 3.1 Directory structure
+
+```
+chitchat/
+├── run.py                 # Entry point (logging, port fallback, socketio.run)
+├── run_standalone.py      # Optional: pywebview wrapper
+├── run.bat / run-standalone.bat
+├── requirements.txt
+├── instance/              # Created at runtime; SQLite DB and remember token
+├── logs/                  # app.log, errors.log (logging_config)
+├── app/
+│   ├── __init__.py        # App factory, DB init, migrations, SocketIO init, route/socket registration
+│   ├── config.py          # Config class (SECRET_KEY, DB, INVITE_CODE, session)
+│   ├── logging_config.py  # File handlers for app.log and errors.log; no console by default
+│   ├── models.py          # User, Room, Message, IgnoreList (SQLAlchemy)
+│   ├── auth.py            # Invite validation, register, login, remember token, password reset
+│   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat
+│   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
+│   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
+│   ├── templates/         # login, register, reset_password, chat.html
+│   └── static/            # auth.css, etc.
+├── ARCHITECTURE.md        # High-level architecture
+├── TECH_STACK.md          # Stack summary
+├── ROADMAP.md             # Phases and feature list
+├── IDEAS.md               # Plus-up / backlog ideas
+└── OVERVIEW.md            # This file
+```
+
+### 3.2 Application factory and startup
+
+- **`create_app()`** in `app/__init__.py`:
+  1. Creates Flask app, loads `app.config.Config`.
+  2. Ensures `instance` path exists.
+  3. Inits Flask-SQLAlchemy, runs `db.create_all()`, then **`_ensure_rooms_migrated(app)`** (see below).
+  4. Registers HTTP routes via `register_routes(app)`.
+  5. Creates SocketIO app (`async_mode="eventlet"`, `cors_allowed_origins=[]`, loggers disabled).
+  6. Registers socket handlers via `register_socket_handlers(socketio)`.
+  7. Attaches `app.socketio` and returns the app.
+
+- **Migrations** (inline in `_ensure_rooms_migrated`): No Alembic; schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**; users **AcroBot** and **System**; and optionally promotes user “Joe” to Super Admin.
+
+### 3.3 Design principles
+
+- **Separation of concerns**: Models, auth, routes, sockets, and game logic are in distinct modules; Acrophobia returns “bot replies” that the socket layer persists and emits.
+- **Single source of truth**: Messages and room state in SQLite; presence and Acrophobia game state in process memory.
+- **No console logging by default**: All logging goes to `logs/app.log` and `logs/errors.log` (see `logging_config.py`).
+
+---
+
+## 4. Data model
+
+All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
+
+### 4.1 User
+
+- **Table**: `users`.
+- **Fields**: `id`, `username` (unique), `password_hash`, `created_at`, `room_order_ids` (JSON array of room ids as text), `is_super_admin`, `away_message`.
+- **Relations**: `messages`, `ignoring` (IgnoreList as user), `ignored_by` (IgnoreList as ignored), `created_rooms` (Room.created_by_id).
+- **Notes**: No open sign-up; invite code checked in `auth.py`. Passwords hashed with Werkzeug. AcroBot and System are special users created by migration.
+
+### 4.2 Room
+
+- **Table**: `rooms`.
+- **Fields**: `id`, `name`, `created_at`, `created_by_id`, `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id`.
+- **DM semantics**: If `dm_with_id` is set, the room is a DM between `created_by_id` and `dm_with_id`. Name is stored as `"DM"`; display name (“DM: <other_username>”) is derived on the client from `created_by_id`, `created_by_username`, `dm_with_username`, and current user id.
+- **Relations**: `created_by`, `topic_set_by`, `dm_with`, `messages` (cascade delete).
+- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events** can only be deleted from Settings by a Super Admin (backend checks `from_settings` on delete).
+
+### 4.3 Message
+
+- **Table**: `messages`.
+- **Fields**: `id`, `room_id`, `user_id`, `content`, `created_at`, `message_type` (`'chat'` or `'emote'`), plus legacy `room` (string) for backward compatibility.
+- **Relations**: `user`, `room`.
+- **Notes**: All channel history is stored here; Stats view is computed from this table (no separate stats storage). Deleting “Stats data” means deleting all rows in `messages`.
+
+### 4.4 IgnoreList
+
+- **Table**: `ignore_list`.
+- **Fields**: `id`, `user_id`, `ignored_user_id`, `created_at`.
+- **Unique**: `(user_id, ignored_user_id)`.
+- **Semantics**: Frontend hides messages from ignored users in the message list; they remain in DB and in history.
+
+---
+
+## 5. Authentication and session
+
+- **Login**: POST `/login` with username/password; session stores `user_id` and `username`; optional “remember me” sets a signed cookie (`chitchat_remember`) and optionally a token file in `instance/` for standalone.
+- **Before request**: `routes.py`’s `before_request` restores session from remember-me cookie or from disk if cookie is missing (e.g. standalone window).
+- **Socket.IO**: No separate socket auth; the client connects after loading the chat page (which requires an active session). Session is used in each socket handler via `session.get("user_id")`; connection is rejected if not authenticated (`on_connect` returns `False`).
+- **Password reset**: `/reset-password` with username, invite code, and new password (invite code required).
+- **Security**: `SECRET_KEY` and `INVITE_CODE` should be set via environment in production; default values are for development only.
+
+---
+
+## 6. Real-time layer (Socket.IO)
+
+**Transport**: Flask-SocketIO with **eventlet** (single process, cooperative multitasking). Rooms are named `room_{room_id}` (integer room id).
+
+### 6.1 Presence
+
+- **In-memory**: `_online_user_ids`, `_sid_to_user_id`, `_sid_to_connected_at`, `_sid_to_remote_addr` in `sockets.py`.
+- **Connect**: On `connect`, user is added to these structures and a system event “{username} came online” is posted to the **System Events** room; `user_list_updated` is broadcast.
+- **Disconnect**: On `disconnect`, user is removed and “{username} went offline” is posted to System Events; `user_list_updated` is broadcast again.
+- **AcroBot**: Treated as “online” when the Settings toggle is on (`is_acrobot_active()`), independent of socket presence.
+
+### 6.2 Socket events (server-side)
+
+| Event (client → server) | Handler | Auth | Description |
+|-------------------------|--------|------|-------------|
+| `connect` | `on_connect` | Session | Reject if no `user_id`; else track presence and post system event. |
+| `disconnect` | `on_disconnect` | — | Remove from presence; post “went offline”. |
+| `get_rooms` | `on_get_rooms` | Yes | Emit `rooms_list` with rooms in user’s order. |
+| `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), ignore list, users, rooms. |
+| `send_message` | `on_send_message` | Yes | Slash-command handling and/or persist message; broadcast `new_message`. |
+| `create_room` | `on_create_room` | Super Admin | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
+| `update_room` | `on_update_room` | Super Admin | Rename room; emit `topic_updated`-style update. |
+| `delete_room` | `on_delete_room` | Super Admin | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
+| `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
+| `ignore_user` | `on_ignore_user` | Yes | Add to IgnoreList; emit `ignore_list_updated`. |
+| `unignore_user` | `on_unignore_user` | Yes | Remove from IgnoreList; emit `ignore_list_updated`. |
+| `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
+| `get_or_create_dm` | `on_get_or_create_dm` | Yes | Find or create DM room between current user and `other_user_id`; emit `dm_room`; if created, broadcast `rooms_updated`. |
+| `kick_user` | `on_kick_user` | Super Admin | Emit `kicked_from_room` to target’s socket(s). |
+| `set_super_admin` | `on_set_super_admin` | Super Admin | Set/unset `is_super_admin`; broadcast `user_list_updated`. |
+| `get_acrobot_status` | `on_get_acrobot_status` | Any | Emit `acrobot_status` (active flag). |
+| `set_acrobot_active` | `on_set_acrobot_active` | Super Admin | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
+| `reset_stats_data` | `on_reset_stats_data` | Super Admin | Require `confirm: "RESET"`; delete all Message rows; emit `stats_reset` to requester. |
+
+### 6.3 Send message and slash commands
+
+**Order of handling** in `on_send_message` (after validation):
+
+1. **`/help`** — Post a single message (from the user) listing all ChitChat and Acrophobia commands; persist and emit.
+2. **`/away [message]`** — Set or clear `user.away_message`; post emote “is away: …” or “is no longer away”; persist and emit.
+3. **`/whois <username>`** — Look up user; emit `whois_result` to requester only (includes online, IP, connected_at for Super Admin).
+4. **`/topic <text>`** — Set `room.topic`, topic_set_by_id, topic_set_at; emit `topic_updated` to room.
+5. **Acrophobia room** — If room name is “Acrophobia”, call `acrophobia.handle_message`; if consumed, persist and emit bot messages; if round started, schedule submit-phase timer.
+6. **`/ping <username>`** — Emit `user_pinged` to room; if target has `away_message`, emit `away_message` to sender only.
+7. **`/em <text>` / `/me <text>`** — Treat as emote; persist as `message_type='emote'` and emit.
+8. **Otherwise** — Persist as normal chat message and emit `new_message`.
+
+All persisted messages (including help and emotes) are stored in `messages` and broadcast to `room_{room_id}`.
+
+### 6.4 Acrophobia integration
+
+- **Module**: `app/acrophobia.py`. State is **in-memory**: `_games` (per room: phase, acronym, submissions, votes, end_time), `_scores` (wins per room per user), `_acrobot_active` (toggle from Settings).
+- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **eventlet.spawn_after** in `sockets.py`; callbacks run in app context and call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
+- **Acronyms**: Random **4- or 5-letter** uppercase string (`random.choices(string.ascii_uppercase, k=4 or 5)`), not a fixed list.
+- **Commands**: `/start`, `/vote N`, `/score`, `/help`, `/msg acrobot help` (and variants). User submissions during submit phase are not stored as messages; only bot messages are persisted.
+
+### 6.5 Stats
+
+- **Stats room**: When a user joins the room named “Stats”, server emits `room_joined` with `history: []` and `stats: _get_stats()`.
+- **`_get_stats()`**: Aggregates from **Message** table: top 10 typers (message count per user), active hours (messages per hour 0–23), favorite words (top 5 users by message count, top 10 words each, stop words excluded). No separate stats table; “reset Stats data” deletes all messages.
+
+### 6.6 System events
+
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect). Implemented via `_post_system_event(content)` in `sockets.py`: creates a Message, commits, and emits `new_message` to that room.
+
+---
+
+## 7. Frontend (chat UI)
+
+- **Single file**: `app/templates/chat.html` — HTML, CSS, and JavaScript in one template. Rendered by Flask with `user` (current user); no separate JS bundle.
+- **Socket client**: Socket.IO 4.7.2 from CDN; connection with `withCredentials: true`. No explicit reconnection logic documented; Socket.IO client has built-in reconnect.
+- **Main structure**: Header (title, Settings if Super Admin, Log out), status line, ignored-users panel, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer.
+- **State**: `currentUserId`, `currentRoom`, `allRooms`, `allUsersWithStatus`, `ignoreList`, `showingSettings`, `acrobotActive`, `roomOrderIds`, etc. Room list is reordered by drag-and-drop; order persisted via `save_room_order`.
+- **Key behaviors**:
+  - **join_room** on load (no explicit room_id → server uses general).
+  - **room_joined**: Renders room list, user list, and either message history or stats view; applies ignore list (messages from ignored users get class `hidden`).
+  - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
+  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Super Admin) with `from_settings: true`.
+  - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
+  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Super Admin only).
+  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Super Admin checkboxes. Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
+- **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
+
+---
+
+## 8. Security and permissions
+
+- **Authentication**: All socket handlers that need a user check `session.get("user_id")`; unauthenticated connect is rejected.
+- **Super Admin**: Checked via `_is_super_admin(user_id)` (User.is_super_admin). Required for: create_room, update_room, delete_room (and delete of protected channels only via Settings with `from_settings`), kick_user, set_super_admin, set_acrobot_active, reset_stats_data.
+- **Room membership**: No per-room membership table; any authenticated user can join any room and send messages. Kick only notifies the target client (`kicked_from_room`) and does not remove from DB “membership” (there is none).
+- **Input**: Slash commands are parsed server-side; message content is stored as-is (no rich HTML from client). Frontend escapes/links content (e.g. linkify) when rendering.
+- **CORS**: `cors_allowed_origins=[]` (same-origin only by default).
+- **Secrets**: SECRET_KEY and INVITE_CODE should be overridden in production; no secrets in repo.
+
+---
+
+## 9. Known limitations and constraints
+
+- **Single process**: eventlet single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
+- **No message edit/delete**: Messages are append-only (except bulk delete on reset stats).
+- **No file/image uploads**: Paused; no attachment storage.
+- **Acrophobia state**: In-memory; games and scores are lost on server restart.
+- **Migrations**: Ad-hoc ALTER in `_ensure_rooms_migrated`; no versioned migrations (e.g. Alembic). Adding columns is done by checking `inspect(db.engine).get_columns(...)`.
+- **Stats reset**: Deleting all messages is irreversible and affects all channels.
+- **Phase 3 (online deployment)** and **sound** are on hold; **image uploads** are paused (see ROADMAP/IDEAS).
+
+---
+
+## 10. File-by-file summary (for quick reference)
+
+| File | Role |
+|------|------|
+| `run.py` | Logging setup, port 5000–5019 fallback, `create_app()`, `socketio.run()`. |
+| `app/__init__.py` | App factory, DB init, `_ensure_rooms_migrated`, SocketIO init, register routes and sockets. |
+| `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
+| `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
+| `app/models.py` | User, Room, Message, IgnoreList; to_dict() where needed. |
+| `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
+| `app/routes.py` | Index, login, register, reset-password, logout, chat; before_request (restore session from remember); context_processor (inject user). |
+| `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user, Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
+| `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, vote, score, submissions), advance_submit_phase, advance_vote_phase, in-memory _scores and _games. |
+| `app/templates/chat.html` | Full chat UI: room list, messages, user list, context menu, Settings view, socket listeners, renderRoomList, switchRoom, etc. |
+
+---
+
+## 11. Suggested review focus (for AI or human reviewers)
+
+When suggesting changes or features, consider:
+
+1. **Consistency**: Preserve existing patterns (e.g. emit payloads as dicts with clear keys; Super Admin checks in one place).
+2. **Security**: Any new endpoint or socket event should enforce auth and, if applicable, Super Admin.
+3. **Persistence**: Acrophobia state is in-memory; any “persistent scores” or new game state would need a migration and model or separate store.
+4. **Frontend**: Single template with vanilla JS; no build step. Larger UI changes may warrant splitting CSS/JS or introducing a minimal build.
+5. **Migrations**: Adding columns is currently done in `_ensure_rooms_migrated`; for complex schema evolution, consider Alembic or similar.
+6. **Testing**: No tests in the repo yet; suggestions for E2E or integration tests (e.g. login, send message, join room, Acrophobia round) would be valuable.
+7. **Docs**: ROADMAP.md, IDEAS.md, and this OVERVIEW.md should be updated if behavior or scope changes.
+
+This overview should give Gemini (or any reviewer) enough context to propose concrete, consistent improvements or features.

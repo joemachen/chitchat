@@ -1,0 +1,11 @@
+# ChitChat database migrations (Flask-Migrate / Alembic)
+
+- **Upgrade (apply pending):** `flask db upgrade`
+- **Generate new migration after model changes:** `flask db migrate -m "description"`
+- **Create empty revision:** `flask db revision -m "description"`
+
+Set `FLASK_APP=run:app` so Flask can load the app and db.
+
+**Existing databases:** If you have an existing `instance/chitchat.db` created with the old ad-hoc migrations, run once:
+`flask db stamp 001_initial`
+Then start the server as usual (`python run.py`). New installs just run `python run.py` (which runs `flask db upgrade` and seed automatically).

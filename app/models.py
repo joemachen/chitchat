@@ -1,0 +1,166 @@
+"""
+SQLAlchemy models: User, Room, Message, IgnoreList.
+"""
+from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import ForeignKey, UniqueConstraint
+
+db = SQLAlchemy()
+
+
+class User(db.Model):
+    """Registered user. No open sign-up; requires invite code to register."""
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    room_order_ids = db.Column(db.Text, nullable=True)  # JSON array of room ids, e.g. "[1,2,3]"
+    is_super_admin = db.Column(db.Boolean, nullable=False, default=False)
+    rank = db.Column(db.String(20), nullable=False, default="rookie")  # rookie | bro | fam | super_admin (lowest to highest)
+    away_message = db.Column(db.Text, nullable=True)
+    display_name = db.Column(db.String(80), nullable=True)  # /nick; shown in chat when set
+    status_line = db.Column(db.String(120), nullable=True)  # /status
+    last_seen = db.Column(db.DateTime, nullable=True)  # Updated on disconnect for /whois
+
+    messages = db.relationship("Message", backref="user", lazy="dynamic", foreign_keys="Message.user_id")
+    ignoring = db.relationship(
+        "IgnoreList",
+        foreign_keys="IgnoreList.user_id",
+        backref="user",
+        lazy="dynamic",
+    )
+    ignored_by = db.relationship(
+        "IgnoreList",
+        foreign_keys="IgnoreList.ignored_user_id",
+        backref="ignored_user",
+        lazy="dynamic",
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "username": self.username,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "is_super_admin": getattr(self, "is_super_admin", False),
+            "rank": getattr(self, "rank", None) or "rookie",
+            "away_message": getattr(self, "away_message", None) or None,
+            "display_name": getattr(self, "display_name", None) or None,
+            "status_line": getattr(self, "status_line", None) or None,
+            "last_seen": (lambda x: x.isoformat() if x else None)(getattr(self, "last_seen", None)),
+        }
+
+
+class Room(db.Model):
+    """Chat room. Full CRUD."""
+    __tablename__ = "rooms"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=True)
+    topic = db.Column(db.Text, nullable=True)
+    topic_set_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=True)
+    topic_set_at = db.Column(db.DateTime, nullable=True)
+    dm_with_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=True)  # If set, room is DM between created_by_id and dm_with_id
+
+    created_by = db.relationship("User", backref="created_rooms", foreign_keys=[created_by_id])
+    topic_set_by = db.relationship("User", foreign_keys=[topic_set_by_id])
+    dm_with = db.relationship("User", foreign_keys=[dm_with_id])
+    messages = db.relationship("Message", backref="room", lazy="dynamic", cascade="all, delete-orphan")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by_id": self.created_by_id,
+            "created_by_username": self.created_by.username if self.created_by else None,
+            "topic": self.topic or "",
+            "topic_set_by_id": self.topic_set_by_id,
+            "topic_set_by_username": self.topic_set_by.username if self.topic_set_by else None,
+            "topic_set_at": self.topic_set_at.isoformat() if self.topic_set_at else None,
+            "dm_with_id": self.dm_with_id,
+            "is_dm": self.dm_with_id is not None,
+            "dm_with_username": self.dm_with.username if self.dm_with else None,
+        }
+
+
+class Message(db.Model):
+    """Chat message in a room. Persisted for Discord-style history."""
+    __tablename__ = "messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    message_type = db.Column(db.String(20), nullable=False, default="chat")  # "chat" or "emote"
+    # Legacy: DB column "room" (string); model uses room_legacy so Room.messages backref can use "room"
+    room_legacy = db.Column("room", db.String(120), nullable=True, default="")
+    parent_id = db.Column(db.Integer, ForeignKey("messages.id"), nullable=True, index=True)
+    edited_at = db.Column(db.DateTime, nullable=True)
+
+    parent = db.relationship("Message", remote_side=[id], backref=db.backref("replies", lazy="dynamic"))
+
+    def to_dict(self) -> dict:
+        user = self.user
+        username = user.username if user else None
+        display_name = getattr(user, "display_name", None) or None if user else None
+        out = {
+            "id": self.id,
+            "room_id": self.room_id,
+            "user_id": self.user_id,
+            "username": username,
+            "display_name": display_name,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "message_type": self.message_type or "chat",
+            "parent_id": self.parent_id,
+            "edited_at": self.edited_at.isoformat() if self.edited_at else None,
+        }
+        if self.parent_id and self.parent:
+            p = self.parent
+            p_user = p.user
+            out["parent_content"] = p.content
+            out["parent_username"] = p_user.username if p_user else None
+            out["parent_display_name"] = (getattr(p_user, "display_name", None) or None) if p_user else None
+        return out
+
+
+class IgnoreList(db.Model):
+    """User A ignores User B. Frontend soft-hides B's messages for A."""
+    __tablename__ = "ignore_list"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    ignored_user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "ignored_user_id", name="uq_ignore_pair"),)
+
+    def to_dict(self) -> dict:
+        return {"user_id": self.user_id, "ignored_user_id": self.ignored_user_id}
+
+
+class MessageReport(db.Model):
+    """User-reported message. For moderation and App Store compliance."""
+    __tablename__ = "message_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, ForeignKey("messages.id"), nullable=False, index=True)
+    reported_by_user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False, index=True)
+    reason = db.Column(db.Text, nullable=True)  # optional free text or category
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("message_id", "reported_by_user_id", name="uq_message_report"),)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "message_id": self.message_id,
+            "reported_by_user_id": self.reported_by_user_id,
+            "reason": self.reason,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

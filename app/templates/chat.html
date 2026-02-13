@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChitChat — {{ user.username }}</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>if (typeof marked !== 'undefined') { marked.setOptions({ gfm: true, breaks: true }); }</script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f0f12; color: #e4e4e7; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .header {
+            padding: 0.75rem 1rem;
+            background: #18181c;
+            border-bottom: 1px solid #27272a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+        .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+        .header-actions a, .header-actions button { color: #a1a1aa; text-decoration: none; font-size: 0.9rem; background: none; border: none; cursor: pointer; padding: 0.25rem 0; }
+        .header-actions a:hover, .header-actions button:hover { color: #e4e4e7; }
+        .messages {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .msg { padding: 0.5rem 0.75rem; border-radius: 8px; background: #18181c; max-width: 85%; align-self: flex-start; user-select: text; -webkit-user-select: text; }
+        .msg.own { background: #27272a; }
+        .msg.hidden { display: none; }
+        .msg-header { font-size: 0.8rem; color: #818cf8; margin-bottom: 0.2rem; }
+        .msg-username { cursor: context-menu; padding: 0 2px; border-radius: 2px; }
+        .msg-username:hover { background: #27272a; }
+        .msg-time { font-size: 0.7rem; color: #71717a; }
+        .context-menu { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.25rem 0; min-width: 140px; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .context-menu button { display: block; width: 100%; text-align: left; padding: 0.5rem 1rem; background: none; border: none; color: #e4e4e7; cursor: pointer; font-size: 0.9rem; }
+        .context-menu button:hover { background: #3f3f46; }
+        .context-menu button:first-child { border-radius: 6px 6px 0 0; }
+        .context-menu button:last-child { border-radius: 0 0 6px 6px; }
+        .profile-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.5rem; min-width: 240px; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .profile-modal h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+        .profile-modal p { margin: 0; color: #a1a1aa; font-size: 0.9rem; }
+        .profile-modal .close { margin-top: 1rem; padding: 0.4rem 0.8rem; background: #3f3f46; border: none; border-radius: 6px; color: #e4e4e7; cursor: pointer; font-size: 0.9rem; }
+        .profile-modal .close:hover { background: #52525b; }
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; }
+        .stats-view { padding: 1rem; user-select: text; -webkit-user-select: text; }
+        .stats-view h2 { font-size: 1rem; margin: 1rem 0 0.5rem; color: #818cf8; }
+        .stats-view h2:first-child { margin-top: 0; }
+        .stats-view ul { margin: 0; padding-left: 1.25rem; color: #a1a1aa; font-size: 0.9rem; }
+        .stats-view .stat-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.25rem 0; }
+        .stats-view .stat-bar-wrap { flex: 1; max-width: 200px; background: #27272a; border-radius: 4px; height: 1rem; overflow: hidden; }
+        .stats-view .stat-bar { height: 100%; background: #6366f1; border-radius: 4px; }
+        .stats-view .favorite-words { font-size: 0.85rem; color: #71717a; }
+        .msg-content { word-break: break-word; user-select: text; -webkit-user-select: text; }
+        .msg-content a { color: #818cf8; text-decoration: none; }
+        .msg-content a:hover { text-decoration: underline; }
+        .msg.emote .msg-content { font-style: italic; color: #a1a1aa; }
+        .messages.is-dm .msg { background: #1e1e24; border-left: 3px solid #6366f1; }
+        .messages.is-dm .msg .msg-header { color: #94a3b8; }
+        .messages.is-dm .msg .msg-content { color: #cbd5e1; font-style: normal; }
+        .msg-actions { margin-top: 0.35rem; }
+        .ping-toast { position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%); background: #6366f1; color: #fff; padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.95rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: ping-fade 4s ease-out forwards; pointer-events: none; }
+        @keyframes ping-fade { 0%, 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+        .msg-actions button { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.75rem; padding: 0; }
+        .msg-actions button:hover { color: #f87171; }
+        .form-wrap { padding: 1rem; background: #18181c; border-top: 1px solid #27272a; }
+        .form-wrap form { display: flex; gap: 0.5rem; }
+        .form-wrap input { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
+        .form-wrap input:focus { outline: none; border-color: #6366f1; }
+        .form-wrap button { padding: 0.6rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; }
+        .form-wrap button:hover { background: #5558e3; }
+        .form-wrap button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .typing-indicator { padding: 0.35rem 1rem; font-size: 0.8rem; color: #71717a; min-height: 1.5rem; }
+        .typing-indicator.empty { visibility: hidden; }
+        .acro-timer { padding: 0.35rem 1rem; font-size: 0.85rem; color: #818cf8; min-height: 1.5rem; background: #1e1e24; border-top: 1px solid #27272a; }
+        .acro-timer.hidden { display: none; }
+        .search-bar-wrap { padding: 0 1rem; background: #18181c; border-bottom: 1px solid #27272a; display: flex; justify-content: flex-end; }
+        .search-toggle-btn { padding: 0.35rem 0.5rem; margin: 0; background: none; border: none; color: #818cf8; font-size: 0.9rem; cursor: pointer; }
+        .search-toggle-btn:hover { color: #a5b4fc; }
+        .search-drawer { max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+        .search-drawer.open { max-height: 80px; }
+        .search-form { display: flex; gap: 0.5rem; padding: 0.35rem 0; }
+        .search-form input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #3f3f46; border-radius: 6px; background: #0f0f12; color: #e4e4e7; font-size: 0.9rem; }
+        .search-form input:focus { outline: none; border-color: #6366f1; }
+        .search-form button { padding: 0.4rem 0.75rem; background: #27272a; border: none; border-radius: 6px; color: #e4e4e7; font-size: 0.9rem; cursor: pointer; }
+        .search-form button:hover { background: #3f3f46; }
+        .search-results-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem; min-width: 320px; max-width: 90vw; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .search-results-modal h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+        .search-results-list { overflow-y: auto; flex: 1; min-height: 0; }
+        .search-result-item { padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.25rem; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; }
+        .search-result-item:hover { background: #3f3f46; }
+        .search-result-item .sr-header { color: #818cf8; margin-bottom: 0.2rem; }
+        .search-result-item .sr-content { color: #a1a1aa; word-break: break-word; }
+        .load-more-wrap { padding: 0.5rem 1rem; text-align: center; border-bottom: 1px solid #27272a; }
+        .load-more-wrap button { padding: 0.4rem 0.8rem; font-size: 0.85rem; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 6px; cursor: pointer; }
+        .load-more-wrap button:hover { background: #3f3f46; color: #e4e4e7; }
+        .msg-link-preview { margin-top: 0.5rem; border-radius: 6px; overflow: hidden; background: #1e1e24; border: 1px solid #27272a; max-width: 400px; }
+        .msg-link-preview.minimized { max-height: 2rem; }
+        .msg-link-preview.minimized .link-preview-body { display: none; }
+        .msg-link-preview .link-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; font-size: 0.75rem; color: #71717a; }
+        .msg-link-preview .link-preview-header a { color: #818cf8; }
+        .msg-link-preview .link-preview-minimize { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.9rem; padding: 0 0.25rem; }
+        .msg-link-preview .link-preview-body { padding: 0.5rem; }
+        .msg-link-preview .link-preview-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
+        .msg-link-preview .link-preview-desc { font-size: 0.8rem; color: #a1a1aa; margin-bottom: 0.35rem; }
+        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 200px; border-radius: 4px; display: block; }
+        .status { padding: 0.25rem 1rem; font-size: 0.85rem; color: #71717a; }
+        .ignored-panel { padding: 0.5rem 1rem; background: #18181c; border-bottom: 1px solid #27272a; font-size: 0.85rem; color: #71717a; }
+        .ignored-panel span { margin-right: 0.5rem; }
+        .ignored-panel button { background: none; border: none; color: #818cf8; cursor: pointer; font-size: 0.85rem; padding: 0 0.25rem; }
+        .ignored-panel button:hover { text-decoration: underline; }
+        .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+        .room-list {
+            width: 220px;
+            flex-shrink: 0;
+            background: #18181c;
+            border-right: 1px solid #27272a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .room-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; }
+        .room-list-items { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem 0; }
+        .room-item { padding: 0.5rem 1rem; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; cursor: pointer; border-radius: 4px; margin: 0 4px; }
+        .room-item:hover { background: #27272a; }
+        .room-item.active .room-item-name { color: #4ade80; font-weight: 600; }
+        .room-item.dragging { opacity: 0.5; }
+        .room-item.drag-over { border-top: 2px solid #6366f1; }
+        .room-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; -webkit-user-select: text; }
+        .room-item-grip { cursor: grab; color: #71717a; padding: 0 4px; user-select: none; }
+        .room-item-grip:active { cursor: grabbing; }
+        .room-item-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+        .room-item-actions button { background: none; border: none; color: #71717a; cursor: pointer; padding: 2px; font-size: 0.85rem; }
+        .room-item-actions button:hover { color: #e4e4e7; }
+        .room-item-actions button.delete:hover { color: #f87171; }
+        .room-list-footer { padding: 0.5rem 1rem; border-top: 1px solid #27272a; }
+        .room-list-footer button { width: 100%; padding: 0.5rem; background: #6366f1; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .room-list-footer button:hover { background: #5558e3; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+        .user-list {
+            width: 220px;
+            flex-shrink: 0;
+            background: #18181c;
+            border-left: 1px solid #27272a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .user-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; }
+        .user-list-section { padding: 0.5rem 0; overflow-y: auto; }
+        .user-list-section .user-list-title { border-bottom: none; padding: 0.5rem 1rem 0.25rem; }
+        .user-item { padding: 0.4rem 1rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+        .user-item.online .user-dot { background: #4ade80; }
+        .user-item.offline .user-dot { background: #52525b; }
+        .user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .user-item.me { color: #818cf8; font-weight: 500; }
+        .user-list .muted { color: #71717a; font-size: 0.85rem; }
+        .channel-topic { padding: 0.5rem 1rem; background: #1c1c1f; border-bottom: 1px solid #27272a; font-size: 0.85rem; color: #a1a1aa; user-select: text; -webkit-user-select: text; }
+        .channel-topic strong { color: #e4e4e7; }
+        .channel-topic.empty { display: none; }
+        .settings-view { padding: 1rem; }
+        .settings-view h2 { font-size: 1rem; margin: 1rem 0 0.5rem; color: #818cf8; }
+        .settings-view h2:first-child { margin-top: 0; }
+        .settings-view .user-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0; }
+        .settings-view .user-row label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+        .settings-view .user-row input[type="checkbox"] { width: 1rem; height: 1rem; }
+        .topic-toast { position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%); background: #22c55e; color: #fff; padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.95rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: ping-fade 4s ease-out forwards; pointer-events: none; }
+        .panel-resizer { height: 6px; min-height: 6px; flex-shrink: 0; background: #27272a; cursor: ns-resize; border-top: 1px solid #3f3f46; border-bottom: 1px solid #3f3f46; }
+        .panel-resizer:hover { background: #3f3f46; }
+        .message-list-title { padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; }
+        .message-list-items { flex: 0 0 80px; min-height: 40px; max-height: 50%; overflow-y: auto; }
+        .msg-quote { margin-bottom: 0.35rem; padding: 0.35rem 0.5rem; background: #1e1e24; border-left: 3px solid #6366f1; border-radius: 4px; font-size: 0.85rem; color: #a1a1aa; }
+        .msg-quote strong { color: #818cf8; }
+        .msg-edited { font-size: 0.7rem; color: #71717a; margin-top: 0.2rem; }
+        .room-item.mentioned { background: #3b0764; border-left: 3px solid #a78bfa; }
+        .room-item-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex-shrink: 0; margin-right: 6px; }
+        body.theme-light .room-item-unread-dot { background: #dc2626; }
+        .msg.mentioned { background: #2e1065; border-left: 3px solid #a78bfa; }
+        /* Light theme */
+        body.theme-light { background: #f4f4f5; color: #18181b; }
+        body.theme-light .header { background: #e4e4e7; border-bottom-color: #d4d4d8; }
+        body.theme-light .header-actions a, body.theme-light .header-actions button { color: #52525b; }
+        body.theme-light .header-actions a:hover, body.theme-light .header-actions button:hover { color: #18181b; }
+        body.theme-light .status { color: #52525b; }
+        body.theme-light .room-list, body.theme-light .user-list { background: #e4e4e7; border-color: #d4d4d8; }
+        body.theme-light .room-list-title, body.theme-light .user-list-title { border-color: #d4d4d8; color: #52525b; }
+        body.theme-light .room-item:hover { background: #d4d4d8; }
+        body.theme-light .room-item.active .room-item-name { color: #15803d; }
+        body.theme-light .room-list-footer { border-color: #d4d4d8; }
+        body.theme-light .channel-topic { background: #fafafa; border-color: #d4d4d8; color: #52525b; }
+        body.theme-light .search-bar-wrap { background: #e4e4e7; border-color: #d4d4d8; }
+        body.theme-light .search-form input { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .messages { background: #fafafa; }
+        body.theme-light .msg { background: #e4e4e7; }
+        body.theme-light .msg.own { background: #d4d4d8; }
+        body.theme-light .msg-username:hover { background: #d4d4d8; }
+        body.theme-light .msg-header { color: #6366f1; }
+        body.theme-light .msg-time { color: #71717a; }
+        body.theme-light .msg-content a { color: #6366f1; }
+        body.theme-light .form-wrap { background: #e4e4e7; border-color: #d4d4d8; }
+        body.theme-light .form-wrap input { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .acro-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
+        body.theme-light .typing-indicator { color: #71717a; }
+        body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .context-menu button, body.theme-light .profile-modal p { color: #52525b; }
+        body.theme-light .context-menu button:hover { background: #e4e4e7; }
+        body.theme-light .profile-modal .close, body.theme-light .search-result-item:hover { background: #e4e4e7; }
+        body.theme-light .search-result-item .sr-header { color: #6366f1; }
+        body.theme-light .search-result-item .sr-content { color: #52525b; }
+        body.theme-light .settings-view h2 { color: #6366f1; }
+        body.theme-light .settings-view .user-row label { color: #52525b; }
+        body.theme-light .theme-btn { background: #fafafa; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+        .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+        body.theme-light .ignored-panel { background: #e4e4e7; border-color: #d4d4d8; color: #52525b; }
+    </style>
+</head>
+<body>
+    <div id="contextMenu" class="context-menu" style="display: none;">
+        <button type="button" data-action="view-profile">View profile</button>
+        <button type="button" data-action="message-user">Message</button>
+        <button type="button" data-action="kick-user">Kick user</button>
+    </div>
+    <div id="messageContextMenu" class="context-menu" style="display: none;">
+        <button type="button" data-action="reply-to-message">Reply</button>
+        <button type="button" data-action="edit-message">Edit</button>
+        <button type="button" data-action="delete-message">Delete</button>
+        <button type="button" data-action="report-message">Report message</button>
+        <button type="button" data-action="mark-unread">Mark unread</button>
+        <button type="button" data-action="message-view-profile">View profile</button>
+        <button type="button" data-action="message-whois">Whois</button>
+    </div>
+    <div id="profileModal" class="profile-modal" style="display: none;">
+        <h3 id="profileUsername">—</h3>
+        <p id="profileMemberSince"></p>
+        <button type="button" class="close" id="profileModalClose">Close</button>
+    </div>
+    <div id="whoisModal" class="profile-modal" style="display: none;">
+        <h3 id="whoisUsername">—</h3>
+        <p id="whoisDisplayName" style="display:none;"></p>
+        <p id="whoisCreated"></p>
+        <p id="whoisOnline"></p>
+        <p id="whoisLastSeen" style="display:none;"></p>
+        <p id="whoisStatus" style="display:none;"></p>
+        <p id="whoisIp"></p>
+        <p id="whoisConnected"></p>
+        <p id="whoisSharedRooms" style="display:none;"></p>
+        <button type="button" class="close" id="whoisModalClose">Close</button>
+    </div>
+    <div id="modalBackdrop" class="modal-backdrop" style="display: none;"></div>
+    <div id="searchResultsModal" class="search-results-modal" style="display: none;">
+        <h3 id="searchResultsTitle">Search results</h3>
+        <div class="search-results-list" id="searchResultsList"></div>
+        <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
+    </div>
+    <div class="header">
+        <h1>ChitChat — {{ user.username }}</h1>
+        <div class="header-actions">
+            <button type="button" id="settingsBtn">Settings</button>
+            <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
+                <button type="submit">Log out</button>
+            </form>
+        </div>
+    </div>
+    <div class="status" id="status">Connecting…</div>
+    <div class="ignored-panel" id="ignoredPanel" style="display: none;"></div>
+    <div class="main">
+        <aside class="room-list" id="roomList">
+            <div class="room-list-title">ROOMS</div>
+            <div class="room-list-items" id="roomListItems"></div>
+            <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
+            <div class="message-list-title">MESSAGES</div>
+            <div class="message-list-items" id="messageListItems"></div>
+            <div class="room-list-footer">
+                {% if user.is_super_admin %}
+                <button type="button" id="newRoomBtn">+ New room</button>
+                {% endif %}
+            </div>
+        </aside>
+        <div class="chat-area">
+            <div class="channel-topic empty" id="channelTopic"></div>
+            <div class="search-bar-wrap" id="searchBarWrap">
+                <button type="button" id="searchToggleBtn" class="search-toggle-btn" title="Search in this room">Search</button>
+                <div class="search-drawer" id="searchDrawer">
+                    <form id="searchForm" class="search-form">
+                        <input type="text" id="searchInput" placeholder="Search in this room…" autocomplete="off">
+                        <button type="submit" id="searchBtn">Search</button>
+                    </form>
+                </div>
+            </div>
+            <div class="messages-wrap" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+                <div class="load-more-wrap" id="loadMoreWrap" style="display:none;"><button type="button" id="loadMoreBtn">Load older messages</button></div>
+                <div class="messages" id="messages"></div>
+            </div>
+            <div class="typing-indicator empty" id="typingIndicator"></div>
+            <div class="acro-timer hidden" id="acroTimer"></div>
+            <div class="form-wrap">
+                <form id="sendForm">
+                    <input type="text" id="input" placeholder="Type a message…" autocomplete="off">
+                    <button type="submit" id="sendBtn" disabled>Send</button>
+                </form>
+            </div>
+        </div>
+        <aside class="user-list" id="userList">
+            <div class="user-list-title">Users</div>
+            <div class="user-list-section" id="userListOnline">
+                <div class="user-list-title">Online</div>
+                <div id="userListOnlineItems"></div>
+            </div>
+            <div class="user-list-section" id="userListOffline">
+                <div class="user-list-title">Offline</div>
+                <div id="userListOfflineItems"></div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+(function() {
+    const currentUserId = {{ user.id }};
+    const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
+    let socket = null;
+    let ignoreList = [];
+    let currentRoom = null;
+    let allRooms = [];
+    let allUsersWithStatus = [];
+    let showingSettings = false;
+    let acrobotActive = true;
+    const messagesEl = document.getElementById('messages');
+    const statusEl = document.getElementById('status');
+    const sendForm = document.getElementById('sendForm');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    const ignoredPanel = document.getElementById('ignoredPanel');
+    const userListOnlineItems = document.getElementById('userListOnlineItems');
+    const userListOfflineItems = document.getElementById('userListOfflineItems');
+    const roomListItemsEl = document.getElementById('roomListItems');
+    const messageListItemsEl = document.getElementById('messageListItems');
+    const newRoomBtn = document.getElementById('newRoomBtn');
+    const channelTopicEl = document.getElementById('channelTopic');
+    const searchBarWrapEl = document.getElementById('searchBarWrap');
+    const searchDrawerEl = document.getElementById('searchDrawer');
+    const searchToggleBtn = document.getElementById('searchToggleBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const loadMoreWrap = document.getElementById('loadMoreWrap');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    const typingIndicatorEl = document.getElementById('typingIndicator');
+    const acroTimerEl = document.getElementById('acroTimer');
+    var roomOrderIds = [];
+    var hasMoreMessages = false;
+    var typingUsers = {};
+    var typingTimeout = null;
+    var replyToMessageId = null;
+    var replyToContent = null;
+    var replyToDisplayName = null;
+    var unreadMentions = {}; // room_id -> Set of message_id
+    var unreadRooms = {};    // room_id -> true when room has new message(s) not yet read
+    var lastReadByRoom = {}; // room_id -> last message id we've "read" (cleared highlight)
+    var baseTitle = document.title || 'ChitChat';
+    var acroPhase = null;
+    var acroEndTime = null;
+    var acroTimerInterval = null;
+    var messagesSectionHeight = parseInt(localStorage.getItem('chitchatMessagesSectionHeight') || '80', 10) || 80;
+
+    function addUnreadMention(roomId, msgId) {
+        if (!unreadMentions[roomId]) unreadMentions[roomId] = new Set();
+        unreadMentions[roomId].add(msgId);
+        updateUnreadBadge();
+        var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
+        if (roomEl) roomEl.classList.add('mentioned');
+    }
+    function addUnreadForRoom(roomId) {
+        if (currentRoom && currentRoom.id === roomId) return;
+        unreadRooms[roomId] = true;
+        updateUnreadBadge();
+        var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
+        if (roomEl) {
+            var dot = roomEl.querySelector('.room-item-unread-dot');
+            if (dot) dot.style.display = 'inline-block';
+        }
+    }
+    function clearUnreadForRoom(roomId) {
+        if (unreadMentions[roomId]) { unreadMentions[roomId].clear(); delete unreadMentions[roomId]; }
+        delete unreadRooms[roomId];
+        lastReadByRoom[roomId] = true;
+        updateUnreadBadge();
+        var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
+        if (roomEl) {
+            roomEl.classList.remove('mentioned');
+            var dot = roomEl.querySelector('.room-item-unread-dot');
+            if (dot) dot.style.display = 'none';
+        }
+        if (currentRoom && currentRoom.id === roomId) messagesEl.querySelectorAll('.msg').forEach(function(el) { el.classList.remove('mentioned'); });
+    }
+    function isMessageUnread(roomId, msgId) {
+        return unreadMentions[roomId] && unreadMentions[roomId].has(msgId);
+    }
+    function updateUnreadBadge() {
+        var count = 0;
+        Object.keys(unreadRooms).forEach(function() { count += 1; });
+        Object.keys(unreadMentions).forEach(function(rid) { count += (unreadMentions[rid] && unreadMentions[rid].size) || 0; });
+        document.title = (count > 0 ? '(' + count + ') ' : '') + baseTitle;
+        var link = document.querySelector('link[rel="icon"]') || document.createElement('link');
+        if (!link.getAttribute('rel')) { link.rel = 'icon'; document.head.appendChild(link); }
+        if (count > 0) {
+            if (!link.dataset.originalFavicon) link.dataset.originalFavicon = link.href || '';
+            var canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0f0f12';
+            ctx.fillRect(0, 0, 32, 32);
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(24, 8, 6, 0, Math.PI * 2);
+            ctx.fill();
+            link.href = canvas.toDataURL('image/png');
+        } else {
+            link.href = link.dataset.originalFavicon || '';
+        }
+    }
+
+    function setStatus(text) { statusEl.textContent = text; }
+    function setConnected(ok) { sendBtn.disabled = !ok; setStatus(ok ? 'Connected' : statusEl.textContent); }
+
+    function isHidden(msg) { return ignoreList.indexOf(msg.user_id) !== -1; }
+
+    function formatTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true });
+    }
+
+    function renderMessage(msg, isOwn) {
+        const isEmote = msg.message_type === 'emote';
+        const div = document.createElement('div');
+        div.className = 'msg' + (isOwn ? ' own' : '') + (isEmote ? ' emote' : '') + (isHidden(msg) ? ' hidden' : '');
+        div.dataset.msgId = msg.id;
+        div.dataset.userId = msg.user_id;
+        if (msg.room_id != null && isMessageUnread(msg.room_id, msg.id)) div.classList.add('mentioned');
+        var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
+        var uname = escapeHtml(displayName);
+        var contentHtml;
+        if (isEmote) {
+            contentHtml = '<em>* ' + escapeHtml(msg.username || '?') + ' ' + linkify(msg.content) + '</em>';
+        } else {
+            var raw = msg.content || '';
+            contentHtml = typeof marked !== 'undefined' ? marked.parse(raw) : escapeHtml(raw);
+            contentHtml = contentHtml.replace(/(https?:\/\/[^\s<>"']+)/g, function(match) {
+                var offset = arguments[arguments.length - 2];
+                var fullStr = arguments[arguments.length - 1];
+                if (offset > 0 && fullStr[offset - 1] === '"') return match;
+                return '<a href="' + escapeAttr(match) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(match) + '</a>';
+            });
+        }
+        var quoteHtml = '';
+        if (msg.parent_id && (msg.parent_content != null || msg.parent_username != null)) {
+            var pName = (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?');
+            quoteHtml = '<div class="msg-quote"><strong>' + escapeHtml(pName) + '</strong>: ' + escapeHtml((msg.parent_content || '').slice(0, 200)) + ((msg.parent_content || '').length > 200 ? '…' : '') + '</div>';
+        }
+        var editedHtml = '';
+        if (msg.edited_at) {
+            editedHtml = '<div class="msg-edited">edited ' + formatTime(msg.edited_at) + '</div>';
+        }
+        var linkPreviewsHtml = '';
+        if (msg.link_previews && msg.link_previews.length) {
+            msg.link_previews.forEach(function(p) {
+                var title = (p.title && p.title.trim()) ? escapeHtml(p.title) : '';
+                var desc = (p.description && p.description.trim()) ? escapeHtml(p.description) : '';
+                var img = (p.image && p.image.trim()) ? '<img class="link-preview-img" src="' + escapeAttr(p.image) + '" alt="">' : '';
+                linkPreviewsHtml += '<div class="msg-link-preview" data-url="' + escapeAttr(p.url || '') + '"><div class="link-preview-header"><a href="' + escapeAttr(p.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml((p.url || '').replace(/^https?:\/\//, '')) + '</a><button type="button" class="link-preview-minimize" title="Minimize">−</button></div><div class="link-preview-body">' + (title ? '<div class="link-preview-title">' + title + '</div>' : '') + (desc ? '<div class="link-preview-desc">' + desc + '</div>' : '') + img + '</div></div>';
+            });
+        }
+        div.innerHTML =
+            '<div class="msg-header"><span class="msg-username" data-user-id="' + msg.user_id + '" data-username="' + escapeAttr(msg.username || '') + '">' + uname + '</span> <span class="msg-time">' + formatTime(msg.created_at) + '</span></div>' +
+            (quoteHtml || '') +
+            '<div class="msg-content">' + contentHtml + '</div>' +
+            (editedHtml || '') +
+            (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '') +
+            (!isOwn && !isEmote ? '<div class="msg-actions"><button type="button" class="btn-ignore" data-user-id="' + msg.user_id + '">Ignore user</button></div>' : '');
+        div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
+            btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
+        });
+        return div;
+    }
+
+    function showPingToast(fromUsername) {
+        var el = document.createElement('div');
+        el.className = 'ping-toast';
+        el.textContent = fromUsername + ' pinged you!';
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 4000);
+    }
+
+    function showTopicToast(setByUsername) {
+        var el = document.createElement('div');
+        el.className = 'topic-toast';
+        el.textContent = 'Channel topic updated by ' + (setByUsername || 'someone') + '.';
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 4000);
+    }
+
+    function renderChannelTopic(room) {
+        if (!channelTopicEl) return;
+        if (!room || !room.topic) {
+            channelTopicEl.classList.add('empty');
+            channelTopicEl.innerHTML = '';
+            return;
+        }
+        channelTopicEl.classList.remove('empty');
+        var setBy = room.topic_set_by_username || 'Someone';
+        var setAt = room.topic_set_at ? new Date(room.topic_set_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '';
+        channelTopicEl.innerHTML = '<strong>Topic:</strong> ' + escapeHtml(room.topic) + (setBy || setAt ? ' <span style="color:#71717a;">— Set by ' + escapeHtml(setBy) + (setAt ? ' on ' + setAt : '') + '</span>' : '');
+    }
+
+    var contextMenuEl = document.getElementById('contextMenu');
+    var contextMenuTarget = null;
+    var kickBtn = contextMenuEl.querySelector('[data-action="kick-user"]');
+    function showContextMenu(x, y, userId, username) {
+        contextMenuTarget = { user_id: userId, username: username };
+        kickBtn.style.display = (userId !== currentUserId && isSuperAdmin) ? 'block' : 'none';
+        contextMenuEl.style.left = x + 'px';
+        contextMenuEl.style.top = y + 'px';
+        contextMenuEl.style.display = 'block';
+    }
+    function hideContextMenu() {
+        contextMenuEl.style.display = 'none';
+        contextMenuTarget = null;
+    }
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('#contextMenu')) return;
+        hideContextMenu();
+    });
+    var messageContextMenuEl = document.getElementById('messageContextMenu');
+    var messageContextTarget = null;
+    function showMessageContextMenu(x, y, messageId, userId, content, displayName) {
+        messageContextTarget = { messageId: messageId, userId: userId, content: content || '', displayName: displayName || '?' };
+        var editBtn = messageContextMenuEl.querySelector('[data-action="edit-message"]');
+        var delBtn = messageContextMenuEl.querySelector('[data-action="delete-message"]');
+        if (editBtn) editBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
+        if (delBtn) delBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
+        messageContextMenuEl.style.left = x + 'px';
+        messageContextMenuEl.style.top = y + 'px';
+        messageContextMenuEl.style.display = 'block';
+    }
+    function hideMessageContextMenu() {
+        messageContextMenuEl.style.display = 'none';
+        messageContextTarget = null;
+    }
+
+    document.addEventListener('contextmenu', function(e) {
+        if (e.target.closest('#contextMenu') || e.target.closest('#messageContextMenu')) return;
+        if (e.target.closest('.msg-username') || e.target.closest('.user-item[data-user-id]')) return;
+        if (e.target.closest('.msg')) return;
+        hideContextMenu();
+        hideMessageContextMenu();
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#messageContextMenu')) hideMessageContextMenu();
+    });
+
+    messagesEl.addEventListener('contextmenu', function(e) {
+        var userEl = e.target.closest('.msg-username');
+        if (userEl) {
+            e.preventDefault();
+            var uid = parseInt(userEl.getAttribute('data-user-id'), 10);
+            var uname = userEl.getAttribute('data-username') || '';
+            if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
+            return;
+        }
+        var msgEl = e.target.closest('.msg[data-msg-id]');
+        if (msgEl) {
+            e.preventDefault();
+            hideContextMenu();
+            var mid = parseInt(msgEl.getAttribute('data-msg-id'), 10);
+            var uid = parseInt(msgEl.getAttribute('data-user-id'), 10);
+            var contentEl = msgEl.querySelector('.msg-content');
+            var content = contentEl ? contentEl.textContent : '';
+            var headerEl = msgEl.querySelector('.msg-username');
+            var displayName = headerEl ? headerEl.textContent.trim() : '?';
+            if (mid) showMessageContextMenu(e.clientX, e.clientY, mid, uid, content, displayName);
+        }
+    });
+    document.getElementById('userList').addEventListener('contextmenu', function(e) {
+        var el = e.target.closest('.user-item[data-user-id]');
+        if (el && parseInt(el.getAttribute('data-user-id'), 10) !== currentUserId) {
+            e.preventDefault();
+            var uid = parseInt(el.getAttribute('data-user-id'), 10);
+            var uname = el.getAttribute('data-username') || '';
+            if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
+        }
+    });
+
+    contextMenuEl.querySelector('[data-action="view-profile"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (contextMenuTarget) {
+            socket.emit('get_user_profile', { user_id: contextMenuTarget.user_id });
+        }
+        hideContextMenu();
+    });
+    contextMenuEl.querySelector('[data-action="message-user"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (contextMenuTarget) {
+            socket.emit('get_or_create_dm', { other_user_id: contextMenuTarget.user_id });
+        }
+        hideContextMenu();
+    });
+    contextMenuEl.querySelector('[data-action="kick-user"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (contextMenuTarget && currentRoom) {
+            socket.emit('kick_user', { room_id: currentRoom.id, target_user_id: contextMenuTarget.user_id });
+        }
+        hideContextMenu();
+    });
+
+    messageContextMenuEl.querySelector('[data-action="reply-to-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && currentRoom) {
+            replyToMessageId = messageContextTarget.messageId;
+            replyToContent = messageContextTarget.content;
+            replyToDisplayName = messageContextTarget.displayName;
+            var quote = (replyToContent || '').slice(0, 200) + ((replyToContent || '').length > 200 ? '…' : '');
+            inputEl.value = '> @' + (replyToDisplayName || '?') + ': ' + quote.replace(/\n/g, ' ') + '\n\n';
+            inputEl.focus();
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="edit-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && messageContextTarget.userId === currentUserId) {
+            var newContent = prompt('Edit message:', messageContextTarget.content);
+            if (newContent !== null && newContent.trim()) {
+                socket.emit('edit_message', { message_id: messageContextTarget.messageId, content: newContent.trim() });
+            }
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="delete-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && messageContextTarget.userId === currentUserId) {
+            if (!confirm('Delete this message?')) { hideMessageContextMenu(); return; }
+            if (!confirm('This will permanently erase the message and all its history. Are you sure?')) {
+                hideMessageContextMenu();
+                return;
+            }
+            socket.emit('delete_message', { message_id: messageContextTarget.messageId });
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="report-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget) {
+            var reason = prompt('Optional: briefly describe why you are reporting this message (or leave blank):');
+            if (reason !== null) {
+                socket.emit('report_message', { message_id: messageContextTarget.messageId, reason: reason ? reason.trim() : null });
+            }
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="mark-unread"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && currentRoom) {
+            addUnreadMention(currentRoom.id, messageContextTarget.messageId);
+            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
+            if (msgEl) msgEl.classList.add('mentioned');
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="message-view-profile"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && messageContextTarget.userId) {
+            socket.emit('get_user_profile', { user_id: messageContextTarget.userId });
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="message-whois"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && messageContextTarget.userId) {
+            socket.emit('get_whois', { user_id: messageContextTarget.userId });
+        }
+        hideMessageContextMenu();
+    });
+
+    var profileModal = document.getElementById('profileModal');
+    var profileUsername = document.getElementById('profileUsername');
+    var profileMemberSince = document.getElementById('profileMemberSince');
+    var modalBackdrop = document.getElementById('modalBackdrop');
+    function showProfileModal(user) {
+        profileUsername.textContent = user.username || '—';
+        profileMemberSince.textContent = user.created_at ? 'Member since ' + new Date(user.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '';
+        profileModal.style.display = 'block';
+        modalBackdrop.style.display = 'block';
+    }
+    function hideProfileModal() {
+        profileModal.style.display = 'none';
+        modalBackdrop.style.display = 'none';
+    }
+    document.getElementById('profileModalClose').addEventListener('click', hideProfileModal);
+    function hideAllModals() {
+        hideProfileModal();
+        hideWhoisModal();
+        hideSearchResultsModal();
+    }
+    modalBackdrop.addEventListener('click', hideAllModals);
+
+    var searchResultsModal = document.getElementById('searchResultsModal');
+    var searchResultsTitle = document.getElementById('searchResultsTitle');
+    var searchResultsList = document.getElementById('searchResultsList');
+    function showSearchResultsModal(messages, query) {
+        searchResultsTitle.textContent = 'Search: "' + escapeHtml(query) + '" (' + (messages ? messages.length : 0) + ' results)';
+        searchResultsList.innerHTML = '';
+        if (messages && messages.length) {
+            messages.forEach(function(msg) {
+                var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
+                var roomLabel = msg.room_name ? ' · ' + escapeHtml(msg.room_name) : '';
+                var contentSnippet = (msg.content || '').slice(0, 120) + ((msg.content || '').length > 120 ? '…' : '');
+                var el = document.createElement('div');
+                el.className = 'search-result-item';
+                el.dataset.msgId = msg.id;
+                el.dataset.roomId = msg.room_id;
+                el.innerHTML = '<div class="sr-header">' + escapeHtml(displayName) + ' ' + (msg.created_at ? formatTime(msg.created_at) : '') + roomLabel + '</div><div class="sr-content">' + escapeHtml(contentSnippet) + '</div>';
+                el.addEventListener('click', function() {
+                    var rid = parseInt(this.dataset.roomId, 10);
+                    var mid = parseInt(this.dataset.msgId, 10);
+                    hideSearchResultsModal();
+                    if (currentRoom && currentRoom.id === rid) {
+                        var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + mid + '"]');
+                        if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else if (rid) switchRoom(rid);
+                });
+                searchResultsList.appendChild(el);
+            });
+        } else {
+            searchResultsList.innerHTML = '<div class="search-result-item" style="cursor:default;color:#71717a;">No messages found.</div>';
+        }
+        searchResultsModal.style.display = 'block';
+        modalBackdrop.style.display = 'block';
+    }
+    function hideSearchResultsModal() {
+        searchResultsModal.style.display = 'none';
+        modalBackdrop.style.display = (profileModal.style.display === 'block' || whoisModal.style.display === 'block') ? 'block' : 'none';
+    }
+    document.getElementById('searchResultsClose').addEventListener('click', hideSearchResultsModal);
+
+    var whoisModal = document.getElementById('whoisModal');
+    var whoisUsername = document.getElementById('whoisUsername');
+    var whoisCreated = document.getElementById('whoisCreated');
+    var whoisOnline = document.getElementById('whoisOnline');
+    var whoisIp = document.getElementById('whoisIp');
+    var whoisConnected = document.getElementById('whoisConnected');
+    var whoisDisplayName = document.getElementById('whoisDisplayName');
+    var whoisLastSeen = document.getElementById('whoisLastSeen');
+    var whoisStatus = document.getElementById('whoisStatus');
+    var whoisSharedRooms = document.getElementById('whoisSharedRooms');
+    function showWhoisModal(data) {
+        if (data.error) {
+            whoisUsername.textContent = 'Whois';
+            whoisCreated.textContent = data.error;
+            whoisOnline.style.display = 'none';
+            whoisIp.style.display = 'none';
+            whoisConnected.style.display = 'none';
+            whoisDisplayName.style.display = 'none';
+            whoisLastSeen.style.display = 'none';
+            whoisStatus.style.display = 'none';
+            whoisSharedRooms.style.display = 'none';
+        } else {
+            whoisUsername.textContent = data.username || '—';
+            whoisCreated.textContent = data.created_at ? 'Account created: ' + new Date(data.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '';
+            whoisOnline.textContent = 'Online: ' + (data.online ? 'Yes' : 'No');
+            whoisOnline.style.display = '';
+            if (data.display_name && data.display_name.trim()) {
+                whoisDisplayName.textContent = 'Display name: ' + data.display_name;
+                whoisDisplayName.style.display = '';
+            } else {
+                whoisDisplayName.style.display = 'none';
+            }
+            if (data.last_seen && !data.online) {
+                whoisLastSeen.textContent = 'Last seen: ' + new Date(data.last_seen).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+                whoisLastSeen.style.display = '';
+            } else {
+                whoisLastSeen.style.display = 'none';
+            }
+            if (data.status_line && data.status_line.trim()) {
+                whoisStatus.textContent = 'Status: ' + data.status_line;
+                whoisStatus.style.display = '';
+            } else {
+                whoisStatus.style.display = 'none';
+            }
+            if (data.shared_rooms && data.shared_rooms.length) {
+                whoisSharedRooms.textContent = 'Rooms with messages: ' + data.shared_rooms.join(', ');
+                whoisSharedRooms.style.display = '';
+            } else {
+                whoisSharedRooms.style.display = 'none';
+            }
+            if (data.online && data.ip) {
+                whoisIp.textContent = 'IP: ' + data.ip;
+                whoisIp.style.display = '';
+            } else {
+                whoisIp.style.display = data.online ? '' : 'none';
+                whoisIp.textContent = data.online ? 'IP: —' : '';
+            }
+            if (data.online && data.connected_at != null) {
+                var since = data.connected_seconds != null ? (data.connected_seconds < 60 ? data.connected_seconds + 's' : Math.floor(data.connected_seconds / 60) + ' min') : '';
+                whoisConnected.textContent = 'Connected since: ' + new Date(data.connected_at * 1000).toLocaleTimeString(undefined, { timeStyle: 'short' }) + (since ? ' (' + since + ')' : '');
+                whoisConnected.style.display = '';
+            } else {
+                whoisConnected.style.display = 'none';
+            }
+        }
+        whoisModal.style.display = 'block';
+        modalBackdrop.style.display = 'block';
+    }
+    function hideWhoisModal() {
+        whoisModal.style.display = 'none';
+        modalBackdrop.style.display = 'none';
+    }
+    document.getElementById('whoisModalClose').addEventListener('click', hideWhoisModal);
+
+    function escapeHtml(s) {
+        const el = document.createElement('div');
+        el.textContent = s;
+        return el.innerHTML;
+    }
+
+    function escapeAttr(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function linkify(s) {
+        if (!s) return '';
+        var urlRegex = /https?:\/\/[^\s<>"\']+/g;
+        var out = [];
+        var lastIndex = 0;
+        var match;
+        while ((match = urlRegex.exec(s)) !== null) {
+            out.push(escapeHtml(s.slice(lastIndex, match.index)));
+            var url = match[0];
+            out.push('<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(url) + '</a>');
+            lastIndex = match.index + url.length;
+        }
+        out.push(escapeHtml(s.slice(lastIndex)));
+        return out.join('');
+    }
+
+    function renderAllMessages(history) {
+        messagesEl.innerHTML = '';
+        messagesEl.classList.toggle('is-dm', !!(currentRoom && currentRoom.is_dm));
+        sendForm.style.display = '';
+        channelTopicEl.style.display = '';
+        renderChannelTopic(currentRoom);
+        (history || []).forEach(function(msg) {
+            const el = renderMessage(msg, msg.user_id === currentUserId);
+            messagesEl.appendChild(el);
+        });
+        messagesEl.querySelectorAll('.btn-ignore').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const uid = parseInt(this.getAttribute('data-user-id'), 10);
+                if (uid) socket.emit('ignore_user', { ignored_user_id: uid });
+            });
+        });
+        if (loadMoreWrap) loadMoreWrap.style.display = hasMoreMessages ? 'block' : 'none';
+        if (channelTopicEl) channelTopicEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+        if (searchBarWrapEl) searchBarWrapEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+        requestAnimationFrame(function() {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        });
+    }
+
+    function prependOlderMessages(older) {
+        if (!messagesEl || !older || !older.length) return;
+        var frag = document.createDocumentFragment();
+        older.forEach(function(msg) {
+            var el = renderMessage(msg, msg.user_id === currentUserId);
+            frag.appendChild(el);
+        });
+        messagesEl.insertBefore(frag, messagesEl.firstChild);
+        messagesEl.querySelectorAll('.btn-ignore').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const uid = parseInt(this.getAttribute('data-user-id'), 10);
+                if (uid) socket.emit('ignore_user', { ignored_user_id: uid });
+            });
+        });
+    }
+
+    function setAcroPhase(phase, endTime) {
+        acroPhase = phase;
+        acroEndTime = endTime;
+        if (acroTimerInterval) { clearInterval(acroTimerInterval); acroTimerInterval = null; }
+        if (!acroTimerEl) return;
+        if ((phase === 'submitting' || phase === 'voting') && endTime != null) {
+            acroTimerEl.classList.remove('hidden');
+            function tick() {
+                var now = Date.now() / 1000;
+                var sec = Math.max(0, Math.floor(acroEndTime - now));
+                if (sec <= 0) {
+                    if (acroTimerInterval) { clearInterval(acroTimerInterval); acroTimerInterval = null; }
+                    acroPhase = 'idle';
+                    acroEndTime = null;
+                    acroTimerEl.classList.add('hidden');
+                    acroTimerEl.textContent = '';
+                    return;
+                }
+                var label = acroPhase === 'submitting' ? 'Submit' : 'Vote';
+                acroTimerEl.textContent = label + ': ' + sec + 's';
+            }
+            tick();
+            acroTimerInterval = setInterval(tick, 1000);
+        } else {
+            acroTimerEl.classList.add('hidden');
+            acroTimerEl.textContent = '';
+        }
+    }
+
+    function updateTypingIndicator() {
+        if (!typingIndicatorEl) return;
+        var users = Object.keys(typingUsers).map(function(uid) { return typingUsers[uid].username; }).filter(Boolean);
+        if (users.length === 0) {
+            typingIndicatorEl.classList.add('empty');
+            typingIndicatorEl.textContent = '';
+        } else {
+            typingIndicatorEl.classList.remove('empty');
+            typingIndicatorEl.textContent = users.length === 1 ? (users[0] + ' is typing...') : (users.join(', ') + ' are typing...');
+        }
+    }
+
+    function renderStatsView(stats) {
+        messagesEl.innerHTML = '';
+        messagesEl.classList.remove('is-dm');
+        if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+        hasMoreMessages = false;
+        sendForm.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+        if (channelTopicEl) channelTopicEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+        if (searchBarWrapEl) searchBarWrapEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+        if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats') renderChannelTopic(currentRoom);
+        if (!stats) return;
+        var div = document.createElement('div');
+        div.className = 'stats-view';
+        var topTypers = stats.top_typers || [];
+        var maxTypers = Math.max(1, Math.max.apply(null, topTypers.map(function(t) { return t.count; })));
+        var activeHours = stats.active_hours || [];
+        var maxHours = Math.max(1, Math.max.apply(null, activeHours.map(function(h) { return h.count; })));
+        var html = '<h2>Top 10 typers</h2><ul>';
+        topTypers.forEach(function(t) {
+            var pct = maxTypers ? (100 * t.count / maxTypers) : 0;
+            html += '<li class="stat-row"><span>' + escapeHtml(t.username) + '</span><span>' + t.count + ' msgs</span><span class="stat-bar-wrap"><span class="stat-bar" style="width:' + pct + '%"></span></span></li>';
+        });
+        html += '</ul><h2>Active hours (messages per hour)</h2><ul>';
+        var hourCounts = {};
+        activeHours.forEach(function(h) { hourCounts[h.hour] = h.count; });
+        for (var hour = 0; hour < 24; hour++) {
+            var c = hourCounts[hour] || 0;
+            var pct = maxHours ? (100 * c / maxHours) : 0;
+            var label = (hour === 0 ? '12' : hour > 12 ? hour - 12 : hour) + (hour < 12 ? ' AM' : ' PM');
+            html += '<li class="stat-row"><span>' + label + '</span><span>' + c + '</span><span class="stat-bar-wrap"><span class="stat-bar" style="width:' + pct + '%"></span></span></li>';
+        }
+        html += '</ul><h2>Favorite words (top typers)</h2>';
+        (stats.favorite_words || []).forEach(function(f) {
+            html += '<p><strong>' + escapeHtml(f.username) + '</strong> <span class="favorite-words">' + (f.words || []).map(function(w) { return escapeHtml(w.word) + ' (' + w.count + ')'; }).join(', ') + '</span></p>';
+        });
+        div.innerHTML = html;
+        messagesEl.appendChild(div);
+    }
+
+    function renderSettingsView() {
+        messagesEl.innerHTML = '';
+        messagesEl.classList.remove('is-dm');
+        sendForm.style.display = 'none';
+        if (channelTopicEl) channelTopicEl.style.display = 'none';
+        if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
+        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+        socket.emit('get_acrobot_status');
+        var div = document.createElement('div');
+        div.className = 'settings-view';
+        var html = '<h2>Account</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>';
+        html += '<div class="user-row"><a href="/delete-account" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>';
+        html += '<h2>Export</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Download messages as JSON or HTML.</p>';
+        if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats') {
+            html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?room_id=' + currentRoom.id + '&format=json" style="font-size:0.9rem;color:#818cf8;">Export this room (JSON)</a><a href="/export?room_id=' + currentRoom.id + '&format=html" style="font-size:0.9rem;color:#818cf8;">Export this room (HTML)</a></div>';
+        }
+        if (isSuperAdmin) {
+            html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?format=json" style="font-size:0.9rem;color:#818cf8;">Export all (JSON)</a><a href="/export?format=html" style="font-size:0.9rem;color:#818cf8;">Export all (HTML)</a></div>';
+        }
+        html += '<h2>Appearance</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Theme and chat background (saved in this browser).</p>';
+        var savedTheme = localStorage.getItem('chitchatTheme') || 'dark';
+        html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Theme:</span> <button type="button" class="theme-btn' + (savedTheme === 'dark' ? ' active' : '') + '" data-theme="dark" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button> <button type="button" class="theme-btn' + (savedTheme === 'light' ? ' active' : '') + '" data-theme="light" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button></div>';
+        var savedBg = localStorage.getItem('chatBgColor') || '#0f0f12';
+        html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><label style="display:flex;align-items:center;gap:0.5rem;">Chat background: <input type="color" id="chatBgColor" value="' + escapeAttr(savedBg) + '" style="width:2.5rem;height:1.5rem;padding:0;border:none;border-radius:4px;cursor:pointer;"></label></div>';
+        if (isSuperAdmin) {
+            html += '<h2>AcroBot</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia channel. When offline, the bot will not start rounds or accept votes.</p>';
+            html += '<div class="user-row"><label><input type="checkbox" id="acrobotActiveToggle" ' + (acrobotActive ? 'checked' : '') + '> <span>AcroBot is online</span></label></div>';
+        }
+        if (isSuperAdmin) {
+            html += '<h2>Stats</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>';
+            html += '<div class="user-row"><button type="button" id="resetStatsDataBtn" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>';
+            html += '<h2>Channels</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels (Stats, Acrophobia, System Events) can only be removed here.</p>';
+            (allRooms || []).forEach(function(r) {
+                var isProtected = ['general', 'Stats', 'Acrophobia', 'System Events'].indexOf(r.name) !== -1;
+                html += '<div class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">' +
+                    '<span>' + escapeHtml(r.name) + (isProtected ? ' <span style="color:#71717a;">(protected)</span>' : '') + '</span>' +
+                    (r.name !== 'general' ? '<button type="button" class="settings-delete-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>' : '') +
+                    '</div>';
+            });
+        }
+        if (isSuperAdmin) {
+            var ranks = [
+                { value: 'rookie', label: 'Rookie' },
+                { value: 'bro', label: 'Bro' },
+                { value: 'fam', label: 'Fam' },
+                { value: 'super_admin', label: 'Super Admin' }
+            ];
+            html += '<h2>Users — Rankings</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Super Admins can set user rankings (lowest to highest: Rookie, Bro, Fam, Super Admin).</p>';
+            (allUsersWithStatus || []).forEach(function(u) {
+                var me = u.id === currentUserId;
+                var currentRank = (u.rank || 'rookie').toLowerCase();
+                if (['rookie', 'bro', 'fam', 'super_admin'].indexOf(currentRank) === -1) currentRank = 'rookie';
+                var label = escapeHtml(u.username) + (u.online ? ' <span style="color:#4ade80;">●</span>' : '') + (me ? ' (you)' : '');
+                html += '<div class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">';
+                html += '<span style="min-width:120px;">' + label + '</span>';
+                html += '<select data-user-id="' + u.id + '" class="user-rank-select" ' + (me ? 'disabled title="You cannot change your own rank" ' : '') + ' style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">';
+                ranks.forEach(function(r) {
+                    html += '<option value="' + escapeAttr(r.value) + '"' + (currentRank === r.value ? ' selected' : '') + '>' + escapeHtml(r.label) + '</option>';
+                });
+                html += '</select></div>';
+            });
+        }
+        div.innerHTML = html;
+        messagesEl.appendChild(div);
+        var acrobotToggle = document.getElementById('acrobotActiveToggle');
+        if (acrobotToggle) {
+            acrobotToggle.addEventListener('change', function() {
+                acrobotActive = acrobotToggle.checked;
+                socket.emit('set_acrobot_active', { active: acrobotActive });
+            });
+        }
+        div.querySelectorAll('select.user-rank-select').forEach(function(sel) {
+            var uid = parseInt(sel.getAttribute('data-user-id'), 10);
+            if (uid === currentUserId) return;
+            sel.addEventListener('change', function() {
+                var rank = sel.value;
+                if (rank) socket.emit('set_user_rank', { target_user_id: uid, rank: rank });
+            });
+        });
+        var resetStatsBtn = div.querySelector('#resetStatsDataBtn');
+        if (resetStatsBtn) {
+            resetStatsBtn.addEventListener('click', function() {
+                var typed = prompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.');
+                if (typed !== 'RESET') {
+                    if (typed !== null) setStatus('Reset cancelled. You must type RESET exactly.');
+                    return;
+                }
+                socket.emit('reset_stats_data', { confirm: 'RESET' });
+            });
+        }
+        div.querySelectorAll('button.settings-delete-room').forEach(function(btn) {
+            var rid = parseInt(btn.getAttribute('data-room-id'), 10);
+            var rname = btn.getAttribute('data-room-name') || '';
+            btn.addEventListener('click', function() {
+                if (!confirm('Delete channel "' + rname + '" and all its messages?')) return;
+                socket.emit('delete_room', { room_id: rid, from_settings: true });
+            });
+        });
+        var chatBgColorEl = document.getElementById('chatBgColor');
+        if (chatBgColorEl) {
+            chatBgColorEl.value = localStorage.getItem('chatBgColor') || '#0f0f12';
+            chatBgColorEl.addEventListener('input', function() {
+                var val = this.value;
+                localStorage.setItem('chatBgColor', val);
+                applyChatBackgroundColor();
+            });
+        }
+        div.querySelectorAll('.theme-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var theme = this.getAttribute('data-theme') || 'dark';
+                applyTheme(theme);
+                div.querySelectorAll('.theme-btn').forEach(function(b) { b.classList.remove('active'); if (b.getAttribute('data-theme') === theme) b.classList.add('active'); });
+            });
+        });
+    }
+
+    function applyChatBackgroundColor() {
+        var val = localStorage.getItem('chatBgColor') || '#0f0f12';
+        var el = document.querySelector('.chat-area');
+        if (el) el.style.backgroundColor = val;
+    }
+
+    function applyTheme(theme) {
+        theme = theme || localStorage.getItem('chitchatTheme') || 'dark';
+        localStorage.setItem('chitchatTheme', theme);
+        document.body.classList.remove('theme-light');
+        if (theme === 'light') document.body.classList.add('theme-light');
+    }
+
+    function applyIgnoreList(list) {
+        ignoreList = list || [];
+        messagesEl.querySelectorAll('.msg').forEach(function(el) {
+            const uid = parseInt(el.dataset.userId, 10);
+            el.classList.toggle('hidden', ignoreList.indexOf(uid) !== -1);
+        });
+        updateIgnoredPanel();
+    }
+
+    function roomsInOrder() {
+        var byId = {};
+        allRooms.forEach(function(r) { byId[r.id] = r; });
+        var ordered = [];
+        roomOrderIds.forEach(function(rid) {
+            if (byId[rid]) { ordered.push(byId[rid]); delete byId[rid]; }
+        });
+        Object.keys(byId).forEach(function(rid) { ordered.push(byId[rid]); });
+        return ordered;
+    }
+
+    function dmOtherUsername(r) {
+        if (!r || !r.is_dm) return null;
+        return r.created_by_id === currentUserId ? (r.dm_with_username || '?') : (r.created_by_username || '?');
+    }
+
+    function applyMessagesSectionHeight() {
+        if (messageListItemsEl) {
+            messageListItemsEl.style.flex = '0 0 ' + Math.max(40, Math.min(300, messagesSectionHeight)) + 'px';
+        }
+    }
+
+    function renderRoomList(rooms, activeRoom) {
+        if (rooms && rooms.length) {
+            allRooms = rooms;
+            if (roomOrderIds.length === 0) roomOrderIds = rooms.map(function(r) { return r.id; });
+        }
+        currentRoom = activeRoom || currentRoom;
+        var ordered = roomsInOrder();
+        var channels = ordered.filter(function(r) { return !r.is_dm; });
+        var dms = ordered.filter(function(r) { return r.is_dm; });
+        function channelItemHtml(r) {
+            var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
+            var protectedChannels = ['general', 'Stats', 'Acrophobia', 'System Events'];
+            var canDelete = protectedChannels.indexOf(r.name) === -1;
+            var showActions = isSuperAdmin;
+            var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
+            return '<div class="room-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
+                '<span class="room-item-grip" title="Drag to reorder">⋮⋮</span>' +
+                '<span class="room-item-unread-dot" style="display:' + (hasUnread ? 'inline-block' : 'none') + ';" title="Unread"></span>' +
+                '<span class="room-item-name">' + escapeHtml(r.name) + '</span>' +
+                '<span class="room-item-actions">' +
+                (showActions ? '<button type="button" class="edit" title="Edit">✎</button>' : '') +
+                (showActions && canDelete ? '<button type="button" class="delete" title="Delete">×</button>' : '') +
+                '</span></div>';
+        }
+        function dmItemHtml(r) {
+            var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
+            var displayName = 'DM: ' + (dmOtherUsername(r) || '?');
+            var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
+            return '<div class="room-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
+                '<span class="room-item-grip" title="Drag to reorder">⋮⋮</span>' +
+                '<span class="room-item-unread-dot" style="display:' + (hasUnread ? 'inline-block' : 'none') + ';" title="Unread"></span>' +
+                '<span class="room-item-name">' + escapeHtml(displayName) + '</span>' +
+                '<span class="room-item-actions"></span></div>';
+        }
+        roomListItemsEl.innerHTML = channels.length ? channels.map(channelItemHtml).join('') : '<div class="room-item" style="cursor:default;color:#71717a;">No channels</div>';
+        messageListItemsEl.innerHTML = dms.length ? dms.map(dmItemHtml).join('') : '<div class="room-item" style="cursor:default;color:#71717a;">No messages</div>';
+
+        function attachChannelListeners(container, list) {
+            container.querySelectorAll('.room-item[data-room-id]').forEach(function(el) {
+                var rid = parseInt(el.getAttribute('data-room-id'), 10);
+                var room = list.find(function(r) { return r.id === rid; });
+                if (!room) return;
+                el.addEventListener('click', function(ev) {
+                    if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
+                    showingSettings = false;
+                    switchRoom(rid);
+                });
+                var editBtn = el.querySelector('button.edit');
+                if (editBtn) editBtn.addEventListener('click', function(e) { e.stopPropagation(); editRoom(rid); });
+                var delBtn = el.querySelector('button.delete');
+                if (delBtn) delBtn.addEventListener('click', function(e) { e.stopPropagation(); deleteRoom(rid); });
+                el.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', rid);
+                    e.dataTransfer.effectAllowed = 'move';
+                    el.classList.add('dragging');
+                });
+                el.addEventListener('dragend', function() { el.classList.remove('dragging'); });
+                el.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    container.querySelectorAll('.room-item').forEach(function(x) { x.classList.remove('drag-over'); });
+                    el.classList.add('drag-over');
+                });
+                el.addEventListener('dragleave', function() { el.classList.remove('drag-over'); });
+                el.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    el.classList.remove('drag-over');
+                    var fromId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (fromId === rid) return;
+                    var channelIds = channels.map(function(r) { return r.id; });
+                    var dmIds = dms.map(function(r) { return r.id; });
+                    var idxFrom = channelIds.indexOf(fromId);
+                    var idxTo = channelIds.indexOf(rid);
+                    if (idxFrom === -1 || idxTo === -1) return;
+                    channelIds.splice(idxFrom, 1);
+                    channelIds.splice(idxTo, 0, fromId);
+                    roomOrderIds = channelIds.concat(dmIds);
+                    socket.emit('save_room_order', { room_ids: roomOrderIds });
+                    renderRoomList(null, currentRoom);
+                });
+            });
+        }
+        function attachDmListeners(container, list) {
+            container.querySelectorAll('.room-item[data-room-id]').forEach(function(el) {
+                var rid = parseInt(el.getAttribute('data-room-id'), 10);
+                var room = list.find(function(r) { return r.id === rid; });
+                if (!room) return;
+                el.addEventListener('click', function(ev) {
+                    if (ev.target.closest('.room-item-grip')) return;
+                    showingSettings = false;
+                    switchRoom(rid);
+                });
+                el.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', rid);
+                    e.dataTransfer.effectAllowed = 'move';
+                    el.classList.add('dragging');
+                });
+                el.addEventListener('dragend', function() { el.classList.remove('dragging'); });
+                el.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    container.querySelectorAll('.room-item').forEach(function(x) { x.classList.remove('drag-over'); });
+                    el.classList.add('drag-over');
+                });
+                el.addEventListener('dragleave', function() { el.classList.remove('drag-over'); });
+                el.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    el.classList.remove('drag-over');
+                    var fromId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (fromId === rid) return;
+                    var channelIds = channels.map(function(r) { return r.id; });
+                    var dmIds = dms.map(function(r) { return r.id; });
+                    var idxFrom = dmIds.indexOf(fromId);
+                    var idxTo = dmIds.indexOf(rid);
+                    if (idxFrom === -1 || idxTo === -1) return;
+                    dmIds.splice(idxFrom, 1);
+                    dmIds.splice(idxTo, 0, fromId);
+                    roomOrderIds = channelIds.concat(dmIds);
+                    socket.emit('save_room_order', { room_ids: roomOrderIds });
+                    renderRoomList(null, currentRoom);
+                });
+            });
+        }
+        attachChannelListeners(roomListItemsEl, channels);
+        attachDmListeners(messageListItemsEl, dms);
+    }
+
+    function switchRoom(roomId) {
+        if (currentRoom && currentRoom.id === roomId) return;
+        socket.emit('join_room', { room_id: roomId });
+    }
+
+    function editRoom(roomId) {
+        var room = allRooms.find(function(r) { return r.id === roomId; });
+        if (!room) return;
+        var name = prompt('Room name:', room.name);
+        if (name === null || !name.trim()) return;
+        socket.emit('update_room', { room_id: roomId, name: name.trim() });
+    }
+
+    function deleteRoom(roomId) {
+        var room = allRooms.find(function(r) { return r.id === roomId; });
+        if (!room || room.name === 'general') return;
+        if (!confirm('Delete room "' + room.name + '" and all its messages?')) return;
+        socket.emit('delete_room', { room_id: roomId });
+    }
+
+    function showNewRoomPrompt() {
+        var name = prompt('New room name:');
+        if (name === null || !name.trim()) return;
+        socket.emit('create_room', { name: name.trim() });
+    }
+
+    function renderUserList(users) {
+        if (!users || !users.length) return;
+        const online = users.filter(function(u) { return u.online; });
+        const offline = users.filter(function(u) { return !u.online; });
+        function itemHtml(u) {
+            const isMe = u.id === currentUserId;
+            const cls = 'user-item ' + (u.online ? 'online' : 'offline') + (isMe ? ' me' : '');
+            var label = escapeHtml(u.username) + (isMe ? ' (you)' : '');
+            if (u.is_system_user) label = escapeHtml(u.username) + ' <span class="muted">(service)</span>';
+            return '<div class="' + cls + '" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username || '') + '"><span class="user-dot"></span><span class="user-item-name">' + label + '</span></div>';
+        }
+        userListOnlineItems.innerHTML = online.length ? online.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>';
+        userListOfflineItems.innerHTML = offline.length ? offline.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>';
+    }
+
+    function updateIgnoredPanel() {
+        const byId = {};
+        ignoredUsers.forEach(function(u) { byId[u.id] = u.username; });
+        messagesEl.querySelectorAll('.msg[data-user-id]').forEach(function(el) {
+            const uid = parseInt(el.dataset.userId, 10);
+            if (ignoreList.indexOf(uid) !== -1 && !byId[uid]) {
+                const header = el.querySelector('.msg-header');
+                byId[uid] = header ? header.textContent.split(' ')[0] : ('User ' + uid);
+            }
+        });
+        const entries = ignoreList.map(function(uid) {
+            return { id: uid, name: byId[uid] || ('User ' + uid) };
+        });
+        if (entries.length === 0) {
+            ignoredPanel.style.display = 'none';
+            return;
+        }
+        ignoredPanel.style.display = 'block';
+        ignoredPanel.innerHTML = 'Ignored: ' + entries.map(function(e) {
+            return '<span>' + escapeHtml(e.name) + ' <button type="button" class="unignore" data-user-id="' + e.id + '">Unignore</button></span>';
+        }).join('');
+        ignoredPanel.querySelectorAll('.unignore').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const uid = parseInt(this.getAttribute('data-user-id'), 10);
+                if (uid) socket.emit('unignore_user', { ignored_user_id: uid });
+            });
+        });
+    }
+
+    socket = io({ withCredentials: true });
+
+    socket.on('connect', function() {
+        setConnected(true);
+        if (currentRoom) socket.emit('join_room', { room_id: currentRoom.id });
+        else socket.emit('join_room', {});
+    });
+
+    socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); });
+    socket.on('connect_error', function() { setStatus('Connection failed'); });
+
+    let ignoredUsers = [];
+    socket.on('room_joined', function(data) {
+        showingSettings = false;
+        currentRoom = data.room || currentRoom;
+        if (currentRoom) clearUnreadForRoom(currentRoom.id);
+        if (data.users) allUsersWithStatus = data.users;
+        if (data.rooms) renderRoomList(data.rooms, data.room);
+        ignoreList = data.ignore_list || [];
+        ignoredUsers = data.ignored_users || [];
+        hasMoreMessages = data.has_more === true;
+        typingUsers = {};
+        updateTypingIndicator();
+        if (data.stats) renderStatsView(data.stats);
+        else renderAllMessages(data.history || []);
+        updateIgnoredPanel();
+        if (data.users) renderUserList(data.users);
+        if (currentRoom && currentRoom.name === 'Acrophobia' && data.acrophobia) {
+            setAcroPhase(data.acrophobia.phase, data.acrophobia.end_time);
+        } else {
+            setAcroPhase('idle', null);
+        }
+    });
+
+    socket.on('user_typing', function(data) {
+        if (!currentRoom || data.room_id !== currentRoom.id || data.user_id === currentUserId) return;
+        if (typingUsers[data.user_id] && typingUsers[data.user_id].timeout) clearTimeout(typingUsers[data.user_id].timeout);
+        typingUsers[data.user_id] = {
+            username: data.username || 'Someone',
+            timeout: setTimeout(function() {
+                delete typingUsers[data.user_id];
+                updateTypingIndicator();
+            }, 5000)
+        };
+        updateTypingIndicator();
+    });
+
+    socket.on('older_messages', function(data) {
+        if (!currentRoom) return;
+        hasMoreMessages = data.has_more === true;
+        if (loadMoreWrap) loadMoreWrap.style.display = hasMoreMessages ? 'block' : 'none';
+        prependOlderMessages(data.messages || []);
+    });
+
+    socket.on('user_profile', function(data) {
+        if (data.user) showProfileModal(data.user);
+    });
+
+    socket.on('whois_result', function(data) {
+        if (data) showWhoisModal(data);
+    });
+
+    socket.on('kicked_from_room', function(data) {
+        if (data.room_id && currentRoom && currentRoom.id === data.room_id) {
+            var general = allRooms.find(function(r) { return r.name === 'general'; });
+            if (general) switchRoom(general.id);
+            showPingToast('You were kicked from ' + (currentRoom ? currentRoom.name : '') + '.');
+        }
+    });
+
+    socket.on('rooms_list', function(data) {
+        if (data.rooms) {
+            allRooms = data.rooms;
+            roomOrderIds = data.rooms.map(function(r) { return r.id; });
+            renderRoomList(null, currentRoom);
+        }
+    });
+
+    socket.on('rooms_updated', function(data) {
+        if (data.rooms) {
+            allRooms = data.rooms;
+            renderRoomList(data.rooms, currentRoom);
+        }
+    });
+
+    socket.on('room_created', function(data) {
+        if (data.room) {
+            allRooms = allRooms.concat([data.room]);
+            roomOrderIds.push(data.room.id);
+            renderRoomList(null, currentRoom);
+            switchRoom(data.room.id);
+        }
+    });
+
+    socket.on('dm_room', function(data) {
+        if (!data.room) return;
+        var existing = allRooms.find(function(r) { return r.id === data.room.id; });
+        if (!existing) {
+            allRooms = allRooms.concat([data.room]);
+            roomOrderIds.push(data.room.id);
+        }
+        renderRoomList(null, currentRoom);
+        switchRoom(data.room.id);
+    });
+
+    socket.on('room_deleted', function(data) {
+        if (data.room_id && currentRoom && currentRoom.id === data.room_id) {
+            var general = allRooms.find(function(r) { return r.name === 'general'; });
+            if (general) switchRoom(general.id);
+        }
+        allRooms = allRooms.filter(function(r) { return r.id !== data.room_id; });
+        roomOrderIds = roomOrderIds.filter(function(id) { return id !== data.room_id; });
+        renderRoomList(null, currentRoom);
+    });
+
+    socket.on('user_list_updated', function(data) {
+        if (data.users) {
+            allUsersWithStatus = data.users;
+            renderUserList(data.users);
+            if (showingSettings) renderSettingsView();
+        }
+    });
+
+    socket.on('topic_updated', function(data) {
+        if (data.room_id && data.room) {
+            var idx = allRooms.findIndex(function(r) { return r.id === data.room_id; });
+            if (idx !== -1) allRooms[idx] = data.room;
+            if (currentRoom && currentRoom.id === data.room_id) {
+                currentRoom = data.room;
+                renderChannelTopic(currentRoom);
+            }
+            showTopicToast(data.set_by_username);
+        }
+    });
+
+    socket.on('acrobot_status', function(data) {
+        acrobotActive = data.active !== false;
+        var toggle = document.getElementById('acrobotActiveToggle');
+        if (toggle) toggle.checked = acrobotActive;
+    });
+
+    socket.on('stats_reset', function(data) {
+        var n = (data && data.deleted) || 0;
+        var el = document.createElement('div');
+        el.className = 'ping-toast';
+        el.style.background = '#166534';
+        el.textContent = 'Stats data reset. ' + n + ' message(s) deleted.';
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 5000);
+        if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') {
+            socket.emit('join_room', { room_id: currentRoom.id });
+        }
+    });
+
+    socket.on('new_message', function(msg) {
+        if (currentRoom && msg.room_id !== currentRoom.id) {
+            addUnreadForRoom(msg.room_id);
+            return;
+        }
+        if (!msg.message_type) msg.message_type = 'chat';
+        if (msg.room_id == null && currentRoom) msg.room_id = currentRoom.id;
+        const el = renderMessage(msg, msg.user_id === currentUserId);
+        messagesEl.appendChild(el);
+        el.querySelectorAll('.btn-ignore').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const uid = parseInt(this.getAttribute('data-user-id'), 10);
+                if (uid) socket.emit('ignore_user', { ignored_user_id: uid });
+            });
+        });
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+
+    socket.on('message_edited', function(msg) {
+        if (!currentRoom || msg.room_id !== currentRoom.id) return;
+        var el = messagesEl.querySelector('.msg[data-msg-id="' + msg.id + '"]');
+        if (el) {
+            var contentEl = el.querySelector('.msg-content');
+            if (contentEl) {
+                var raw = msg.content || '';
+                var contentHtml = typeof marked !== 'undefined' ? marked.parse(raw) : escapeHtml(raw);
+                contentHtml = contentHtml.replace(/(https?:\/\/[^\s<>"']+)/g, function(match) {
+                    var offset = arguments[arguments.length - 2];
+                    var fullStr = arguments[arguments.length - 1];
+                    if (offset > 0 && fullStr[offset - 1] === '"') return match;
+                    return '<a href="' + escapeAttr(match) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(match) + '</a>';
+                });
+                contentEl.innerHTML = contentHtml;
+            }
+            var editedWrap = el.querySelector('.msg-edited');
+            if (msg.edited_at) {
+                if (!editedWrap) {
+                    editedWrap = document.createElement('div');
+                    editedWrap.className = 'msg-edited';
+                    var after = el.querySelector('.msg-content');
+                    if (after) after.parentNode.insertBefore(editedWrap, after.nextSibling);
+                    else el.appendChild(editedWrap);
+                }
+                editedWrap.textContent = 'edited ' + formatTime(msg.edited_at);
+                editedWrap.style.display = '';
+            } else if (editedWrap) editedWrap.style.display = 'none';
+        }
+    });
+
+    socket.on('message_deleted', function(data) {
+        if (!currentRoom || data.room_id !== currentRoom.id) return;
+        var el = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
+        if (el) el.remove();
+    });
+
+    socket.on('user_mentioned', function(data) {
+        addUnreadMention(data.room_id, data.message_id);
+        var roomEl = document.querySelector('.room-item[data-room-id="' + data.room_id + '"]');
+        if (roomEl) roomEl.classList.add('mentioned');
+        if (currentRoom && currentRoom.id === data.room_id) {
+            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
+            if (msgEl) msgEl.classList.add('mentioned');
+        }
+        showPingToast((data.from_username || 'Someone') + ' mentioned you');
+    });
+
+    socket.on('user_pinged', function(data) {
+        if (data.to_user_id === currentUserId) showPingToast(data.from_username || 'Someone');
+    });
+
+    socket.on('away_message', function(data) {
+        var el = document.createElement('div');
+        el.className = 'ping-toast';
+        el.style.background = '#a16207';
+        el.textContent = (data.from_username || 'User') + ' is away: ' + (data.message || '');
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 5000);
+    });
+
+    socket.on('ignore_list_updated', function(data) {
+        applyIgnoreList(data.ignore_list);
+        if (data.ignored_users) ignoredUsers = data.ignored_users;
+        updateIgnoredPanel();
+    });
+
+    socket.on('error', function(data) { setStatus('Error: ' + (data.message || 'Unknown')); });
+
+    socket.on('acrophobia_phase', function(data) {
+        if (!currentRoom || currentRoom.name !== 'Acrophobia') return;
+        setAcroPhase(data.phase, data.end_time);
+    });
+
+    socket.on('report_submitted', function(data) {
+        var el = document.createElement('div');
+        el.className = 'ping-toast';
+        el.style.background = '#166534';
+        el.textContent = data.message || 'Report submitted.';
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 4000);
+    });
+
+    var typingEmitTimer = null;
+    inputEl.addEventListener('input', function() {
+        if (!currentRoom || currentRoom.name && currentRoom.name.toLowerCase() === 'stats') return;
+        if (typingEmitTimer) clearTimeout(typingEmitTimer);
+        typingEmitTimer = setTimeout(function() {
+            socket.emit('user_typing', { room_id: currentRoom.id });
+            typingEmitTimer = null;
+        }, 400);
+    });
+
+    sendForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const content = inputEl.value.trim();
+        if (!content || !currentRoom) return;
+        var payload = { room_id: currentRoom.id, content: content };
+        if (replyToMessageId) payload.parent_id = replyToMessageId;
+        socket.emit('send_message', payload);
+        inputEl.value = '';
+        replyToMessageId = null;
+        replyToContent = null;
+        replyToDisplayName = null;
+    });
+
+    if (loadMoreBtn) loadMoreBtn.addEventListener('click', function() {
+        if (!currentRoom || !hasMoreMessages) return;
+        var firstMsg = messagesEl.querySelector('.msg[data-msg-id]');
+        var beforeId = firstMsg ? parseInt(firstMsg.getAttribute('data-msg-id'), 10) : 0;
+        if (beforeId) socket.emit('load_more_messages', { room_id: currentRoom.id, before_id: beforeId });
+    });
+
+    if (newRoomBtn) newRoomBtn.addEventListener('click', showNewRoomPrompt);
+
+    function showSettings() {
+        showingSettings = true;
+        currentRoom = null;
+        renderRoomList(allRooms.length ? allRooms : null, null);
+        renderSettingsView();
+    }
+    if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideContextMenu();
+            hideMessageContextMenu();
+            hideAllModals();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            if (inputEl) inputEl.focus();
+        }
+    });
+
+    if (searchToggleBtn && searchDrawerEl) {
+        searchToggleBtn.addEventListener('click', function() {
+            searchDrawerEl.classList.toggle('open');
+        });
+    }
+    var searchForm = document.getElementById('searchForm');
+    var searchInput = document.getElementById('searchInput');
+    if (searchForm && searchInput) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var query = searchInput.value.trim();
+            if (!query) return;
+            var payload = { query: query };
+            if (currentRoom) payload.room_id = currentRoom.id;
+            socket.emit('search_messages', payload);
+        });
+    }
+
+    socket.on('search_results', function(data) {
+        showSearchResultsModal(data.messages || [], data.query || '');
+    });
+
+    applyTheme();
+    applyChatBackgroundColor();
+    applyMessagesSectionHeight();
+
+    (function setupPanelResizer() {
+        var resizer = document.getElementById('panelResizer');
+        if (!resizer || !messageListItemsEl) return;
+        var startY = 0;
+        var startHeight = 0;
+        function onMove(e) {
+            var dy = e.clientY - startY;
+            messagesSectionHeight = Math.max(40, Math.min(300, startHeight - dy));
+            applyMessagesSectionHeight();
+        }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            localStorage.setItem('chitchatMessagesSectionHeight', String(messagesSectionHeight));
+        }
+        resizer.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            startY = e.clientY;
+            startHeight = messagesSectionHeight;
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+        });
+    })();
+})();
+    </script>
+</body>
+</html>

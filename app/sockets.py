@@ -1,0 +1,1329 @@
+"""
+Flask-SocketIO: join room (with history), send message, ignore list, user presence, stats.
+Acrophobia game bot in room "Acrophobia". Super Admin: kick, channels, assign admins, settings.
+"""
+import eventlet
+import json
+import re
+import time
+from collections import Counter
+from datetime import datetime
+
+from flask import current_app, request, session
+from flask_socketio import emit, join_room as socketio_join_room
+from sqlalchemy import and_, func, or_
+
+from app.acrophobia import (
+    SUBMIT_SECONDS,
+    VOTE_SECONDS,
+    advance_submit_phase,
+    advance_vote_phase,
+    get_phase_info as acrophobia_get_phase_info,
+    handle_message as acrophobia_handle_message,
+    is_acrobot_active,
+    set_acrobot_active as acrophobia_set_acrobot_active,
+)
+from app.link_preview import get_preview_for_message_content
+from app.logging_config import get_logger
+from app.models import IgnoreList, Message, MessageReport, Room, User, db
+
+logger = get_logger()
+
+_STOP_WORDS = frozenset(
+    "a an the and or but in on at to for of with by is are was were be been being have has had do does did will would could should may might must shall can need i you he she it we they this that these those".split()
+)
+
+# Presence: user_id is "online" while they have an open socket
+_online_user_ids = set()
+_sid_to_user_id = {}
+_sid_to_connected_at = {}  # sid -> time.time() when connected
+_sid_to_remote_addr = {}  # sid -> IP string
+
+
+def _get_users_with_online_status():
+    """Return list of {id, username, online, is_super_admin, is_system_user} for all users, sorted by username.
+    AcroBot's 'online' reflects the Settings toggle (is_acrobot_active), not socket presence.
+    System user is a service account (posts system events), not a real connection; is_system_user=True so UI can show '(service)'."""
+    users = User.query.order_by(User.username).all()
+    online = set(_online_user_ids)
+    result = []
+    for u in users:
+        rank = getattr(u, "rank", None) or "rookie"
+        if u.username == "AcroBot":
+            result.append({
+                "id": u.id,
+                "username": u.username,
+                "online": is_acrobot_active(),
+                "is_super_admin": getattr(u, "is_super_admin", False),
+                "rank": rank,
+                "is_system_user": False,
+            })
+        elif u.username == "System":
+            result.append({
+                "id": u.id,
+                "username": u.username,
+                "online": False,
+                "is_super_admin": getattr(u, "is_super_admin", False),
+                "rank": rank,
+                "is_system_user": True,
+            })
+        else:
+            result.append({
+                "id": u.id,
+                "username": u.username,
+                "online": u.id in online,
+                "is_super_admin": getattr(u, "is_super_admin", False),
+                "rank": rank,
+                "is_system_user": False,
+            })
+    return result
+
+
+def _get_ignore_list_and_users(user_id):
+    """Return (list of ignored_user_ids, list of {id, username})."""
+    records = IgnoreList.query.filter_by(user_id=user_id).all()
+    ignore_list = [r.ignored_user_id for r in records]
+    users = User.query.filter(User.id.in_([r.ignored_user_id for r in records])).all()
+    ignored_users = [{"id": u.id, "username": u.username} for u in users]
+    return ignore_list, ignored_users
+
+
+def _rooms_sorted_for_user(user_id):
+    """Return all rooms in this user's preferred order (room_order_ids), then by name for any new rooms."""
+    all_rooms = {r.id: r for r in Room.query.all()}
+    user = User.query.get(user_id)
+    order_ids = []
+    if user and user.room_order_ids:
+        try:
+            order_ids = json.loads(user.room_order_ids)
+        except (TypeError, ValueError):
+            pass
+    ordered = [all_rooms[rid] for rid in order_ids if rid in all_rooms]
+    remaining = [r for rid, r in sorted(all_rooms.items(), key=lambda x: x[1].name) if r.id not in order_ids]
+    return ordered + remaining
+
+
+def _get_stats():
+    """Compute stats from Message table: top typers, active hours, favorite words per user (top 10s)."""
+    # Top 10 typers (message count per user)
+    top_typers_q = (
+        db.session.query(Message.user_id, func.count(Message.id).label("count"))
+        .group_by(Message.user_id)
+        .order_by(func.count(Message.id).desc())
+        .limit(10)
+        .all()
+    )
+    user_ids = [r[0] for r in top_typers_q]
+    users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
+    top_typers = [
+        {"user_id": uid, "username": users_by_id.get(uid).username if users_by_id.get(uid) else "?", "count": c}
+        for uid, c in top_typers_q
+    ]
+    # Active hours (0-23): message count per hour (SQLite strftime)
+    try:
+        hour_expr = func.strftime("%H", Message.created_at)
+        hour_counts = (
+            db.session.query(hour_expr.label("hour"), func.count(Message.id)).group_by(hour_expr).all()
+        )
+        active_hours = [{"hour": int(h) if h and h.isdigit() else 0, "count": c} for h, c in hour_counts]
+    except Exception:
+        active_hours = []
+    # Favorite words per user (top 5 users, top 10 words each; exclude stop words)
+    all_msgs = Message.query.filter(Message.message_type == "chat").with_entities(Message.user_id, Message.content).all()
+    word_re = re.compile(r"[a-z0-9']+", re.I)
+    user_words = {}
+    for uid, content in all_msgs:
+        if not content:
+            continue
+        words = [w.lower() for w in word_re.findall(content) if len(w) > 1 and w.lower() not in _STOP_WORDS]
+        user_words.setdefault(uid, []).extend(words)
+    top_users_by_msg = [r[0] for r in top_typers_q[:5]]
+    favorite_words = []
+    for uid in top_users_by_msg:
+        counts = Counter(user_words.get(uid, [])).most_common(10)
+        u = users_by_id.get(uid)
+        favorite_words.append(
+            {"user_id": uid, "username": u.username if u else "?", "words": [{"word": w, "count": c} for w, c in counts]}
+        )
+    return {
+        "top_typers": top_typers,
+        "active_hours": active_hours,
+        "favorite_words": favorite_words,
+    }
+
+
+def _acrophobia_emit_bot_messages(app, room_id, replies):
+    """Create Message records for AcroBot and emit to room. Run inside app.app_context()."""
+    acrobot = User.query.filter_by(username="AcroBot").first()
+    if not acrobot:
+        return
+    for text in replies:
+        if not text:
+            continue
+        msg = Message(
+            room_id=room_id,
+            user_id=acrobot.id,
+            content=text,
+            message_type="chat",
+        )
+        db.session.add(msg)
+        db.session.commit()
+        socket_io = getattr(app, "socketio", None)
+        if socket_io:
+            socket_io.emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+
+
+def _acrophobia_submit_timer_callback(app, room_id):
+    """Called when submit phase ends. Advance to voting and send bot messages; then schedule vote timer."""
+    with app.app_context():
+        replies = advance_submit_phase(room_id)
+        _acrophobia_emit_bot_messages(app, room_id, replies)
+        socket_io = getattr(app, "socketio", None)
+        if socket_io:
+            info = acrophobia_get_phase_info(room_id)
+            socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
+        eventlet.spawn_after(VOTE_SECONDS, _acrophobia_vote_timer_callback, app, room_id)
+
+
+def _acrophobia_vote_timer_callback(app, room_id):
+    """Called when vote phase ends. Reveal winner and send bot messages."""
+    with app.app_context():
+        replies = advance_vote_phase(room_id)
+        _acrophobia_emit_bot_messages(app, room_id, replies)
+        socket_io = getattr(app, "socketio", None)
+        if socket_io:
+            info = acrophobia_get_phase_info(room_id)
+            socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
+
+
+def _schedule_acrophobia_submit_timer(room_id):
+    """Schedule advance from submit phase to voting after SUBMIT_SECONDS."""
+    app = current_app._get_current_object()
+    eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id)
+
+
+def _get_or_create_dm_room(user_id: int, other_user_id: int):
+    """Return the DM room between user_id and other_user_id, creating it if needed. Used server-side (e.g. AcroBot DM)."""
+    room = Room.query.filter(
+        or_(
+            and_(Room.created_by_id == user_id, Room.dm_with_id == other_user_id),
+            and_(Room.created_by_id == other_user_id, Room.dm_with_id == user_id),
+        ),
+    ).first()
+    if not room:
+        room = Room(name="DM", created_by_id=user_id, dm_with_id=other_user_id)
+        db.session.add(room)
+        db.session.commit()
+    return room
+
+
+def register_socket_handlers(socketio):
+    """Register SocketIO event handlers."""
+
+    def _post_system_event(content: str):
+        """Post a system message to the System Events room."""
+        sys_room = Room.query.filter_by(name="System Events").first()
+        sys_user = User.query.filter_by(username="System").first()
+        if sys_room and sys_user:
+            msg = Message(room_id=sys_room.id, user_id=sys_user.id, content=content, message_type="chat")
+            db.session.add(msg)
+            db.session.commit()
+            socketio.emit("new_message", msg.to_dict(), room=f"room_{sys_room.id}")
+
+    @socketio.on("connect")
+    def on_connect(auth=None):
+        if not session.get("user_id"):
+            return False
+        user_id = session.get("user_id")
+        user = User.query.get(user_id)
+        username = user.username if user else "Unknown"
+        _sid_to_user_id[request.sid] = user_id
+        _sid_to_connected_at[request.sid] = time.time()
+        _sid_to_remote_addr[request.sid] = getattr(request, "remote_addr", None) or (request.environ.get("REMOTE_ADDR") if request.environ else None)
+        _online_user_ids.add(user_id)
+        _post_system_event(f"{username} came online")
+        logger.info("Socket connected: user_id=%s", user_id)
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+
+    @socketio.on("disconnect")
+    def on_disconnect():
+        user_id = _sid_to_user_id.get(request.sid)
+        username = "Unknown"
+        if user_id:
+            user = User.query.get(user_id)
+            username = user.username if user else "Unknown"
+            if user and hasattr(user, "last_seen"):
+                user.last_seen = datetime.utcnow()
+                db.session.commit()
+        user_id = _sid_to_user_id.pop(request.sid, None)
+        _sid_to_connected_at.pop(request.sid, None)
+        _sid_to_remote_addr.pop(request.sid, None)
+        if user_id:
+            _online_user_ids.discard(user_id)
+            _post_system_event(f"{username} went offline")
+            logger.info("Socket disconnected: user_id=%s", user_id)
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+
+    def _is_super_admin(user_id):
+        """Return True if user is a Super Admin."""
+        u = User.query.get(user_id)
+        return u and getattr(u, "is_super_admin", False)
+
+    def _room_id_from_data(data):
+        rid = (data or {}).get("room_id")
+        if rid is None:
+            general = Room.query.filter_by(name="general").first()
+            return general.id if general else None
+        try:
+            return int(rid)
+        except (TypeError, ValueError):
+            return None
+
+    @socketio.on("get_rooms")
+    def on_get_rooms(data=None):
+        """Return list of all rooms in user's order."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        rooms = _rooms_sorted_for_user(user_id)
+        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms]})
+
+    @socketio.on("join_room")
+    def on_join_room(data):
+        """Join a room; server sends full message history and user's ignore list."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = _room_id_from_data(data)
+        if not room_id:
+            emit("error", {"message": "Invalid room"})
+            return
+        room_obj = Room.query.get(room_id)
+        if not room_obj:
+            emit("error", {"message": "Room not found"})
+            return
+        socket_room = f"room_{room_id}"
+        socketio_join_room(socket_room)
+
+        ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
+        users_with_status = _get_users_with_online_status()
+        rooms = _rooms_sorted_for_user(user_id)
+        rooms_dict = [r.to_dict() for r in rooms]
+
+        if room_obj.name.strip().lower() == "stats":
+            emit("room_joined", {
+                "room": room_obj.to_dict(),
+                "history": [],
+                "stats": _get_stats(),
+                "ignore_list": ignore_list,
+                "ignored_users": ignored_users,
+                "users": users_with_status,
+                "rooms": rooms_dict,
+                "has_more": False,
+            })
+            logger.info("User %s joined stats room", user_id)
+        else:
+            # Paginate: last 50 messages, server-side ignore filter
+            ignore_set = set(ignore_list) if ignore_list else set()
+            q = Message.query.filter_by(room_id=room_id)
+            if ignore_set:
+                q = q.filter(~Message.user_id.in_(ignore_set))
+            messages = q.order_by(Message.id.desc()).limit(51).all()
+            has_more = len(messages) > 50
+            messages = messages[:50]
+            messages.reverse()
+            history = [m.to_dict() for m in messages]
+            payload = {
+                "room": room_obj.to_dict(),
+                "history": history,
+                "ignore_list": ignore_list,
+                "ignored_users": ignored_users,
+                "users": users_with_status,
+                "rooms": rooms_dict,
+                "has_more": has_more,
+            }
+            if room_obj.name.strip() == "Acrophobia":
+                payload["acrophobia"] = acrophobia_get_phase_info(room_id)
+            emit("room_joined", payload)
+            logger.info("User %s joined room %s, history len=%s", user_id, room_id, len(history))
+
+    @socketio.on("user_typing")
+    def on_user_typing(data):
+        """Broadcast to room that this user is typing (client sends room_id)."""
+        user_id = session.get("user_id")
+        if not user_id:
+            return
+        room_id = _room_id_from_data(data)
+        if not room_id:
+            return
+        user = User.query.get(user_id)
+        if not user:
+            return
+        socket_room = f"room_{room_id}"
+        socketio.emit(
+            "user_typing",
+            {"user_id": user_id, "username": user.username, "room_id": room_id},
+            room=socket_room,
+        )
+
+    @socketio.on("load_more_messages")
+    def on_load_more_messages(data):
+        """Return older messages (paginated, server-side ignore). Emit older_messages."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = (data or {}).get("room_id")
+        before_id = (data or {}).get("before_id")
+        if not room_id or before_id is None:
+            emit("error", {"message": "room_id and before_id required"})
+            return
+        try:
+            room_id = int(room_id)
+            before_id = int(before_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id or before_id"})
+            return
+        ignore_list, _ = _get_ignore_list_and_users(user_id)
+        ignore_set = set(ignore_list) if ignore_list else set()
+        q = Message.query.filter_by(room_id=room_id).filter(Message.id < before_id)
+        if ignore_set:
+            q = q.filter(~Message.user_id.in_(ignore_set))
+        messages = q.order_by(Message.id.desc()).limit(51).all()
+        has_more = len(messages) > 50
+        messages = messages[:50]
+        messages.reverse()
+        history = [m.to_dict() for m in messages]
+        emit("older_messages", {"messages": history, "has_more": has_more})
+
+    @socketio.on("send_message")
+    def on_send_message(data):
+        """Persist message and broadcast to room. Supports /ping username and /em (or /me) text."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = _room_id_from_data(data)
+        if not room_id:
+            emit("error", {"message": "Invalid room"})
+            return
+        raw = (data or {}).get("content") or ""
+        content = raw.strip()
+        if not content:
+            return
+        room_obj = Room.query.get(room_id)
+        if not room_obj:
+            emit("error", {"message": "Room not found"})
+            return
+        user = User.query.get(user_id)
+        if not user:
+            emit("error", {"message": "User not found"})
+            return
+
+        # DM with AcroBot: during Acrophobia submit phase, treat message as submission (so DMs count)
+        if room_obj.dm_with_id is not None:
+            other_id = room_obj.dm_with_id if room_obj.created_by_id == user_id else room_obj.created_by_id
+            acrobot = User.query.filter_by(username="AcroBot").first()
+            if acrobot and other_id == acrobot.id:
+                acrophobia_room = Room.query.filter_by(name="Acrophobia").first()
+                if acrophobia_room:
+                    result = acrophobia_handle_message(acrophobia_room.id, user_id, user.username, content)
+                    consumed = result[0]
+                    bot_replies = result[1]
+                    dm_replies = result[2] if len(result) > 2 else []
+                    if consumed:
+                        for text in bot_replies:
+                            if text:
+                                msg = Message(
+                                    room_id=acrophobia_room.id,
+                                    user_id=acrobot.id,
+                                    content=text,
+                                    message_type="chat",
+                                )
+                                db.session.add(msg)
+                                db.session.commit()
+                                emit("new_message", msg.to_dict(), room=f"room_{acrophobia_room.id}")
+                        for target_user_id, dm_text in dm_replies:
+                            if dm_text:
+                                dm_room = _get_or_create_dm_room(target_user_id, acrobot.id)
+                                dm_msg = Message(
+                                    room_id=dm_room.id,
+                                    user_id=acrobot.id,
+                                    content=dm_text,
+                                    message_type="chat",
+                                )
+                                db.session.add(dm_msg)
+                                db.session.commit()
+                                emit("new_message", dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                        # Fall through so the user's message is also saved to the DM (shows their phrase + AcroBot reply)
+                    # If not consumed (e.g. not in submit phase), fall through and save message to DM as normal
+
+        # /m, /msg, /message <username> <text> — send a DM to that user (switch to DM, post message there)
+        low_content = content.strip().lower()
+        for prefix in ("/m ", "/msg ", "/message "):
+            if low_content.startswith(prefix):
+                rest = content[len(prefix):].strip()
+                if not rest:
+                    emit("error", {"message": f"Usage: {prefix.strip()} <username> <message>"})
+                    return
+                parts = rest.split(None, 1)
+                to_username = (parts[0] or "").strip()
+                msg_text = (parts[1] or "").strip() if len(parts) > 1 else ""
+                if not to_username:
+                    emit("error", {"message": f"Usage: {prefix.strip()} <username> <message>"})
+                    return
+                if to_username.lower() == "acrobot":
+                    break  # Let AcroBot handlers below deal with /msg acrobot
+                target = User.query.filter(func.lower(User.username) == to_username.lower()).first()
+                if not target:
+                    emit("error", {"message": f"User '{to_username}' not found"})
+                    return
+                if target.id == user_id:
+                    emit("error", {"message": "Cannot message yourself"})
+                    return
+                existing = Room.query.filter(
+                    or_(
+                        and_(Room.created_by_id == user_id, Room.dm_with_id == target.id),
+                        and_(Room.created_by_id == target.id, Room.dm_with_id == user_id),
+                    ),
+                ).first()
+                if not existing:
+                    dm_room = _get_or_create_dm_room(user_id, target.id)
+                    rooms = Room.query.order_by(Room.name).all()
+                    emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+                else:
+                    dm_room = existing
+                dm_msg = Message(
+                    room_id=dm_room.id,
+                    user_id=user_id,
+                    content=msg_text or "(no message)",
+                    message_type="chat",
+                )
+                db.session.add(dm_msg)
+                db.session.commit()
+                emit("new_message", dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                emit("dm_room", {"room": dm_room.to_dict()})
+                return
+
+        # /help — List all available slash commands (post as one message in channel)
+        if content.strip().lower() == "/help":
+            help_lines = [
+                "**ChitChat commands**",
+                "• /help — show this list",
+                "• /away [message] — set away message; clear with /away",
+                "• /nick <name> — set display name in chat; /nick to clear",
+                "• /status <text> — set status (shown in /whois); /status to clear",
+                "• /whois <username> — user info, last seen, shared rooms",
+                "• /topic <text> — set channel topic",
+                "• /ping <username> — notify that user",
+                "• /m, /msg, /message <username> <text> — send a direct message to that user",
+                "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
+                "• /em <text> or /me <text> — third-person emote",
+                "• Right-click message → Reply (quote), Edit, Delete, Mark unread",
+                "",
+                "**In Acrophobia channel**",
+                "• /help or /msg acrobot help — AcroBot help & rules",
+                "• /start — start a round (4–5 letter acronym)",
+                "• /vote N — vote for submission N during voting",
+                "• /score — leaderboard",
+            ]
+            help_content = "\n".join(help_lines)
+            msg = Message(room_id=room_id, user_id=user_id, content=help_content, message_type="chat")
+            db.session.add(msg)
+            db.session.commit()
+            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            return
+
+        # /away [message] — Set or clear away message; show in chat. If someone /pings an away user, they get the away message.
+        if content.lower().startswith("/away"):
+            away_text = content[5:].strip()
+            user.away_message = away_text or None
+            db.session.commit()
+            if away_text:
+                emote_content = f"is away: {away_text}"
+            else:
+                emote_content = "is no longer away"
+            msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
+            db.session.add(msg)
+            db.session.commit()
+            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            return
+
+        # /nick <name> — Set or clear display name (shown in chat). Any user.
+        if content.lower().startswith("/nick "):
+            nick = content[6:].strip()
+            if hasattr(user, "display_name"):
+                user.display_name = nick[:80] if nick else None
+                db.session.commit()
+            emote_content = "is now known as " + (nick or user.username) if nick else "cleared display name"
+            msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
+            db.session.add(msg)
+            db.session.commit()
+            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            return
+
+        # /status <text> — Set or clear status line (shown in whois). Any user.
+        if content.lower().startswith("/status "):
+            status_text = content[8:].strip()
+            if hasattr(user, "status_line"):
+                user.status_line = status_text[:120] if status_text else None
+                db.session.commit()
+            emote_content = "set status: " + (status_text or "(cleared)") if status_text else "cleared status"
+            msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
+            db.session.add(msg)
+            db.session.commit()
+            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            return
+
+        # /whois <username> — IRC-style whois: user info, last seen, shared rooms. Reply to requester only.
+        if content.lower().startswith("/whois "):
+            to_username = content[7:].strip()
+            if not to_username:
+                emit("error", {"message": "Usage: /whois username"})
+                return
+            target = User.query.filter_by(username=to_username).first()
+            if not target:
+                emit("whois_result", {"error": f"User '{to_username}' not found"})
+                return
+            online = target.id in _online_user_ids
+            payload = {
+                "username": target.username,
+                "user_id": target.id,
+                "created_at": target.created_at.isoformat() if target.created_at else None,
+                "online": online,
+                "display_name": getattr(target, "display_name", None) or None,
+                "status_line": getattr(target, "status_line", None) or None,
+                "last_seen": (lambda x: x.isoformat() if x else None)(getattr(target, "last_seen", None)),
+            }
+            if online:
+                for sid, uid in list(_sid_to_user_id.items()):
+                    if uid == target.id:
+                        payload["ip"] = _sid_to_remote_addr.get(sid)
+                        connected_at = _sid_to_connected_at.get(sid)
+                        payload["connected_at"] = connected_at
+                        if connected_at:
+                            payload["connected_seconds"] = int(time.time() - connected_at)
+                        break
+            else:
+                payload["ip"] = None
+                payload["connected_at"] = None
+                payload["connected_seconds"] = None
+            # Shared rooms: room names where target has sent at least one message
+            room_ids = db.session.query(Message.room_id).filter_by(user_id=target.id).distinct().all()
+            room_ids = [r[0] for r in room_ids]
+            shared_rooms = [r.name for r in Room.query.filter(Room.id.in_(room_ids)).all()] if room_ids else []
+            payload["shared_rooms"] = shared_rooms
+            emit("whois_result", payload)
+            return
+
+        # /topic <content> — set channel topic (any user); broadcast topic_updated to room
+        if content.lower().startswith("/topic "):
+            topic_content = content[6:].strip()
+            room_obj.topic = topic_content or None
+            room_obj.topic_set_by_id = user_id
+            room_obj.topic_set_at = datetime.utcnow()
+            db.session.commit()
+            room_obj = Room.query.get(room_id)  # refresh for to_dict
+            payload = {
+                "room_id": room_id,
+                "room": room_obj.to_dict(),
+                "set_by_username": user.username,
+                "set_at": room_obj.topic_set_at.isoformat() if room_obj.topic_set_at else None,
+            }
+            emit("topic_updated", payload, room=f"room_{room_id}")
+            logger.info("User %s set topic in room %s", user.username, room_id)
+            return
+
+        # Acrophobia room: game commands and submissions (no user message saved)
+        if room_obj.name == "Acrophobia":
+            acrobot = User.query.filter_by(username="AcroBot").first()
+            if acrobot:
+                result = acrophobia_handle_message(room_id, user_id, user.username, content)
+                consumed = result[0]
+                bot_replies = result[1]
+                dm_replies = result[2] if len(result) > 2 else []
+                if consumed:
+                    # Echo only the message part (after "acrobot") to DM — recipient sees just the message, not the command
+                    low = content.strip().lower()
+                    if (low.startswith("/m acrobot ") or low.startswith("/msg acrobot ") or
+                            low.startswith("/message acrobot ") or low.startswith("!acrobot ")):
+                        idx = low.find("acrobot") + len("acrobot")
+                        msg_part = content[idx:].strip() or "(no message)"
+                        dm_room = _get_or_create_dm_room(user_id, acrobot.id)
+                        user_dm_msg = Message(
+                            room_id=dm_room.id,
+                            user_id=user_id,
+                            content=msg_part,
+                            message_type="chat",
+                        )
+                        db.session.add(user_dm_msg)
+                        db.session.commit()
+                        emit("new_message", user_dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                    for text in bot_replies:
+                        if text:
+                            msg = Message(
+                                room_id=room_id,
+                                user_id=acrobot.id,
+                                content=text,
+                                message_type="chat",
+                            )
+                            db.session.add(msg)
+                            db.session.commit()
+                            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+                    for target_user_id, dm_text in dm_replies:
+                        if dm_text:
+                            dm_room = _get_or_create_dm_room(target_user_id, acrobot.id)
+                            dm_msg = Message(
+                                room_id=dm_room.id,
+                                user_id=acrobot.id,
+                                content=dm_text,
+                                message_type="chat",
+                            )
+                            db.session.add(dm_msg)
+                            db.session.commit()
+                            emit("new_message", dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                    if bot_replies and is_acrobot_active() and "Round started!" in (bot_replies[0] or ""):
+                        _schedule_acrophobia_submit_timer(room_id)
+                        emit(
+                            "acrophobia_phase",
+                            {"phase": "submitting", "end_time": time.time() + SUBMIT_SECONDS},
+                            room=f"room_{room_id}",
+                        )
+                    return
+
+        # /ping username — notify that user (no message saved)
+        if content.lower().startswith("/ping "):
+            to_username = content[6:].strip()
+            if not to_username:
+                emit("error", {"message": "Usage: /ping username"})
+                return
+            target = User.query.filter_by(username=to_username).first()
+            if not target:
+                emit("error", {"message": f"User '{to_username}' not found"})
+                return
+            payload = {
+                "from_user_id": user_id,
+                "from_username": user.username,
+                "to_user_id": target.id,
+                "to_username": target.username,
+            }
+            emit("user_pinged", payload, room=f"room_{room_id}")
+            away_msg = getattr(target, "away_message", None)
+            if away_msg:
+                emit("away_message", {"from_username": target.username, "message": away_msg})
+            logger.info("%s pinged %s in room %s", user.username, target.username, room_id)
+            return
+
+        # /m, /msg, /message acrobot or !acrobot in any room: echo to user's DM with AcroBot (do NOT show in channel)
+        low_content = content.strip().lower()
+        acrobot_in_any_room = (
+            (low_content.startswith("/m acrobot ") or low_content.startswith("/msg acrobot ") or
+             low_content.startswith("/message acrobot ") or low_content.startswith("!acrobot "))
+            and room_obj.name != "Acrophobia"
+        )
+        if acrobot_in_any_room:
+            acrobot = User.query.filter_by(username="AcroBot").first()
+            if acrobot:
+                idx = low_content.find("acrobot") + len("acrobot")
+                msg_part = content.strip()[idx:].strip() or "(no message)"
+                dm_room = _get_or_create_dm_room(user_id, acrobot.id)
+                user_dm_msg = Message(
+                    room_id=dm_room.id,
+                    user_id=user_id,
+                    content=msg_part,
+                    message_type="chat",
+                )
+                db.session.add(user_dm_msg)
+                db.session.commit()
+                emit("new_message", user_dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                return
+
+        # /em or /me text — third-person emote (saved as message_type='emote')
+        message_type = "chat"
+        if content.lower().startswith("/em "):
+            content = content[4:].strip()
+            message_type = "emote"
+        elif content.lower().startswith("/me "):
+            content = content[4:].strip()
+            message_type = "emote"
+        if message_type == "emote" and not content:
+            emit("error", {"message": "Usage: /em your action"})
+            return
+
+        parent_id = None
+        raw_parent_id = (data or {}).get("parent_id")
+        if raw_parent_id is not None:
+            try:
+                pid = int(raw_parent_id)
+                parent_msg = Message.query.filter_by(id=pid, room_id=room_id).first()
+                if parent_msg:
+                    parent_id = pid
+            except (TypeError, ValueError):
+                pass
+
+        msg = Message(
+            room_id=room_id,
+            user_id=user_id,
+            content=content,
+            message_type=message_type,
+            parent_id=parent_id,
+        )
+        db.session.add(msg)
+        db.session.commit()
+
+        payload = msg.to_dict()
+        # Link preview for first URL in content (sync, short timeout)
+        if message_type == "chat":
+            preview = get_preview_for_message_content(content)
+            if preview:
+                payload["link_previews"] = [preview]
+        emit("new_message", payload, room=f"room_{room_id}")
+
+        # @mention: parse @nickname and notify mentioned users (page)
+        if message_type == "chat":
+            mention_re = re.compile(r"@(\w+)", re.IGNORECASE)
+            for match in mention_re.finditer(content):
+                nick = match.group(1)
+                target = User.query.filter_by(username=nick).first()
+                if target and target.id != user_id:
+                    for sid, uid in list(_sid_to_user_id.items()):
+                        if uid == target.id:
+                            socketio.emit(
+                                "user_mentioned",
+                                {
+                                    "room_id": room_id,
+                                    "message_id": msg.id,
+                                    "from_user_id": user_id,
+                                    "from_username": user.username,
+                                    "content_snippet": (content[:80] + "…") if len(content) > 80 else content,
+                                },
+                                room=sid,
+                            )
+                            break
+
+        logger.info("Message in room %s from %s", room_id, user.username)
+
+    @socketio.on("edit_message")
+    def on_edit_message(data):
+        """Edit own message. Emit message_edited to room."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        msg_id = (data or {}).get("message_id")
+        new_content = ((data or {}).get("content") or "").strip()
+        if not msg_id or not new_content:
+            emit("error", {"message": "message_id and content required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        msg = Message.query.get(msg_id)
+        if not msg:
+            emit("error", {"message": "Message not found"})
+            return
+        if msg.user_id != user_id:
+            emit("error", {"message": "You can only edit your own messages"})
+            return
+        msg.content = new_content
+        msg.edited_at = datetime.utcnow()
+        db.session.commit()
+        payload = msg.to_dict()
+        emit("message_edited", payload, room=f"room_{msg.room_id}")
+        logger.info("Message %s edited by user %s", msg_id, user_id)
+
+    @socketio.on("delete_message")
+    def on_delete_message(data):
+        """Delete own message. Emit message_deleted to room."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        msg_id = (data or {}).get("message_id")
+        if not msg_id:
+            emit("error", {"message": "message_id required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        msg = Message.query.get(msg_id)
+        if not msg:
+            emit("error", {"message": "Message not found"})
+            return
+        if msg.user_id != user_id:
+            emit("error", {"message": "You can only delete your own messages"})
+            return
+        room_id = msg.room_id
+        db.session.delete(msg)
+        db.session.commit()
+        emit("message_deleted", {"message_id": msg_id, "room_id": room_id}, room=f"room_{room_id}")
+        logger.info("Message %s deleted by user %s", msg_id, user_id)
+
+    @socketio.on("report_message")
+    def on_report_message(data):
+        """Report a message (App Store compliance). One report per user per message."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        msg_id = (data or {}).get("message_id")
+        reason = ((data or {}).get("reason") or "").strip() or None
+        if not msg_id:
+            emit("error", {"message": "message_id required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        msg = Message.query.get(msg_id)
+        if not msg:
+            emit("error", {"message": "Message not found"})
+            return
+        existing = MessageReport.query.filter_by(message_id=msg_id, reported_by_user_id=user_id).first()
+        if existing:
+            emit("report_submitted", {"ok": True, "message": "You have already reported this message."})
+            return
+        report = MessageReport(message_id=msg_id, reported_by_user_id=user_id, reason=reason)
+        db.session.add(report)
+        db.session.commit()
+        emit("report_submitted", {"ok": True, "message": "Report submitted. Thank you."})
+        logger.info("Message %s reported by user %s", msg_id, user_id)
+
+    @socketio.on("search_messages")
+    def on_search_messages(data):
+        """Search messages in a room (or all rooms). Returns search_results with list of message dicts."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        query = ((data or {}).get("query") or "").strip()
+        if not query or len(query) < 1:
+            emit("search_results", {"messages": [], "query": query or ""})
+            return
+        room_id = (data or {}).get("room_id")
+        try:
+            if room_id is not None:
+                room_id = int(room_id)
+        except (TypeError, ValueError):
+            room_id = None
+        ignore_list, _ = _get_ignore_list_and_users(user_id)
+        ignore_set = set(ignore_list) if ignore_list else set()
+        q = Message.query.filter(Message.message_type == "chat")
+        if room_id is not None:
+            q = q.filter(Message.room_id == room_id)
+        if ignore_set:
+            q = q.filter(~Message.user_id.in_(ignore_set))
+        q = q.filter(Message.content.ilike(f"%{query}%"))
+        messages = q.order_by(Message.created_at.desc()).limit(50).all()
+        room_ids = {m.room_id for m in messages}
+        rooms_by_id = {r.id: r for r in Room.query.filter(Room.id.in_(room_ids)).all()} if room_ids else {}
+        results = []
+        for m in messages:
+            d = m.to_dict()
+            d["room_name"] = rooms_by_id.get(m.room_id).name if rooms_by_id.get(m.room_id) else None
+            results.append(d)
+        emit("search_results", {"messages": results, "query": query})
+
+    @socketio.on("create_room")
+    def on_create_room(data):
+        """Create a new room. Super Admin only. Broadcast rooms_updated to all."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can create channels"})
+            return
+        name = ((data or {}).get("name") or "").strip()
+        if not name:
+            emit("error", {"message": "Room name required"})
+            return
+        if Room.query.filter_by(name=name).first():
+            emit("error", {"message": "A room with that name already exists"})
+            return
+        room = Room(name=name, created_by_id=user_id)
+        db.session.add(room)
+        db.session.commit()
+        rooms = Room.query.order_by(Room.name).all()
+        emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        emit("room_created", {"room": room.to_dict()})
+        logger.info("Room created: %s by user %s", name, user_id)
+
+    @socketio.on("update_room")
+    def on_update_room(data):
+        """Rename a room. Super Admin only. Broadcast rooms_updated to all."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can edit channels"})
+            return
+        room_id = (data or {}).get("room_id")
+        name = ((data or {}).get("name") or "").strip()
+        if not room_id or not name:
+            emit("error", {"message": "room_id and name required"})
+            return
+        try:
+            room_id = int(room_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id"})
+            return
+        room = Room.query.get(room_id)
+        if not room:
+            emit("error", {"message": "Room not found"})
+            return
+        if Room.query.filter(Room.name == name, Room.id != room_id).first():
+            emit("error", {"message": "A room with that name already exists"})
+            return
+        room.name = name
+        db.session.commit()
+        rooms = Room.query.order_by(Room.name).all()
+        emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        logger.info("Room updated: %s -> %s", room_id, name)
+
+    @socketio.on("delete_room")
+    def on_delete_room(data):
+        """Delete a room and its messages. Super Admin only. Broadcast rooms_updated to all."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can delete channels"})
+            return
+        room_id = (data or {}).get("room_id")
+        if not room_id:
+            emit("error", {"message": "room_id required"})
+            return
+        try:
+            room_id = int(room_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id"})
+            return
+        room = Room.query.get(room_id)
+        if not room:
+            emit("error", {"message": "Room not found"})
+            return
+        general = Room.query.filter_by(name="general").first()
+        if general and room.id == general.id:
+            emit("error", {"message": "Cannot delete the general room"})
+            return
+        protected = ("Stats", "Acrophobia", "System Events")
+        if room.name in protected and not (data or {}).get("from_settings"):
+            emit("error", {"message": "Protected channels (Stats, Acrophobia, System Events) can only be removed via Settings by a Super Admin"})
+            return
+        db.session.delete(room)
+        db.session.commit()
+        rooms = Room.query.order_by(Room.name).all()
+        emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        emit("room_deleted", {"room_id": room_id})
+        logger.info("Room deleted: %s", room_id)
+
+    @socketio.on("save_room_order")
+    def on_save_room_order(data):
+        """Save user's room order (list of room_ids)."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_ids = (data or {}).get("room_ids") or []
+        try:
+            room_ids = [int(x) for x in room_ids]
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_ids"})
+            return
+        user = User.query.get(user_id)
+        if not user:
+            return
+        user.room_order_ids = json.dumps(room_ids)
+        db.session.commit()
+        rooms = _rooms_sorted_for_user(user_id)
+        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms]})
+
+    @socketio.on("ignore_user")
+    def on_ignore_user(data):
+        """Add ignored_user_id to current user's ignore list; broadcast ignore_list update."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        ignored_id = (data or {}).get("ignored_user_id")
+        if not ignored_id or ignored_id == user_id:
+            return
+        try:
+            ignored_id = int(ignored_id)
+        except (TypeError, ValueError):
+            return
+        if IgnoreList.query.filter_by(user_id=user_id, ignored_user_id=ignored_id).first():
+            return
+        rec = IgnoreList(user_id=user_id, ignored_user_id=ignored_id)
+        db.session.add(rec)
+        db.session.commit()
+        ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
+        emit("ignore_list_updated", {"ignore_list": ignore_list, "ignored_users": ignored_users})
+
+    @socketio.on("unignore_user")
+    def on_unignore_user(data):
+        """Remove ignored_user_id from current user's ignore list."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        ignored_id = (data or {}).get("ignored_user_id")
+        if not ignored_id:
+            return
+        try:
+            ignored_id = int(ignored_id)
+        except (TypeError, ValueError):
+            return
+        IgnoreList.query.filter_by(user_id=user_id, ignored_user_id=ignored_id).delete()
+        db.session.commit()
+        ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
+        emit("ignore_list_updated", {"ignore_list": ignore_list, "ignored_users": ignored_users})
+
+    @socketio.on("get_user_profile")
+    def on_get_user_profile(data):
+        """Return user dict (id, username, created_at) for view profile."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        target_id = (data or {}).get("user_id")
+        if not target_id:
+            return
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            return
+        user = User.query.get(target_id)
+        if user:
+            emit("user_profile", {"user": user.to_dict()})
+
+    @socketio.on("get_whois")
+    def on_get_whois(data):
+        """Return whois_result payload for a user (by user_id). Used from message context menu."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        target_id = (data or {}).get("user_id")
+        if not target_id:
+            return
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            return
+        target = User.query.get(target_id)
+        if not target:
+            emit("whois_result", {"error": "User not found"})
+            return
+        online = target.id in _online_user_ids
+        payload = {
+            "username": target.username,
+            "user_id": target.id,
+            "created_at": target.created_at.isoformat() if target.created_at else None,
+            "online": online,
+            "display_name": getattr(target, "display_name", None) or None,
+            "status_line": getattr(target, "status_line", None) or None,
+            "last_seen": (lambda x: x.isoformat() if x else None)(getattr(target, "last_seen", None)),
+        }
+        if online:
+            for sid, uid in list(_sid_to_user_id.items()):
+                if uid == target.id:
+                    payload["ip"] = _sid_to_remote_addr.get(sid)
+                    connected_at = _sid_to_connected_at.get(sid)
+                    payload["connected_at"] = connected_at
+                    if connected_at:
+                        payload["connected_seconds"] = int(time.time() - connected_at)
+                    break
+        else:
+            payload["ip"] = None
+            payload["connected_at"] = None
+            payload["connected_seconds"] = None
+        room_ids = db.session.query(Message.room_id).filter_by(user_id=target.id).distinct().all()
+        room_ids = [r[0] for r in room_ids]
+        payload["shared_rooms"] = [r.name for r in Room.query.filter(Room.id.in_(room_ids)).all()] if room_ids else []
+        emit("whois_result", payload)
+
+    @socketio.on("get_or_create_dm")
+    def on_get_or_create_dm(data):
+        """Get or create a DM room with another user. Return room and broadcast rooms_updated if created."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        other_id = (data or {}).get("other_user_id")
+        if not other_id:
+            emit("error", {"message": "other_user_id required"})
+            return
+        try:
+            other_id = int(other_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid other_user_id"})
+            return
+        if other_id == user_id:
+            emit("error", {"message": "Cannot DM yourself"})
+            return
+        other = User.query.get(other_id)
+        if not other:
+            emit("error", {"message": "User not found"})
+            return
+        # Find existing DM room between the two users
+        room = Room.query.filter(
+            or_(
+                and_(Room.created_by_id == user_id, Room.dm_with_id == other_id),
+                and_(Room.created_by_id == other_id, Room.dm_with_id == user_id),
+            ),
+        ).first()
+        if not room:
+            room = Room(name="DM", created_by_id=user_id, dm_with_id=other_id)
+            db.session.add(room)
+            db.session.commit()
+            rooms = Room.query.order_by(Room.name).all()
+            emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+            logger.info("DM room created between %s and %s", user_id, other_id)
+        emit("dm_room", {"room": room.to_dict()})
+
+    @socketio.on("kick_user")
+    def on_kick_user(data):
+        """Emit kicked_from_room to target user's socket(s). Super Admin only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can kick users"})
+            return
+        room_id = (data or {}).get("room_id")
+        target_id = (data or {}).get("target_user_id")
+        if not room_id or not target_id:
+            emit("error", {"message": "room_id and target_user_id required"})
+            return
+        try:
+            room_id = int(room_id)
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            return
+        if target_id == user_id:
+            emit("error", {"message": "Cannot kick yourself"})
+            return
+        room = Room.query.get(room_id)
+        if not room:
+            return
+        for sid, uid in list(_sid_to_user_id.items()):
+            if uid == target_id:
+                socketio.emit("kicked_from_room", {"room_id": room_id, "room_name": room.name}, room=sid)
+                logger.info("User %s kicked user %s from room %s", user_id, target_id, room_id)
+                break
+
+    @socketio.on("set_super_admin")
+    def on_set_super_admin(data):
+        """Set or unset Super Admin for a user. Caller must be Super Admin. Broadcast user_list_updated."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can assign Super Admin"})
+            return
+        target_id = (data or {}).get("target_user_id")
+        is_super = (data or {}).get("is_super_admin")
+        if target_id is None:
+            emit("error", {"message": "target_user_id required"})
+            return
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid target_user_id"})
+            return
+        target = User.query.get(target_id)
+        if not target:
+            emit("error", {"message": "User not found"})
+            return
+        target.is_super_admin = bool(is_super)
+        db.session.commit()
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        logger.info("User %s set Super Admin for user %s to %s", user_id, target_id, target.is_super_admin)
+
+    @socketio.on("set_user_rank")
+    def on_set_user_rank(data):
+        """Set a user's rank (rookie, bro, fam, super_admin). Caller must be Super Admin. Broadcast user_list_updated."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can set user rankings"})
+            return
+        target_id = (data or {}).get("target_user_id")
+        rank = ((data or {}).get("rank") or "").strip().lower()
+        if target_id is None:
+            emit("error", {"message": "target_user_id required"})
+            return
+        if rank not in ("rookie", "bro", "fam", "super_admin"):
+            emit("error", {"message": "rank must be one of: rookie, bro, fam, super_admin"})
+            return
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid target_user_id"})
+            return
+        target = User.query.get(target_id)
+        if not target:
+            emit("error", {"message": "User not found"})
+            return
+        target.rank = rank
+        target.is_super_admin = rank == "super_admin"
+        db.session.commit()
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
+
+    @socketio.on("get_acrobot_status")
+    def on_get_acrobot_status(data=None):
+        """Return whether AcroBot is active (online). Any user can request."""
+        emit("acrobot_status", {"active": is_acrobot_active()})
+
+    @socketio.on("set_acrobot_active")
+    def on_set_acrobot_active(data):
+        """Activate or deactivate AcroBot. Super Admin only. Broadcast acrobot_status."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can activate or deactivate AcroBot"})
+            return
+        active = (data or {}).get("active")
+        if active is None:
+            emit("error", {"message": "active (true/false) required"})
+            return
+        acrophobia_set_acrobot_active(bool(active))
+        emit("acrobot_status", {"active": is_acrobot_active()}, broadcast=True)
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        logger.info("User %s set AcroBot active=%s", user_id, is_acrobot_active())
+
+    @socketio.on("reset_stats_data")
+    def on_reset_stats_data(data):
+        """Delete all messages (resets Stats channel data). Super Admin only. Requires confirm key."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Super Admins can reset Stats data"})
+            return
+        if (data or {}).get("confirm") != "RESET":
+            emit("error", {"message": "Send confirm: 'RESET' to reset all message data (Stats). This cannot be undone."})
+            return
+        deleted = Message.query.delete()
+        db.session.commit()
+        emit("stats_reset", {"deleted": deleted})
+        logger.info("User %s reset Stats data: %s messages deleted", user_id, deleted)
