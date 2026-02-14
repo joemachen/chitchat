@@ -15,6 +15,8 @@ from sqlalchemy import and_, extract, func, or_
 
 from app.acrophobia import (
     SUBMIT_SECONDS,
+    SUDDEN_DEATH_SUBMIT,
+    SUDDEN_DEATH_VOTE,
     VOTE_SECONDS,
     advance_submit_phase,
     advance_vote_phase,
@@ -264,40 +266,50 @@ def _acrophobia_vote_countdown_callback(app, room_id, seconds_left: int):
             _acrophobia_emit_bot_messages(app, room_id, [msg])
 
 
-def _acrophobia_submit_timer_callback(app, room_id):
-    """Called when submit phase ends. Advance to voting and send bot messages; then schedule vote timer."""
+def _acrophobia_submit_timer_callback(app, room_id, sudden_death: bool = False):
+    """Called when submit phase ends. Advance to voting and send bot messages; then schedule vote timer if we have submissions."""
     with app.app_context():
-        replies = advance_submit_phase(room_id)
+        replies, is_sudden = advance_submit_phase(room_id)
         _acrophobia_emit_bot_messages(app, room_id, replies)
+        info = acrophobia_get_phase_info(room_id)
         socket_io = getattr(app, "socketio", None)
         if socket_io:
-            info = acrophobia_get_phase_info(room_id)
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
-        for s in range(10, 0, -1):
-            eventlet.spawn_after(VOTE_SECONDS - s, _acrophobia_vote_countdown_callback, app, room_id, s)
-        eventlet.spawn_after(VOTE_SECONDS, _acrophobia_vote_timer_callback, app, room_id)
+        if info.get("phase") != "voting":
+            return  # No submissions; phase went to idle
+        vote_sec = SUDDEN_DEATH_VOTE if is_sudden else VOTE_SECONDS
+        for s in range(min(10, vote_sec), 0, -1):
+            eventlet.spawn_after(vote_sec - s, _acrophobia_vote_countdown_callback, app, room_id, s)
+        eventlet.spawn_after(vote_sec, _acrophobia_vote_timer_callback, app, room_id)
 
 
 def _acrophobia_vote_timer_callback(app, room_id):
-    """Called when vote phase ends. Reveal winner and send bot messages; start next round if rounds_remaining."""
+    """Called when vote phase ends. Reveal winner and send bot messages; start next round or sudden death."""
     with app.app_context():
-        replies, start_next = advance_vote_phase(room_id)
+        replies, start_next, is_sudden_death = advance_vote_phase(room_id)
         _acrophobia_emit_bot_messages(app, room_id, replies)
         socket_io = getattr(app, "socketio", None)
         if socket_io:
             info = acrophobia_get_phase_info(room_id)
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
+            if replies and "Winner:" in (replies[0] or ""):
+                socket_io.emit("acrophobia_winner", {}, room=f"room_{room_id}")
         if start_next:
-            from app.acrophobia import _game, _start_round
-            g = _game(room_id)
-            rounds_left = g.get("rounds_remaining", 0)
-            if rounds_left > 0:
-                next_replies = _start_round(room_id, rounds=rounds_left)
-                if next_replies:
-                    _acrophobia_emit_bot_messages(app, room_id, next_replies)
-                    _schedule_acrophobia_submit_timer(room_id)
-                    if socket_io:
-                        socket_io.emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
+            if is_sudden_death:
+                _schedule_sudden_death_submit_timer(room_id)
+                if socket_io:
+                    socket_io.emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
+            else:
+                from app.acrophobia import _game, _start_round
+                g = _game(room_id)
+                rounds_left = g.get("rounds_remaining", 0)
+                if rounds_left > 0:
+                    next_replies = _start_round(room_id, rounds=rounds_left)
+                    if next_replies:
+                        _acrophobia_emit_bot_messages(app, room_id, next_replies)
+                        _schedule_acrophobia_submit_timer(room_id)
+                        if socket_io:
+                            socket_io.emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
 
 
 def _schedule_acrophobia_submit_timer(room_id):
@@ -305,7 +317,13 @@ def _schedule_acrophobia_submit_timer(room_id):
     app = current_app._get_current_object()
     eventlet.spawn_after(30, _acrophobia_submit_warning_callback, app, room_id, 30)
     eventlet.spawn_after(45, _acrophobia_submit_warning_callback, app, room_id, 15)
-    eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id)
+    eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id, False)
+
+
+def _schedule_sudden_death_submit_timer(room_id):
+    """Schedule sudden death submit phase (30s, no mid-phase warnings)."""
+    app = current_app._get_current_object()
+    eventlet.spawn_after(SUDDEN_DEATH_SUBMIT, _acrophobia_submit_timer_callback, app, room_id, True)
 
 
 def _user_by_username(username: str):
@@ -927,11 +945,7 @@ def register_socket_handlers(socketio):
                             _broadcast_new_message(dm_room.id, dm_msg.to_dict())
                     if bot_replies and is_acrobot_active() and "Round started!" in (bot_replies[0] or ""):
                         _schedule_acrophobia_submit_timer(room_id)
-                        emit(
-                            "acrophobia_phase",
-                            {"phase": "submitting", "end_time": time.time() + SUBMIT_SECONDS},
-                            room=f"room_{room_id}",
-                        )
+                        emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
                     return
 
         # /ping username — notify that user (no message saved)

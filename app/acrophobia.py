@@ -14,9 +14,12 @@ def _get_db():
     return db, AcroScore, User
 
 
-def _random_acronym(length: int | None = None) -> str:
-    """Return a random 4- or 5-letter uppercase acronym. length 4 or 5, or random if None."""
-    if length not in (4, 5):
+def _random_acronym(length: int | None = None, sudden_death: bool = False) -> str:
+    """Return a random acronym. Default 4-5 letters; sudden_death uses 3-4 letters."""
+    if sudden_death:
+        if length not in (3, 4):
+            length = random.choice((3, 4))
+    elif length not in (4, 5):
         length = random.choice((4, 5))
     return "".join(random.choices(string.ascii_uppercase, k=length))
 
@@ -28,6 +31,8 @@ _acrobot_active = True
 
 SUBMIT_SECONDS = 60
 VOTE_SECONDS = 45
+SUDDEN_DEATH_SUBMIT = 30
+SUDDEN_DEATH_VOTE = 30
 
 
 def is_acrobot_active() -> bool:
@@ -57,15 +62,15 @@ def _get_help_replies() -> list[str]:
     lines = [
         "**AcroBot — Acrophobia** (acronym phrase game)",
         "",
-        "**How to interact** — In this channel you can:",
-        "  • Type **/help** or **/msg acrobot help** anytime for this message.",
-        "  • Type **/start** or **/start X** (X=1–7) to start a new round or X consecutive rounds.",
-        "  • During a round: reply with **one message** as your phrase for the acronym.",
-        "  • During voting: type **/vote N** (e.g. /vote 1) to vote for submission N.",
+        "Yo, The Glove in the building. Here's the playbook:",
+        "  • **/help** or **/msg acrobot help** — this message.",
+        "  • **/start** or **/start X** (X=1–7) — start a round or X rounds.",
+        "  • During a round: drop **one message** as your phrase for the acronym.",
+        "  • During voting: **/vote N** (e.g. /vote 1) — pick your favorite.",
         "",
-        "**How to start a game** — Any user can type **/start** (single round) or **/start X** (X=1–7 consecutive rounds) in this channel. The bot will post a 4- or 5-letter acronym; everyone has a short time to submit a phrase that fits (e.g. ABC → \"A Big Cat\"). Then everyone votes for their favorite; the winner is announced.",
+        "**How it works** — /start kicks it off. I post a 4- or 5-letter acronym; y'all got time to submit a phrase that fits (e.g. ABC → \"A Big Cat\"). Then vote. Winner gets the W.",
         "",
-        "**Rules** — (1) One phrase per person per round. (2) No editing after submit. (3) Vote once during the vote phase. (4) Have fun. Type **/score** for the leaderboard.",
+        "**Rules** — One phrase per person. No editing. Vote once. And don't choke. **/score** for the leaderboard.",
     ]
     return ["\n".join(lines)]
 
@@ -113,21 +118,24 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
         phrase = content[idx:].strip()
         if not phrase:
             return True, [], []
+        sudden_players = g.get("sudden_death_players")
+        if sudden_players and user_id not in sudden_players:
+            return True, ["Sudden death is for the tied players only. Y'all sit this one out."], []
         if any(s["user_id"] == user_id for s in g["submissions"]):
-            return True, ["You already submitted this round."], []
+            return True, ["You already dropped one. Don't double-dribble."], []
         acronym = g["acronym"] or ""
         if not _phrase_matches_acronym(phrase, acronym):
-            dm = f"Your phrase doesn't match the acronym **{acronym}**. Use a phrase whose first letter of each word spells that acronym."
+            dm = f"That's not even close! **{acronym}** — first letter of each word spells it. You know the rules. Try again before the clock runs out."
             return True, [], [(user_id, dm)]
         g["submissions"].append({"user_id": user_id, "username": username, "phrase": phrase})
-        return True, ["A submission has been received."], [(user_id, f"Got it! Your phrase for **{acronym}** has been received.")]
+        return True, ["Someone got one in. Let's see if the rest of y'all can keep up."], [(user_id, "Locked in. Don't choke now.")]
 
     # /m, /msg, /message acrobot <anything> or !acrobot <anything> — generic reply when not a submission
     if _acrobot_prefix:
         rest = low.split("acrobot", 1)[-1].strip()
         if rest != "help":
             if _acrobot_active:
-                return True, ["AcroBot here. Type **/help** or **/msg acrobot help** for commands and rules."], []
+                return True, ["Yo, AcroBot in the building. **/help** or **/msg acrobot help** if you need the playbook."], []
             return True, ["AcroBot is currently offline. A Super Admin can activate me in Settings."], []
 
     # When bot is offline: only respond to game-related input with offline message; /score still works
@@ -141,7 +149,7 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
     # Commands
     if low == "/start" or (low.startswith("/start ") and low[7:].strip().isdigit()):
         if g["phase"] != "idle":
-            return True, ["A round is already in progress. Wait for it to finish."], []
+            return True, ["We already got a game going. Chill."], []
         rounds = 1
         if low.startswith("/start "):
             try:
@@ -156,26 +164,28 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
     if g["phase"] == "submitting":
         if low.startswith("/"):
             return True, [], []
-        # Submission (plain message in channel)
+        sudden_players = g.get("sudden_death_players")
+        if sudden_players and user_id not in sudden_players:
+            return True, ["Sudden death is for the tied players only. Y'all sit this one out."], []
         if any(s["user_id"] == user_id for s in g["submissions"]):
-            return True, ["You already submitted this round."], []
+            return True, ["You already dropped one. Don't double-dribble."], []
         acronym = g["acronym"] or ""
         if not _phrase_matches_acronym(content, acronym):
-            dm = f"Your phrase doesn't match the acronym **{acronym}**. Use a phrase whose first letter of each word spells that acronym."
+            dm = f"That's not even close! **{acronym}** — first letter of each word spells it. You know the rules. Try again before the clock runs out."
             return True, [], [(user_id, dm)]
         g["submissions"].append({"user_id": user_id, "username": username, "phrase": content})
-        return True, ["A submission has been received."], [(user_id, f"Got it! Your phrase for **{acronym}** has been received.")]
+        return True, ["Someone got one in. Let's see if the rest of y'all can keep up."], [(user_id, "Locked in. Don't choke now.")]
     if g["phase"] == "voting":
         if low.startswith("/vote "):
             rest = content[6:].strip()
             try:
                 n = int(rest)
             except ValueError:
-                return True, ["Usage: /vote N (e.g. /vote 1)"], []
+                return True, ["Pick a number. /vote N. Like /vote 1. Simple."], []
             if n < 1 or n > len(g["submissions"]):
-                return True, [f"Vote 1–{len(g['submissions'])} only."], []
+                return True, [f"Pick 1 through {len(g['submissions'])}. That's the range."], []
             g["votes"][user_id] = n - 1
-            dm_ack = [(user_id, "Got it! Your vote has been received.")] if from_dm else []
+            dm_ack = [(user_id, "Vote recorded. Don't let me down.")] if from_dm else []
             return True, [], dm_ack
         return True, [], []  # Ignore non-commands during voting
     # idle: allow normal chat or /start
@@ -202,7 +212,7 @@ def _get_score_replies(room_id: int) -> list[str]:
         db, AcroScore, User = _get_db()
         rows = AcroScore.query.filter_by(room_id=room_id).order_by(AcroScore.wins.desc()).limit(10).all()
         if not rows:
-            return ["**Acrophobia scores** (this channel) — No wins yet. Play a round with /start!"]
+            return ["**Acrophobia scores** (this channel) — No wins yet. Soft. Play a round with /start!"]
         user_ids = [r.user_id for r in rows]
         users = {u.id: u.username for u in User.query.filter(User.id.in_(user_ids)).all()}
         lines = ["**Acrophobia scores** (this channel):"]
@@ -223,48 +233,69 @@ def _start_round(room_id: int, rounds: int = 1) -> list[str]:
     g["end_time"] = time.time() + SUBMIT_SECONDS
     g["rounds_remaining"] = max(1, min(7, rounds))
     rounds_msg = f" ({g['rounds_remaining']} round{'s' if g['rounds_remaining'] > 1 else ''})" if g["rounds_remaining"] > 1 else ""
-    return [f"Round started!{rounds_msg} **Acronym: {g['acronym']}** – Reply with your phrase (one message) in {SUBMIT_SECONDS} seconds. Go!"]
+    return [f"Alright, check it.{rounds_msg} **Acronym: {g['acronym']}** — {SUBMIT_SECONDS} seconds. Don't go out like a scrub. Get your phrase in. Go!"]
 
 
-def advance_submit_phase(room_id: int) -> list[str]:
-    """Call when submit timer expires. Returns bot messages to send."""
+def advance_submit_phase(room_id: int) -> tuple[list[str], bool]:
+    """Call when submit timer expires. Returns (bot messages, is_sudden_death)."""
     g = _game(room_id)
     if g["phase"] != "submitting":
-        return []
+        return [], False
+    sudden = g.get("sudden_death", False)
+    vote_sec = SUDDEN_DEATH_VOTE if sudden else VOTE_SECONDS
     g["phase"] = "voting"
-    g["end_time"] = time.time() + VOTE_SECONDS
+    g["end_time"] = time.time() + vote_sec
     if not g["submissions"]:
         g["phase"] = "idle"
-        return ["Time's up! No submissions. Type /start to play again."]
-    lines = ["Time's up! **Vote for your favorite:**"]
+        g.pop("sudden_death", None)
+        g.pop("sudden_death_players", None)
+        return ["Clock ran out! Nobody showed up? Soft. Type /start when y'all ready to play for real."], False
+    replies = [f"Time's up! Pick your favorite. /vote N (1–{len(g['submissions'])}) — {vote_sec} seconds. Don't leave me hanging."]
     for i, s in enumerate(g["submissions"], 1):
-        lines.append(f"  **{i}.** {s['phrase']}")
-    lines.append(f"Reply with /vote N (1–{len(g['submissions'])}) in {VOTE_SECONDS} seconds.")
-    return ["\n".join(lines)]
+        replies.append(f"**{i}.** {s['phrase']}")
+    return replies, sudden
 
 
-def advance_vote_phase(room_id: int) -> tuple[list[str], bool]:
-    """Call when vote timer expires. Returns (bot messages, start_next_round)."""
+def advance_vote_phase(room_id: int) -> tuple[list[str], bool, bool]:
+    """Call when vote timer expires. Returns (bot messages, start_next_round, is_sudden_death)."""
     g = _game(room_id)
     if g["phase"] != "voting":
-        return [], False
-    g["phase"] = "idle"
+        return [], False, False
     if not g["votes"]:
-        return ["No votes. Round over. Type /start to play again."], False
+        g["phase"] = "idle"
+        return ["Nobody voted? Y'all scared to pick a winner? /start when you're ready."], False, False
     counts = {}
     for idx in g["votes"].values():
         counts[idx] = counts.get(idx, 0) + 1
     if not counts:
-        return ["No valid votes. Type /start to play again."], False
-    winner_idx = max(counts, key=counts.get)
+        g["phase"] = "idle"
+        return ["Nobody voted? Y'all scared to pick a winner? /start when you're ready."], False, False
+    max_votes = max(counts.values())
+    tied_indices = [idx for idx, c in counts.items() if c == max_votes]
+    if len(tied_indices) > 1:
+        tied_user_ids = {g["submissions"][idx]["user_id"] for idx in tied_indices}
+        tied_usernames = [g["submissions"][idx]["username"] for idx in tied_indices]
+        g["phase"] = "submitting"
+        g["sudden_death"] = True
+        g["sudden_death_players"] = tied_user_ids
+        g["acronym"] = _random_acronym(sudden_death=True)
+        g["submissions"] = []
+        g["votes"] = {}
+        g["end_time"] = time.time() + SUDDEN_DEATH_SUBMIT
+        names = ", ".join(tied_usernames)
+        return [f"**TIE!** Sudden death for {names}! **Acronym: {g['acronym']}** — {SUDDEN_DEATH_SUBMIT}s to submit. One of you gonna step up. Go!"], True, True
+    g["phase"] = "idle"
+    g.pop("sudden_death", None)
+    g.pop("sudden_death_players", None)
+    winner_idx = tied_indices[0]
     winner = g["submissions"][winner_idx]
     _record_win(room_id, winner["user_id"], winner["username"])
     rounds_left = g.get("rounds_remaining", 1) - 1
     g["rounds_remaining"] = rounds_left
-    msg = f"**Winner:** \"{winner['phrase']}\" by **{winner['username']}**! Congrats."
+    msg = f"**Winner:** \"{winner['phrase']}\" by **{winner['username']}**! Fine, you got lucky on that one. Check ball."
     if rounds_left > 0:
-        return [msg + f" {rounds_left} round(s) left. Next round starting…"], True
-    return [msg + " Type /start for another round."], False
+        return [msg + f" {rounds_left} round(s) left. Next round starting…"], True, False
+    return [msg + " Type /start for another round."], False, False
 
 
 def get_submit_end_time(room_id: int) -> float | None:
@@ -284,17 +315,18 @@ def get_vote_end_time(room_id: int) -> float | None:
 
 def get_submit_warning_message(seconds_left: int) -> str:
     """Return warning message for submit phase (30 or 15 seconds left)."""
-    return f"**{seconds_left} seconds** left to submit your phrase!"
+    return f"**{seconds_left} seconds** left! The clock is ticking, don't go out like a scrub!"
 
 
 def get_vote_countdown_message(seconds_left: int) -> str:
     """Return countdown message for vote phase (10 seconds left)."""
-    return f"**{seconds_left} seconds** left to vote!"
+    return f"**{seconds_left} seconds** to vote! Pick one or sit down."
 
 
 def get_phase_info(room_id: int) -> dict:
-    """Return current phase and end_time for the Acrophobia timer UI. end_time is Unix timestamp or None."""
+    """Return current phase, end_time, and acronym for the Acrophobia timer UI. end_time is Unix timestamp or None."""
     g = _game(room_id)
     phase = g["phase"]
     end_time = g["end_time"] if phase in ("submitting", "voting") else None
-    return {"phase": phase, "end_time": end_time}
+    acronym = g.get("acronym") if phase == "submitting" else None
+    return {"phase": phase, "end_time": end_time, "acronym": acronym}
