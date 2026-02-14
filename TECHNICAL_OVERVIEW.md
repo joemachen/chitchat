@@ -247,7 +247,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ## 9. Known limitations and constraints
 
 - **Single process**: eventlet single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
-- **Message edit/delete**: Supported for own messages; bulk delete on reset stats.
+- **Message edit/delete**: Supported for own messages via styled modal (textarea, Shift+Enter for new lines); bulk delete on reset stats.
 - **File/image uploads**: Supported (instance/uploads/); configurable size limit.
 - **Acrophobia state**: Game state (phase, submissions, votes) is in-memory and lost on restart; scores are persisted in `acro_scores`.
 - **Migrations**: Flask-Migrate (Alembic); versioned migrations in `migrations/versions/`.

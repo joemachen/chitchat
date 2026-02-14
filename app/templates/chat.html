@@ -84,6 +84,21 @@
         .profile-modal p { margin: 0; color: #a1a1aa; font-size: 0.9rem; }
         .profile-modal .close { margin-top: 1rem; padding: 0.4rem 0.8rem; background: #3f3f46; border: none; border-radius: 6px; color: #e4e4e7; cursor: pointer; font-size: 0.9rem; }
         .profile-modal .close:hover { background: #52525b; }
+        .edit-message-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.25rem; min-width: 360px; max-width: 90vw; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .edit-message-modal h3 { margin: 0 0 0.75rem; font-size: 1rem; color: #e4e4e7; }
+        .edit-message-modal textarea { width: 100%; min-height: 120px; max-height: 280px; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; resize: vertical; box-sizing: border-box; }
+        .edit-message-modal textarea:focus { outline: none; border-color: #6366f1; }
+        .edit-message-hint { margin: 0.35rem 0 0.75rem; font-size: 0.75rem; color: #71717a; }
+        .edit-message-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+        .edit-message-ok { padding: 0.5rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+        .edit-message-ok:hover { background: #5558e3; }
+        .edit-message-cancel { padding: 0.5rem 1rem; background: #3f3f46; color: #e4e4e7; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+        .edit-message-cancel:hover { background: #52525b; }
+        body.theme-light .edit-message-modal { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .edit-message-modal h3 { color: #18181b; }
+        body.theme-light .edit-message-modal textarea { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .edit-message-cancel { background: #e4e4e7; color: #52525b; }
+        body.theme-light .edit-message-cancel:hover { background: #d4d4d8; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; }
         .stats-view { padding: 1rem; user-select: text; -webkit-user-select: text; }
         .stats-view h2 { font-size: 1rem; margin: 1rem 0 0.5rem; color: #818cf8; }
@@ -132,8 +147,8 @@
             .msg-reaction-add { display: none !important; }
         }
         .form-wrap { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); background: #18181c; border-top: 1px solid #27272a; flex-shrink: 0; }
-        .form-wrap form { display: flex; gap: 0.5rem; align-items: center; }
-        .form-wrap input[type="text"] { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
+        .form-wrap form { display: flex; gap: 0.5rem; align-items: flex-end; }
+        .form-wrap input[type="text"], .form-wrap textarea { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; resize: none; min-height: 2.5rem; max-height: 8rem; }
         .form-wrap input[type="file"] { display: none; }
         .attach-btn { padding: 0.6rem 0.75rem; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 8px; cursor: pointer; font-size: 1rem; }
         .attach-btn:hover { background: #3f3f46; color: #e4e4e7; }
@@ -142,11 +157,11 @@
         .msg-inline-gif { max-width: 280px; max-height: 200px; width: auto; height: auto; object-fit: contain; border-radius: 6px; display: block; cursor: pointer; }
         .msg-attachment a.attachment-file { color: #818cf8; text-decoration: none; font-size: 0.9rem; }
         .msg-attachment a.attachment-file:hover { text-decoration: underline; }
-        .form-wrap input:focus { outline: none; border-color: #6366f1; }
+        .form-wrap input:focus, .form-wrap textarea:focus { outline: none; border-color: #6366f1; }
         .form-wrap button { padding: 0.6rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; }
         .form-wrap button:hover { background: #5558e3; }
         .form-wrap button:disabled { opacity: 0.6; cursor: not-allowed; }
-        .form-wrap.acro-urgency input[type="text"] { animation: acro-urgency-pulse 0.8s ease-in-out infinite; }
+        .form-wrap.acro-urgency input[type="text"], .form-wrap.acro-urgency textarea { animation: acro-urgency-pulse 0.8s ease-in-out infinite; }
         @keyframes acro-urgency-pulse { 0%, 100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { border-color: #dc2626; box-shadow: 0 0 0 4px rgba(239,68,68,0.2); } }
         .typing-indicator { padding: 0.35rem 1rem; font-size: 0.8rem; color: #71717a; min-height: 1.5rem; flex-shrink: 0; }
         .typing-indicator.empty { visibility: hidden; }
@@ -173,7 +188,7 @@
         body.theme-high-contrast { --accent: #60a5fa; background: #000; color: #fff; }
         body.theme-high-contrast .msg-content a, body.theme-high-contrast .msg-header, body.theme-high-contrast .room-item.active .room-item-name { color: var(--accent, #60a5fa); }
         body.theme-high-contrast .msg { border: 1px solid #444; }
-        body.theme-high-contrast .form-wrap input, body.theme-high-contrast .form-wrap button { border-width: 2px; }
+        body.theme-high-contrast .form-wrap input, body.theme-high-contrast .form-wrap textarea, body.theme-high-contrast .form-wrap button { border-width: 2px; }
         .search-results-modal h3 { margin: 0 0 0.5rem; font-size: 1rem; }
         .search-results-list { overflow-y: auto; flex: 1; min-height: 0; }
         .search-result-item { padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.25rem; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; }
@@ -297,7 +312,7 @@
         body.theme-light .msg.msg-system .msg-content { color: #64748b; }
         body.theme-light .msg.msg-system .msg-header .msg-username { color: #94a3b8; }
         body.theme-light .form-wrap { background: #e4e4e7; border-color: #d4d4d8; }
-        body.theme-light .form-wrap input { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .form-wrap input, body.theme-light .form-wrap textarea { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .acro-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
         body.theme-light .typing-indicator { color: #71717a; }
         body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal, body.theme-light .room-switcher-modal { background: #fafafa; border-color: #d4d4d8; }
@@ -344,7 +359,7 @@
             .channel-topic { display: none !important; }
             .search-bar-wrap { display: none !important; }
             .mobile-room-name { display: none !important; }
-            .form-wrap input[type="text"], .form-wrap button { min-height: 44px; }
+            .form-wrap textarea, .form-wrap button { min-height: 44px; }
             .form-wrap { position: sticky; bottom: 0; z-index: 100; }
             .room-list-footer button, .room-item, .user-item { min-height: 44px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
             .msg-link-preview { max-width: 100% !important; }
@@ -403,6 +418,15 @@
         <h3 id="searchResultsTitle">Search results</h3>
         <div class="search-results-list" id="searchResultsList"></div>
         <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
+    </div>
+    <div id="editMessageModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit message">
+        <h3 id="editMessageTitle">Edit message</h3>
+        <textarea id="editMessageInput" placeholder="Edit your message…" rows="6"></textarea>
+        <p class="edit-message-hint">Shift+Enter for new line</p>
+        <div class="edit-message-actions">
+            <button type="button" id="editMessageOk" class="edit-message-ok">OK</button>
+            <button type="button" id="editMessageCancel" class="edit-message-cancel">Cancel</button>
+        </div>
     </div>
     <div id="roomSwitcherModal" class="room-switcher-modal" style="display: none;" role="dialog" aria-label="Switch room">
         <input type="text" id="roomSwitcherInput" placeholder="Type to filter rooms…" autocomplete="off" aria-label="Filter rooms">
@@ -483,7 +507,7 @@
                 <form id="sendForm">
                     <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
                     <button type="button" id="attachBtn" class="attach-btn" title="Attach file or image">📎</button>
-                    <input type="text" id="input" placeholder="Type a message…" autocomplete="off">
+                    <textarea id="input" placeholder="Type a message…" autocomplete="off" rows="1"></textarea>
                     <button type="submit" id="sendBtn" disabled>Send</button>
                 </form>
             </div>
@@ -1092,10 +1116,7 @@
     messageContextMenuEl.querySelector('[data-action="edit-message"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (messageContextTarget && messageContextTarget.userId === currentUserId) {
-            var newContent = prompt('Edit message:', messageContextTarget.content);
-            if (newContent !== null && newContent.trim()) {
-                socket.emit('edit_message', { message_id: messageContextTarget.messageId, content: newContent.trim() });
-            }
+            showEditMessageModal(messageContextTarget.messageId, messageContextTarget.content);
         }
         hideMessageContextMenu();
     });
@@ -1186,10 +1207,48 @@
         modalBackdrop.style.display = 'none';
     }
     document.getElementById('profileModalClose').addEventListener('click', hideProfileModal);
+
+    var editMessageModal = document.getElementById('editMessageModal');
+    var editMessageInput = document.getElementById('editMessageInput');
+    var editMessageOk = document.getElementById('editMessageOk');
+    var editMessageCancel = document.getElementById('editMessageCancel');
+    var editMessageTargetId = null;
+    function showEditMessageModal(messageId, content) {
+        editMessageTargetId = messageId;
+        editMessageInput.value = content || '';
+        editMessageInput.style.height = 'auto';
+        editMessageInput.style.height = Math.min(editMessageInput.scrollHeight, 280) + 'px';
+        editMessageModal.style.display = 'block';
+        modalBackdrop.style.display = 'block';
+        editMessageInput.focus();
+    }
+    function hideEditMessageModal() {
+        editMessageModal.style.display = 'none';
+        editMessageTargetId = null;
+        modalBackdrop.style.display = 'none';
+    }
+    if (editMessageOk) editMessageOk.addEventListener('click', function() {
+        var content = editMessageInput.value.trim();
+        if (content && editMessageTargetId) {
+            socket.emit('edit_message', { message_id: editMessageTargetId, content: content });
+        }
+        hideEditMessageModal();
+    });
+    if (editMessageCancel) editMessageCancel.addEventListener('click', hideEditMessageModal);
+    if (editMessageInput) {
+        editMessageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (editMessageOk) editMessageOk.click();
+            }
+        });
+    }
+
     function hideAllModals() {
         hideProfileModal();
         hideWhoisModal();
         hideSearchResultsModal();
+        if (editMessageModal && editMessageModal.style.display === 'block') hideEditMessageModal();
     }
     modalBackdrop.addEventListener('click', hideAllModals);
 
@@ -2469,6 +2528,22 @@
         e.preventDefault();
         sendMessageWithAttachment();
     });
+
+    if (inputEl) {
+        inputEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                    return;
+                }
+                e.preventDefault();
+                sendMessageWithAttachment();
+            }
+        });
+        inputEl.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 128) + 'px';
+        });
+    }
 
     var fileInput = document.getElementById('fileInput');
     var attachBtn = document.getElementById('attachBtn');
