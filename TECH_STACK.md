@@ -9,7 +9,7 @@
 - **Flask** — Web framework; routes, app factory, and request handling.
 - **Flask-SocketIO** — WebSocket support for real-time messaging.
 - **Flask-Migrate** — Database migrations (Alembic); replaces ad-hoc schema changes; `flask db upgrade` / `flask db migrate`.
-- **gevent** — Async/WSGI server used as the SocketIO async mode; Linux-compatible for VPS deployment.
+- **eventlet** — Async/WSGI server used as the SocketIO async mode; Linux-compatible for VPS deployment.
 - **Flask-SQLAlchemy** — ORM; SQLite for development; PostgreSQL (Neon) for production. Schema is managed by Flask-Migrate (Alembic).
 - **requests + BeautifulSoup4** — Link preview: fetch first URL in a message and extract Open Graph (og:title, og:description, og:image) for preview cards.
 
@@ -34,6 +34,6 @@
 
 ## Deployment
 
-- **Koyeb + Neon**: `Procfile` (`web: gunicorn --worker-class gevent -w 1 wsgi:app`). Set `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE` in Koyeb environment variables.
-- **Gunicorn** — Production WSGI server; gevent worker for WebSocket support.
+- **Koyeb + Neon**: `Procfile` (`web: gunicorn --worker-class eventlet -w 1 wsgi:app`). Set `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE` in Koyeb environment variables.
+- **Gunicorn** — Production WSGI server; eventlet worker for WebSocket support.
 - **psycopg2-binary** — PostgreSQL driver for Neon.

@@ -116,7 +116,7 @@ def create_app() -> Flask:
     _polling_only = app.config.get("SOCKET_POLLING_ONLY", False)
     socketio = SocketIO(
         app,
-        async_mode="gevent",
+        async_mode="eventlet",
         cors_allowed_origins="*" if _polling_only else [],
         logger=False,
         engineio_logger=False,

@@ -10,8 +10,8 @@ ChitChat is a private chat server for up to 10 users. It uses a modular, SOLID-o
 chitchat/
 ├── run.bat              # Windows: venv, deps, launch run.py
 ├── run.py               # Entry point; env validation, migrations + seed, then socketio.run
-├── wsgi.py              # Gunicorn entry point
-├── Procfile             # Koyeb: web: gunicorn --worker-class gevent -w 1 wsgi:app
+├── wsgi.py              # Gunicorn entry point; eventlet monkey_patch before imports
+├── Procfile             # Koyeb: web: gunicorn --worker-class eventlet -w 1 wsgi:app
 ├── requirements.txt    # Python dependencies (flask-migrate, gunicorn, psycopg2-binary)
 ├── migrations/          # Flask-Migrate (Alembic) — versions/001..010, env.py
 ├── logs/                # Runtime logs (git-ignored except .gitkeep)
@@ -30,13 +30,13 @@ chitchat/
 
 ## Foundation (Step 1)
 
-- **Environment**: Python 3.11+; `.venv`; `requirements.txt` (Flask, Flask-SocketIO, Flask-Migrate, gevent, gunicorn, psycopg2-binary, Flask-SQLAlchemy).
+- **Environment**: Python 3.11+; `.venv`; `requirements.txt` (Flask, Flask-SocketIO, Flask-Migrate, eventlet, gunicorn, psycopg2-binary, Flask-SQLAlchemy).
 - **Windows**: `run.bat` creates/activates `.venv`, installs deps silently, runs `run.py` with minimal console output.
 - **Database**: Schema is managed by **Flask-Migrate (Alembic)**. `create_app()` runs `flask db upgrade` and seeds default rooms/users. SQLite by default; **PostgreSQL** (Neon) supported via `DATABASE_URL` or `CHITCHAT_DATABASE_URI`. Config normalizes `postgres://` to `postgresql://`.
 - **Environment safety**: `run.py` validates `CHITCHAT_SECRET_KEY` and `CHITCHAT_INVITE_CODE` are non-default; exits with a clear message if not.
 - **Logging**: `/logs` directory; `app.log` for general activity; `errors.log` for exceptions with **full stack traces and local variable context** per frame (Recursive Learning Loop).
 - **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `ROADMAP.md`, `migrations/README`.
-- **Production**: `Procfile` for Koyeb; gunicorn with gevent worker. Role permissions (Surfer Girl configures rookie/bro/fam) in `role_permissions` table.
+- **Production**: `Procfile` for Koyeb; gunicorn with eventlet worker. Role permissions (Surfer Girl configures rookie/bro/fam) in `role_permissions` table.
 
 ## Data Model (Step 2)
 
@@ -46,7 +46,7 @@ chitchat/
 
 ## Real-Time (Step 3)
 
-- **Flask-SocketIO** over **gevent** for WebSockets.
+- **Flask-SocketIO** over **eventlet** for WebSockets.
 - Events: join room, send message, **user_typing**, **load_more_messages**; server broadcasts to room.
 - On **join room**: server sends last 50 messages (server-side room-mute filter), plus **has_more**; client can request older messages via **load_more_messages** (before_id).
 - **Typing**: client emits **user_typing** (debounced); server broadcasts to room; client shows “[User] is typing…” and clears after 5s.

@@ -2,7 +2,7 @@
 Flask-SocketIO: join room (with history), send message, ignore list, user presence, stats.
 Acrophobia game bot in room "Acrophobia". Super Admin: kick, channels, assign admins, settings.
 """
-import gevent
+import eventlet
 import json
 import re
 import time
@@ -212,7 +212,7 @@ def _acrophobia_submit_timer_callback(app, room_id):
         if socket_io:
             info = acrophobia_get_phase_info(room_id)
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
-        gevent.spawn_later(VOTE_SECONDS, _acrophobia_vote_timer_callback, app, room_id)
+        eventlet.spawn_after(VOTE_SECONDS, _acrophobia_vote_timer_callback, app, room_id)
 
 
 def _acrophobia_vote_timer_callback(app, room_id):
@@ -229,7 +229,7 @@ def _acrophobia_vote_timer_callback(app, room_id):
 def _schedule_acrophobia_submit_timer(room_id):
     """Schedule advance from submit phase to voting after SUBMIT_SECONDS."""
     app = current_app._get_current_object()
-    gevent.spawn_later(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id)
+    eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id)
 
 
 def _get_or_create_dm_room(user_id: int, other_user_id: int):

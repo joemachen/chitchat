@@ -8,9 +8,9 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Stack & foundation
 
-- **Stack**: Flask, Flask-SocketIO, gevent, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vanilla JS; optional pywebview standalone.
+- **Stack**: Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vanilla JS; optional pywebview standalone.
 - **Run**: `run.py` (browser), `run_standalone.py` (native window). Port fallback: if 5000 is in use, tries 5001–5019 automatically.
-- **Production**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with gevent worker.
+- **Production**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with eventlet worker.
 - **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–010), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
 
 ### Auth & users
@@ -72,7 +72,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 3 — Online deployment ✅ done
 
-- **Hosting**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with gevent worker. Env: `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE`.
+- **Hosting**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with eventlet worker. Env: `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE`.
 - **Security**: HTTPS via Koyeb; secure cookies; rate limiting and CAPTCHA remain optional.
 - **Discovery**: Optional server URL + invite link; optional public room list; keep ~10 concurrent users per instance.
 

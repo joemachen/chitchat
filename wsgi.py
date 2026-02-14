@@ -1,4 +1,7 @@
 """
-WSGI entry point for gunicorn. Uses gevent worker (eventlet deprecated in gunicorn 26).
+WSGI entry point for gunicorn. eventlet.monkey_patch() before any other imports.
 """
+import eventlet
+eventlet.monkey_patch()
+
 from run import app
