@@ -308,6 +308,13 @@ def _schedule_acrophobia_submit_timer(room_id):
     eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id)
 
 
+def _user_by_username(username: str):
+    """Return User by username or None. Case-insensitive."""
+    if not username or not str(username).strip():
+        return None
+    return User.query.filter(func.lower(User.username) == str(username).strip().lower()).first()
+
+
 def _get_or_create_dm_room(user_id: int, other_user_id: int):
     """Return the DM room between user_id and other_user_id, creating it if needed. Used server-side (e.g. AcroBot DM)."""
     room = Room.query.filter(
@@ -679,7 +686,7 @@ def register_socket_handlers(socketio):
                     return
                 if to_username.lower() == "acrobot":
                     break  # Let AcroBot handlers below deal with /msg acrobot
-                target = User.query.filter(func.lower(User.username) == to_username.lower()).first()
+                target = _user_by_username(to_username)
                 if not target:
                     emit("error", {"message": f"User '{to_username}' not found"})
                     return
@@ -817,7 +824,7 @@ def register_socket_handlers(socketio):
             if not to_username:
                 emit("error", {"message": "Usage: /whois username"})
                 return
-            target = User.query.filter_by(username=to_username).first()
+            target = _user_by_username(to_username)
             if not target:
                 emit("whois_result", {"error": f"User '{to_username}' not found"})
                 return
@@ -933,7 +940,7 @@ def register_socket_handlers(socketio):
             if not to_username:
                 emit("error", {"message": "Usage: /ping username"})
                 return
-            target = User.query.filter_by(username=to_username).first()
+            target = _user_by_username(to_username)
             if not target:
                 emit("error", {"message": f"User '{to_username}' not found"})
                 return
@@ -1034,7 +1041,7 @@ def register_socket_handlers(socketio):
             mention_re = re.compile(r"@(\w+)", re.IGNORECASE)
             for match in mention_re.finditer(content):
                 nick = match.group(1)
-                target = User.query.filter_by(username=nick).first()
+                target = _user_by_username(nick)
                 if target and target.id != user_id:
                     for sid, uid in list(_sid_to_user_id.items()):
                         if uid == target.id:
