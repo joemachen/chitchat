@@ -37,6 +37,11 @@
         .msg { padding: 0.5rem 0.75rem; border-radius: 8px; background: #18181c; max-width: 85%; align-self: flex-start; user-select: text; -webkit-user-select: text; }
         .msg.own { background: #27272a; }
         .msg.hidden { display: none; }
+        .msg .msg-collapsed-bar { display: none; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; font-size: 0.8rem; color: #71717a; cursor: pointer; }
+        .msg.msg-user-hidden .msg-header, .msg.msg-user-hidden .msg-quote, .msg.msg-user-hidden .msg-content, .msg.msg-user-hidden .msg-attachment, .msg.msg-user-hidden .msg-edited, .msg.msg-user-hidden .msg-link-previews, .msg.msg-user-hidden .msg-actions { display: none !important; }
+        .msg.msg-user-hidden .msg-collapsed-bar { display: flex !important; }
+        .msg.msg-user-hidden { padding: 0; min-height: auto; }
+        .msg.msg-user-hidden .msg-collapsed-bar:hover { color: #a1a1aa; }
         .msg-header { font-size: 0.8rem; color: #818cf8; margin-bottom: 0.2rem; }
         .msg-username { cursor: context-menu; padding: 0 2px; border-radius: 2px; }
         .msg-username:hover { background: #27272a; }
@@ -235,6 +240,26 @@
         body.theme-light .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
         .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
         body.theme-light .ignored-panel { background: #e4e4e7; border-color: #d4d4d8; color: #52525b; }
+        /* Mobile responsive */
+        .mobile-menu-btn { display: none; background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; padding: 0.35rem 0.5rem; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; }
+        .sidebar-overlay.visible { display: block; }
+        @media (max-width: 768px) {
+            .mobile-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+            .room-list, .user-list { position: fixed; top: 0; bottom: 0; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+            .room-list { left: 0; }
+            .user-list { left: auto; right: 0; transform: translateX(100%); border-left: none; border-right: 1px solid #27272a; }
+            .room-list.open { transform: translateX(0); box-shadow: 4px 0 12px rgba(0,0,0,0.3); }
+            .user-list.open { transform: translateX(0); box-shadow: -4px 0 12px rgba(0,0,0,0.3); }
+            .main { flex: 1; min-width: 0; }
+            .chat-area { min-width: 0; }
+            .msg { max-width: 95%; }
+            .header h1 { font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%; }
+            .form-wrap input[type="text"], .form-wrap button { min-height: 44px; }
+            .room-list-footer button, .room-item, .user-item { min-height: 44px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        }
+        body.theme-light .room-list.open { box-shadow: 4px 0 12px rgba(0,0,0,0.2); }
+        body.theme-light .user-list.open { box-shadow: -4px 0 12px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -248,6 +273,8 @@
         <button type="button" data-action="reply-to-message">Reply</button>
         <button type="button" data-action="edit-message">Edit</button>
         <button type="button" data-action="delete-message">Delete</button>
+        <button type="button" data-action="hide-message" id="hideMessageBtn">Hide</button>
+        <button type="button" data-action="unhide-message" id="unhideMessageBtn" style="display:none;">Unhide</button>
         <button type="button" data-action="mute-message-user-in-room">Mute in this room</button>
         <button type="button" data-action="report-message">Report message</button>
         <button type="button" data-action="mark-unread">Mark unread</button>
@@ -278,8 +305,10 @@
         <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
     </div>
     <div class="header">
+        <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <h1>{{ server_name|default('ChitChat') }} — {{ user.username }}</h1>
         <div class="header-actions">
+            <button type="button" id="usersToggleBtn" class="mobile-menu-btn" aria-label="Toggle users">👥</button>
             <button type="button" id="settingsBtn">Settings</button>
             <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
                 <button type="submit">Log out</button>
@@ -288,6 +317,7 @@
     </div>
     <div class="status" id="status">Connecting…</div>
     <div class="ignored-panel" id="ignoredPanel" style="display: none;"></div>
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
     <div class="main">
         <aside class="room-list" id="roomList">
             <div class="room-list-title">ROOMS</div>
@@ -353,6 +383,7 @@
     let allUsersWithStatus = [];
     let showingSettings = false;
     let acrobotActive = true;
+    var settingsPendingSettings = null;
     const messagesEl = document.getElementById('messages');
     const statusEl = document.getElementById('status');
     const sendForm = document.getElementById('sendForm');
@@ -456,6 +487,21 @@
         return false;
     }
 
+    function getHiddenMessageIds() {
+        try {
+            var raw = localStorage.getItem('chitchatHiddenMessages');
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) { return []; }
+    }
+    function setMessageHidden(msgId, hidden) {
+        var ids = getHiddenMessageIds();
+        var idx = ids.indexOf(msgId);
+        if (hidden && idx === -1) ids.push(msgId);
+        else if (!hidden && idx !== -1) ids.splice(idx, 1);
+        localStorage.setItem('chitchatHiddenMessages', JSON.stringify(ids));
+    }
+    function isMessageUserHidden(msgId) { return getHiddenMessageIds().indexOf(msgId) !== -1; }
+
     function formatTime(iso) {
         if (!iso) return '';
         const d = new Date(iso);
@@ -464,8 +510,9 @@
 
     function renderMessage(msg, isOwn) {
         const isEmote = msg.message_type === 'emote';
+        const userHidden = isMessageUserHidden(msg.id);
         const div = document.createElement('div');
-        div.className = 'msg' + (isOwn ? ' own' : '') + (isEmote ? ' emote' : '') + (isHidden(msg) ? ' hidden' : '');
+        div.className = 'msg' + (isOwn ? ' own' : '') + (isEmote ? ' emote' : '') + (isHidden(msg) ? ' hidden' : '') + (userHidden ? ' msg-user-hidden' : '');
         div.dataset.msgId = msg.id;
         div.dataset.userId = msg.user_id;
         if (msg.room_id != null && isMessageUnread(msg.room_id, msg.id)) div.classList.add('mentioned');
@@ -513,6 +560,8 @@
             });
         }
         div.innerHTML =
+            '<div class="msg-collapsed-bar" title="Click to unhide">' +
+            '<span aria-hidden="true">👁️‍🗨️</span> Hidden message — click or right-click to unhide</div>' +
             '<div class="msg-header"><span class="msg-username" data-user-id="' + msg.user_id + '" data-username="' + escapeAttr(msg.username || '') + '">' + uname + '</span> <span class="msg-time">' + formatTime(msg.created_at) + '</span></div>' +
             (quoteHtml || '') +
             '<div class="msg-content">' + contentHtml + '</div>' +
@@ -523,6 +572,14 @@
         div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
             btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
         });
+        var collapsedBar = div.querySelector('.msg-collapsed-bar');
+        if (collapsedBar && userHidden) {
+            collapsedBar.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setMessageHidden(msg.id, false);
+                div.classList.remove('msg-user-hidden');
+            });
+        }
         div.querySelectorAll('.msg-quote[data-parent-id]').forEach(function(el) {
             el.addEventListener('click', function() {
                 var pid = el.getAttribute('data-parent-id');
@@ -590,12 +647,17 @@
     var messageContextMenuEl = document.getElementById('messageContextMenu');
     var messageContextTarget = null;
     var muteMsgUserBtn = messageContextMenuEl.querySelector('[data-action="mute-message-user-in-room"]');
+    var hideMsgBtn = messageContextMenuEl.querySelector('[data-action="hide-message"]');
+    var unhideMsgBtn = messageContextMenuEl.querySelector('[data-action="unhide-message"]');
     function showMessageContextMenu(x, y, messageId, userId, content, displayName) {
         messageContextTarget = { messageId: messageId, userId: userId, content: content || '', displayName: displayName || '?' };
         var editBtn = messageContextMenuEl.querySelector('[data-action="edit-message"]');
         var delBtn = messageContextMenuEl.querySelector('[data-action="delete-message"]');
         if (editBtn) editBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
         if (delBtn) delBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
+        var msgUserHidden = isMessageUserHidden(messageId);
+        if (hideMsgBtn) hideMsgBtn.style.display = msgUserHidden ? 'none' : 'block';
+        if (unhideMsgBtn) unhideMsgBtn.style.display = msgUserHidden ? 'block' : 'none';
         if (muteMsgUserBtn) {
             var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
             muteMsgUserBtn.style.display = inRoom ? 'block' : 'none';
@@ -715,6 +777,24 @@
                 return;
             }
             socket.emit('delete_message', { message_id: messageContextTarget.messageId });
+        }
+        hideMessageContextMenu();
+    });
+    if (hideMsgBtn) hideMsgBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget) {
+            setMessageHidden(messageContextTarget.messageId, true);
+            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
+            if (msgEl) msgEl.classList.add('msg-user-hidden');
+        }
+        hideMessageContextMenu();
+    });
+    if (unhideMsgBtn) unhideMsgBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget) {
+            setMessageHidden(messageContextTarget.messageId, false);
+            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
+            if (msgEl) msgEl.classList.remove('msg-user-hidden');
         }
         hideMessageContextMenu();
     });
@@ -1121,14 +1201,17 @@
                 html += '</div>';
             });
             html += '<div id="rolePermissionsSection" style="margin-top:1rem;"><p style="color:#71717a;">Loading role permissions…</p></div>';
+            html += '<div class="user-row" style="margin-top:1.5rem;"><button type="button" id="settingsSaveBtn" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>';
+        } else {
+            html += '<div class="user-row" style="margin-top:1.5rem;"><button type="button" id="settingsSaveBtn" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>';
         }
         div.innerHTML = html;
         messagesEl.appendChild(div);
+        settingsPendingSettings = { acrobot: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
         var acrobotToggle = document.getElementById('acrobotActiveToggle');
         if (acrobotToggle) {
             acrobotToggle.addEventListener('change', function() {
-                acrobotActive = acrobotToggle.checked;
-                socket.emit('set_acrobot_active', { active: acrobotActive });
+                settingsPendingSettings.acrobot = acrobotToggle.checked;
             });
         }
         div.querySelectorAll('select.user-rank-select').forEach(function(sel) {
@@ -1136,7 +1219,7 @@
             if (uid === currentUserId) return;
             sel.addEventListener('change', function() {
                 var rank = sel.value;
-                if (rank) socket.emit('set_user_rank', { target_user_id: uid, rank: rank });
+                if (rank) settingsPendingSettings.ranks[uid] = rank;
             });
         });
         var resetStatsBtn = div.querySelector('#resetStatsDataBtn');
@@ -1170,18 +1253,48 @@
         if (chatBgColorEl) {
             chatBgColorEl.value = localStorage.getItem('chatBgColor') || '#0f0f12';
             chatBgColorEl.addEventListener('input', function() {
-                var val = this.value;
-                localStorage.setItem('chatBgColor', val);
-                applyChatBackgroundColor();
+                settingsPendingSettings.bgColor = this.value;
             });
         }
         div.querySelectorAll('.theme-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var theme = this.getAttribute('data-theme') || 'dark';
-                applyTheme(theme);
+                settingsPendingSettings.theme = theme;
                 div.querySelectorAll('.theme-btn').forEach(function(b) { b.classList.remove('active'); if (b.getAttribute('data-theme') === theme) b.classList.add('active'); });
             });
         });
+        var saveBtn = document.getElementById('settingsSaveBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                if (!settingsPendingSettings) return;
+                if (settingsPendingSettings.theme != null) applyTheme(settingsPendingSettings.theme);
+                if (settingsPendingSettings.bgColor != null) {
+                    localStorage.setItem('chatBgColor', settingsPendingSettings.bgColor);
+                    applyChatBackgroundColor();
+                }
+                if (settingsPendingSettings.acrobot != null && isSuperAdmin) {
+                    acrobotActive = settingsPendingSettings.acrobot;
+                    socket.emit('set_acrobot_active', { active: acrobotActive });
+                }
+                Object.keys(settingsPendingSettings.ranks || {}).forEach(function(uid) {
+                    var rank = settingsPendingSettings.ranks[uid];
+                    if (rank) socket.emit('set_user_rank', { target_user_id: parseInt(uid, 10), rank: rank });
+                });
+                var rp = settingsPendingSettings.rolePerms || {};
+                Object.keys(rp).forEach(function(role) {
+                    Object.keys(rp[role] || {}).forEach(function(perm) {
+                        socket.emit('set_role_permission', { role: role, permission: perm, allowed: rp[role][perm] });
+                    });
+                });
+                settingsPendingSettings = { acrobot: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
+                var toast = document.createElement('div');
+                toast.className = 'ping-toast';
+                toast.style.background = '#166534';
+                toast.textContent = 'Settings saved.';
+                document.body.appendChild(toast);
+                setTimeout(function() { toast.remove(); }, 2000);
+            });
+        }
     }
 
     function applyChatBackgroundColor() {
@@ -1362,6 +1475,10 @@
     function switchRoom(roomId) {
         if (currentRoom && currentRoom.id === roomId) return;
         socket.emit('join_room', { room_id: roomId });
+        var rl = document.getElementById('roomList');
+        var ov = document.getElementById('sidebarOverlay');
+        if (rl) rl.classList.remove('open');
+        if (ov) ov.classList.remove('visible');
     }
 
     function editRoom(roomId) {
@@ -1620,13 +1737,14 @@
         });
         html += '</table>';
         section.innerHTML = html;
+        if (!settingsPendingSettings) settingsPendingSettings = { acrobot: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
+        if (!settingsPendingSettings.rolePerms) settingsPendingSettings.rolePerms = {};
         section.querySelectorAll('.role-perm-cb').forEach(function(cb) {
             cb.addEventListener('change', function() {
-                socket.emit('set_role_permission', {
-                    role: this.getAttribute('data-role'),
-                    permission: this.getAttribute('data-permission'),
-                    allowed: this.checked
-                });
+                var role = this.getAttribute('data-role');
+                var perm = this.getAttribute('data-permission');
+                if (!settingsPendingSettings.rolePerms[role]) settingsPendingSettings.rolePerms[role] = {};
+                settingsPendingSettings.rolePerms[role][perm] = this.checked;
             });
         });
     });
@@ -1904,6 +2022,38 @@
     applyTheme();
     applyChatBackgroundColor();
     applyMessagesSectionHeight();
+
+    (function setupMobileSidebars() {
+        var menuBtn = document.getElementById('menuToggleBtn');
+        var usersBtn = document.getElementById('usersToggleBtn');
+        var overlay = document.getElementById('sidebarOverlay');
+        var roomList = document.getElementById('roomList');
+        var userList = document.getElementById('userList');
+        function closeSidebars() {
+            if (roomList) roomList.classList.remove('open');
+            if (userList) userList.classList.remove('open');
+            if (overlay) overlay.classList.remove('visible');
+        }
+        function openRoomList() {
+            closeSidebars();
+            if (roomList) roomList.classList.add('open');
+            if (overlay) overlay.classList.add('visible');
+        }
+        function openUserList() {
+            closeSidebars();
+            if (userList) userList.classList.add('open');
+            if (overlay) overlay.classList.add('visible');
+        }
+        if (menuBtn && roomList) menuBtn.addEventListener('click', function() {
+            if (roomList.classList.contains('open')) closeSidebars();
+            else openRoomList();
+        });
+        if (usersBtn && userList) usersBtn.addEventListener('click', function() {
+            if (userList.classList.contains('open')) closeSidebars();
+            else openUserList();
+        });
+        if (overlay) overlay.addEventListener('click', closeSidebars);
+    })();
 
     (function setupPanelResizer() {
         var resizer = document.getElementById('panelResizer');

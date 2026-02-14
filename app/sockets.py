@@ -23,7 +23,7 @@ from app.acrophobia import (
     is_acrobot_active,
     set_acrobot_active as acrophobia_set_acrobot_active,
 )
-from app.link_preview import get_preview_for_message_content
+from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
 from app.models import AcroScore, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, db
 
@@ -890,11 +890,11 @@ def register_socket_handlers(socketio):
         db.session.commit()
 
         payload = msg.to_dict()
-        # Link preview for first URL in content (sync, short timeout)
+        # Link previews for URLs in content (Open Graph, up to 3)
         if message_type == "chat":
-            preview = get_preview_for_message_content(content)
-            if preview:
-                payload["link_previews"] = [preview]
+            previews = get_previews_for_message_content(content, max_previews=3)
+            if previews:
+                payload["link_previews"] = previews
         emit("new_message", payload, room=f"room_{room_id}")
 
         # @mention: parse @nickname and notify mentioned users (page)

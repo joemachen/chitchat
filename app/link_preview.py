@@ -78,9 +78,37 @@ def fetch_og_preview(url: str) -> dict | None:
         return None
 
 
+def _extract_all_urls(text: str, max_urls: int = 3) -> list[str]:
+    """Return up to max_urls http(s) URLs from text, in order."""
+    if not text:
+        return []
+    matches = re.findall(r"https?://[^\s<>\"']+", text)
+    seen = set()
+    result = []
+    for m in matches:
+        url = m.rstrip(".,;:)")
+        if url not in seen:
+            seen.add(url)
+            result.append(url)
+            if len(result) >= max_urls:
+                break
+    return result
+
+
 def get_preview_for_message_content(content: str) -> dict | None:
     """Extract first URL from content and return OG preview dict, or None."""
     url = _extract_first_url(content or "")
     if not url:
         return None
     return fetch_og_preview(url)
+
+
+def get_previews_for_message_content(content: str, max_previews: int = 3) -> list[dict]:
+    """Extract all URLs from content and return OG preview dicts (up to max_previews)."""
+    urls = _extract_all_urls(content or "", max_urls=max_previews)
+    previews = []
+    for url in urls:
+        p = fetch_og_preview(url)
+        if p:
+            previews.append(p)
+    return previews
