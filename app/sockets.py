@@ -586,7 +586,7 @@ def register_socket_handlers(socketio):
         # /help — List all available slash commands (post as one message in channel)
         if content.strip().lower() == "/help":
             help_lines = [
-                "**ChitChat commands**",
+                "**No Homers Club commands**",
                 "• /help — show this list",
                 "• /away [message] — set away; /dnd — Do Not Disturb; /online — back online",
                 "• /nick <name> — set display name in chat; /nick to clear",

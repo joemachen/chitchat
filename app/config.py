@@ -31,7 +31,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = _db_uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Server name/branding (shown in header)
-    SERVER_NAME = os.environ.get("CHITCHAT_SERVER_NAME", "ChitChat")
+    SERVER_NAME = os.environ.get("CHITCHAT_SERVER_NAME", "No Homers Club")
     # Simple Invite Code (pre-defined in config)
     INVITE_CODE = os.environ.get("CHITCHAT_INVITE_CODE", "chitchat-invite")
     # Remember logged-in users for 30 days (cookie persists across browser restarts)

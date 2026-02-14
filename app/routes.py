@@ -61,7 +61,7 @@ def _is_schema_out_of_date_error(exc: BaseException) -> bool:
 def _schema_error_response():
     """Return 500 response asking user to run migrations."""
     body = (
-        "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ChitChat — Schema update required</title></head><body>"
+        "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>No Homers Club — Schema update required</title></head><body>"
         "<h1>Database schema is out of date</h1>"
         "<p>The server could not load your data because the database is missing a required column.</p>"
         "<p><strong>Fix:</strong> Run migrations, then restart the app.</p>"
@@ -204,13 +204,13 @@ def register_routes(app):
                 out.append(d)
             resp = make_response(jsonify({"room_name": room_name, "exported_at": __import__("datetime").datetime.utcnow().isoformat() + "Z", "messages": out}))
             resp.headers["Content-Type"] = "application/json"
-            resp.headers["Content-Disposition"] = "attachment; filename=chitchat-export.json"
+            resp.headers["Content-Disposition"] = "attachment; filename=no-homers-club-export.json"
             return resp
         # HTML
         lines = [
-            "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>ChitChat export</title>",
+            "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>No Homers Club export</title>",
             "<style>body{font-family:system-ui;max-width:720px;margin:1rem auto;padding:0 1rem;} .m{border-bottom:1px solid #eee;padding:0.5rem 0;} .m .u{color:#666;font-size:0.9em;} .m .t{color:#999;font-size:0.85em;}</style></head><body>",
-            "<h1>ChitChat export" + (" – " + escape(room_name) if room_name else " – all rooms") + "</h1>",
+            "<h1>No Homers Club export" + (" – " + escape(room_name) if room_name else " – all rooms") + "</h1>",
         ]
         for m in messages:
             r = rooms_by_id.get(m.room_id)
@@ -222,7 +222,7 @@ def register_routes(app):
         lines.append("</body></html>")
         resp = make_response("\n".join(lines))
         resp.headers["Content-Type"] = "text/html; charset=utf-8"
-        resp.headers["Content-Disposition"] = "attachment; filename=chitchat-export.html"
+        resp.headers["Content-Disposition"] = "attachment; filename=no-homers-club-export.html"
         return resp
 
     @app.route("/login", methods=["GET", "POST"])
@@ -288,7 +288,7 @@ def register_routes(app):
             session.clear()
             return redirect(url_for("login_page"))
         user_perms = _user_permissions(user)
-        return render_template("chat.html", user=user, server_name=getattr(Config, "SERVER_NAME", "ChitChat"), user_permissions=user_perms)
+        return render_template("chat.html", user=user, server_name=getattr(Config, "SERVER_NAME", "No Homers Club"), user_permissions=user_perms)
 
     @app.route("/delete-account", methods=["GET", "POST"])
     def delete_account():

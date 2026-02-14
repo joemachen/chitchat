@@ -67,7 +67,7 @@ app = create_app()
 
 if __name__ == "__main__":
     try:
-        logger.info("ChitChat starting")
+        logger.info("No Homers Club starting")
 
         with app.app_context():
             _validate_environment()
@@ -77,11 +77,11 @@ if __name__ == "__main__":
         port = find_available_port(host, PORT_START)
         if port != PORT_START:
             logger.info("Port %s in use; using %s", PORT_START, port)
-        logger.info("ChitChat ready")
-        print(f"\n  ChitChat running at  http://{host}:{port}  — open in your browser.\n")
+        logger.info("No Homers Club ready")
+        print(f"\n  No Homers Club running at  http://{host}:{port}  — open in your browser.\n")
         app.socketio.run(app, host=host, port=port, debug=False, use_reloader=False)
     except SystemExit:
         raise
     except Exception:
-        logger.exception("ChitChat failed to start")
+        logger.exception("No Homers Club failed to start")
         sys.exit(1)

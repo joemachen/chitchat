@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delete account — ChitChat</title>
+    <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
+    <title>Delete account — No Homers Club</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
 </head>
 <body>
     <main class="auth-card">
+        <div class="auth-logo-wrap">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="auth-logo" aria-hidden="true">
+        </div>
         <h1>Delete my account</h1>
         <p class="subtitle">This action cannot be undone. All your messages and data will be removed.</p>
         {% if error %}

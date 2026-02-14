@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 # Timeout and max size for fetch (avoid slow or huge pages)
 FETCH_TIMEOUT = 3
 MAX_BODY_SIZE = 500_000
-USER_AGENT = "ChitChat-LinkPreview/1.0"
+USER_AGENT = "NoHomersClub-LinkPreview/1.0"
 
 
 def _extract_first_url(text: str) -> str | None:

@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChitChat — {{ user.username }}</title>
+    <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
+    <title>No Homers Club — {{ user.username }}</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>if (typeof marked !== 'undefined') { marked.setOptions({ gfm: true, breaks: true }); }</script>
@@ -18,7 +19,8 @@
             align-items: center;
             justify-content: space-between;
         }
-        .header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+        .header-logo { height: 2rem; width: auto; margin-right: 0.5rem; flex-shrink: 0; }
+        .header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; flex: 1; min-width: 0; }
         .header-actions { display: flex; align-items: center; gap: 0.75rem; }
         .header-actions a, .header-actions button { color: #a1a1aa; text-decoration: none; font-size: 0.9rem; background: none; border: none; cursor: pointer; padding: 0.25rem 0; }
         .header-actions a:hover, .header-actions button:hover { color: #e4e4e7; }
@@ -306,7 +308,8 @@
     </div>
     <div class="header">
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
-        <h1>{{ server_name|default('ChitChat') }} — {{ user.username }}</h1>
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo" aria-hidden="true">
+        <h1>{{ server_name|default('No Homers Club') }} — {{ user.username }}</h1>
         <div class="header-actions">
             <button type="button" id="usersToggleBtn" class="mobile-menu-btn" aria-label="Toggle users">👥</button>
             <button type="button" id="settingsBtn">Settings</button>
@@ -415,7 +418,7 @@
     var unreadMentions = {}; // room_id -> Set of message_id
     var unreadRooms = {};    // room_id -> true when room has new message(s) not yet read
     var lastReadByRoom = {}; // room_id -> last message id we've "read" (cleared highlight)
-    var baseTitle = document.title || 'ChitChat';
+    var baseTitle = document.title || 'No Homers Club';
     var acroPhase = null;
     var acroEndTime = null;
     var acroTimerInterval = null;

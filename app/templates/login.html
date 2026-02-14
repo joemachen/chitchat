@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log in — ChitChat</title>
+    <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
+    <title>Log in — No Homers Club</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
 </head>
 <body>
     <main class="auth-card">
-        <h1>ChitChat</h1>
+        <div class="auth-logo-wrap">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="auth-logo" aria-hidden="true">
+            <h1>No Homers Club</h1>
+        </div>
         <p class="subtitle">Log in</p>
         {% if reset_success %}
         <p class="success">Password reset. You can log in with your new password.</p>

@@ -46,7 +46,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        logger.info("ChitChat standalone starting")
+        logger.info("No Homers Club standalone starting")
         from app import create_app
 
         app = create_app()
@@ -67,9 +67,9 @@ if __name__ == "__main__":
 
         if PORT != PORT_START:
             logger.info("Port %s in use; using %s", PORT_START, PORT)
-        logger.info("ChitChat ready — opening window at %s", URL)
-        webview.create_window("ChitChat", URL, width=900, height=700, resizable=True)
+        logger.info("No Homers Club ready — opening window at %s", URL)
+        webview.create_window("No Homers Club", URL, width=900, height=700, resizable=True)
         webview.start()
     except Exception:
-        logger.exception("ChitChat standalone failed")
+        logger.exception("No Homers Club standalone failed")
         sys.exit(1)
