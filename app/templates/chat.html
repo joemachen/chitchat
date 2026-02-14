@@ -73,8 +73,15 @@
         .msg-actions button { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.75rem; padding: 0; }
         .msg-actions button:hover { color: #f87171; }
         .form-wrap { padding: 1rem; background: #18181c; border-top: 1px solid #27272a; }
-        .form-wrap form { display: flex; gap: 0.5rem; }
-        .form-wrap input { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
+        .form-wrap form { display: flex; gap: 0.5rem; align-items: center; }
+        .form-wrap input[type="text"] { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
+        .form-wrap input[type="file"] { display: none; }
+        .attach-btn { padding: 0.6rem 0.75rem; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 8px; cursor: pointer; font-size: 1rem; }
+        .attach-btn:hover { background: #3f3f46; color: #e4e4e7; }
+        .msg-attachment { margin-top: 0.35rem; }
+        .msg-attachment img { max-width: 280px; max-height: 200px; width: auto; height: auto; object-fit: contain; border-radius: 6px; display: block; cursor: pointer; }
+        .msg-attachment a.attachment-file { color: #818cf8; text-decoration: none; font-size: 0.9rem; }
+        .msg-attachment a.attachment-file:hover { text-decoration: underline; }
         .form-wrap input:focus { outline: none; border-color: #6366f1; }
         .form-wrap button { padding: 0.6rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; }
         .form-wrap button:hover { background: #5558e3; }
@@ -129,7 +136,7 @@
             overflow: hidden;
         }
         .room-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; }
-        .room-list-items { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem 0; }
+        .room-list-items { flex: 1 1 0; min-height: 0; max-height: 45%; overflow-y: auto; padding: 0.5rem 0; }
         .room-item { padding: 0.5rem 1rem; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; cursor: pointer; border-radius: 4px; margin: 0 4px; }
         .room-item:hover { background: #27272a; }
         .room-item.active .room-item-name { color: #4ade80; font-weight: 600; }
@@ -160,7 +167,10 @@
         .user-list-section .user-list-title { border-bottom: none; padding: 0.5rem 1rem 0.25rem; }
         .user-item { padding: 0.4rem 1rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
         .user-item.online .user-dot { background: #4ade80; }
+        .user-item.away .user-dot { background: #eab308; }
+        .user-item.dnd .user-dot { background: #ef4444; }
         .user-item.offline .user-dot { background: #52525b; }
+        .user-item-presence { font-size: 0.75rem; color: #71717a; margin-left: 0.25rem; }
         .user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .user-item.me { color: #818cf8; font-weight: 500; }
         .user-list .muted { color: #71717a; font-size: 0.85rem; }
@@ -178,8 +188,11 @@
         .panel-resizer:hover { background: #3f3f46; }
         .message-list-title { padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; }
         .message-list-items { flex: 0 0 80px; min-height: 40px; max-height: 50%; overflow-y: auto; }
-        .msg-quote { margin-bottom: 0.35rem; padding: 0.35rem 0.5rem; background: #1e1e24; border-left: 3px solid #6366f1; border-radius: 4px; font-size: 0.85rem; color: #a1a1aa; }
+        .msg-quote { margin-bottom: 0.35rem; padding: 0.35rem 0.5rem; background: #1e1e24; border-left: 3px solid #6366f1; border-radius: 4px; font-size: 0.85rem; color: #a1a1aa; cursor: pointer; }
+        .msg-quote:hover { background: #27272a; }
         .msg-quote strong { color: #818cf8; }
+        .msg.highlight-reply-target { animation: reply-highlight 1.5s ease-out; }
+        @keyframes reply-highlight { 0% { box-shadow: 0 0 0 2px #6366f1; } 100% { box-shadow: none; } }
         .msg-edited { font-size: 0.7rem; color: #71717a; margin-top: 0.2rem; }
         .room-item.mentioned { background: #3b0764; border-left: 3px solid #a78bfa; }
         .room-item-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; flex-shrink: 0; margin-right: 6px; }
@@ -228,12 +241,14 @@
     <div id="contextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="view-profile">View profile</button>
         <button type="button" data-action="message-user">Message</button>
+        <button type="button" data-action="mute-in-room">Mute in this room</button>
         <button type="button" data-action="kick-user">Kick user</button>
     </div>
     <div id="messageContextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="reply-to-message">Reply</button>
         <button type="button" data-action="edit-message">Edit</button>
         <button type="button" data-action="delete-message">Delete</button>
+        <button type="button" data-action="mute-message-user-in-room">Mute in this room</button>
         <button type="button" data-action="report-message">Report message</button>
         <button type="button" data-action="mark-unread">Mark unread</button>
         <button type="button" data-action="message-view-profile">View profile</button>
@@ -263,7 +278,7 @@
         <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
     </div>
     <div class="header">
-        <h1>ChitChat — {{ user.username }}</h1>
+        <h1>{{ server_name|default('ChitChat') }} — {{ user.username }}</h1>
         <div class="header-actions">
             <button type="button" id="settingsBtn">Settings</button>
             <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
@@ -281,7 +296,7 @@
             <div class="message-list-title">MESSAGES</div>
             <div class="message-list-items" id="messageListItems"></div>
             <div class="room-list-footer">
-                {% if user.is_super_admin %}
+                {% if user.is_super_admin or (user_permissions|default({})).get('create_room') %}
                 <button type="button" id="newRoomBtn">+ New room</button>
                 {% endif %}
             </div>
@@ -305,6 +320,8 @@
             <div class="acro-timer hidden" id="acroTimer"></div>
             <div class="form-wrap">
                 <form id="sendForm">
+                    <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
+                    <button type="button" id="attachBtn" class="attach-btn" title="Attach file or image">📎</button>
                     <input type="text" id="input" placeholder="Type a message…" autocomplete="off">
                     <button type="submit" id="sendBtn" disabled>Send</button>
                 </form>
@@ -327,8 +344,10 @@
 (function() {
     const currentUserId = {{ user.id }};
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
+    const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
     let ignoreList = [];
+    var roomMutedInRoom = {};  // room_id -> Set of muted user_ids
     let currentRoom = null;
     let allRooms = [];
     let allUsersWithStatus = [];
@@ -361,6 +380,7 @@
     var replyToMessageId = null;
     var replyToContent = null;
     var replyToDisplayName = null;
+    var pendingAttachment = null;  // { url, filename }
     var unreadMentions = {}; // room_id -> Set of message_id
     var unreadRooms = {};    // room_id -> true when room has new message(s) not yet read
     var lastReadByRoom = {}; // room_id -> last message id we've "read" (cleared highlight)
@@ -430,7 +450,11 @@
     function setStatus(text) { statusEl.textContent = text; }
     function setConnected(ok) { sendBtn.disabled = !ok; setStatus(ok ? 'Connected' : statusEl.textContent); }
 
-    function isHidden(msg) { return ignoreList.indexOf(msg.user_id) !== -1; }
+    function isHidden(msg) {
+        if (ignoreList.indexOf(msg.user_id) !== -1) return true;
+        if (currentRoom && msg.room_id === currentRoom.id && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(msg.user_id)) return true;
+        return false;
+    }
 
     function formatTime(iso) {
         if (!iso) return '';
@@ -463,11 +487,21 @@
         var quoteHtml = '';
         if (msg.parent_id && (msg.parent_content != null || msg.parent_username != null)) {
             var pName = (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?');
-            quoteHtml = '<div class="msg-quote"><strong>' + escapeHtml(pName) + '</strong>: ' + escapeHtml((msg.parent_content || '').slice(0, 200)) + ((msg.parent_content || '').length > 200 ? '…' : '') + '</div>';
+            quoteHtml = '<div class="msg-quote" data-parent-id="' + escapeAttr(String(msg.parent_id)) + '" title="Jump to original message"><strong>' + escapeHtml(pName) + '</strong>: ' + escapeHtml((msg.parent_content || '').slice(0, 200)) + ((msg.parent_content || '').length > 200 ? '…' : '') + '</div>';
         }
         var editedHtml = '';
         if (msg.edited_at) {
             editedHtml = '<div class="msg-edited">edited ' + formatTime(msg.edited_at) + '</div>';
+        }
+        var attachmentHtml = '';
+        if (msg.attachment_url) {
+            var ext = (msg.attachment_filename || '').split('.').pop().toLowerCase();
+            var isImg = ['png','jpg','jpeg','gif','webp','svg'].indexOf(ext) !== -1;
+            if (isImg) {
+                attachmentHtml = '<div class="msg-attachment"><a href="' + escapeAttr(msg.attachment_url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escapeAttr(msg.attachment_url) + '" alt="' + escapeAttr(msg.attachment_filename || '') + '"></a></div>';
+            } else {
+                attachmentHtml = '<div class="msg-attachment"><a class="attachment-file" href="' + escapeAttr(msg.attachment_url) + '" target="_blank" rel="noopener noreferrer">📎 ' + escapeHtml(msg.attachment_filename || 'Attachment') + '</a></div>';
+            }
         }
         var linkPreviewsHtml = '';
         if (msg.link_previews && msg.link_previews.length) {
@@ -482,11 +516,19 @@
             '<div class="msg-header"><span class="msg-username" data-user-id="' + msg.user_id + '" data-username="' + escapeAttr(msg.username || '') + '">' + uname + '</span> <span class="msg-time">' + formatTime(msg.created_at) + '</span></div>' +
             (quoteHtml || '') +
             '<div class="msg-content">' + contentHtml + '</div>' +
+            (attachmentHtml || '') +
             (editedHtml || '') +
             (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '') +
             (!isOwn && !isEmote ? '<div class="msg-actions"><button type="button" class="btn-ignore" data-user-id="' + msg.user_id + '">Ignore user</button></div>' : '');
         div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
             btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
+        });
+        div.querySelectorAll('.msg-quote[data-parent-id]').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var pid = el.getAttribute('data-parent-id');
+                var parentEl = messagesEl.querySelector('.msg[data-msg-id="' + pid + '"]');
+                if (parentEl) { parentEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); parentEl.classList.add('highlight-reply-target'); setTimeout(function() { parentEl.classList.remove('highlight-reply-target'); }, 1500); }
+            });
         });
         return div;
     }
@@ -523,9 +565,16 @@
     var contextMenuEl = document.getElementById('contextMenu');
     var contextMenuTarget = null;
     var kickBtn = contextMenuEl.querySelector('[data-action="kick-user"]');
+    var muteInRoomBtn = contextMenuEl.querySelector('[data-action="mute-in-room"]');
     function showContextMenu(x, y, userId, username) {
         contextMenuTarget = { user_id: userId, username: username };
-        kickBtn.style.display = (userId !== currentUserId && isSuperAdmin) ? 'block' : 'none';
+        kickBtn.style.display = (userId !== currentUserId && (isSuperAdmin || (userPermissions && userPermissions.kick_user))) ? 'block' : 'none';
+        var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
+        if (muteInRoomBtn) {
+            muteInRoomBtn.style.display = inRoom ? 'block' : 'none';
+            var muted = inRoom && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(userId);
+            muteInRoomBtn.textContent = muted ? 'Unmute in this room' : 'Mute in this room';
+        }
         contextMenuEl.style.left = x + 'px';
         contextMenuEl.style.top = y + 'px';
         contextMenuEl.style.display = 'block';
@@ -540,12 +589,19 @@
     });
     var messageContextMenuEl = document.getElementById('messageContextMenu');
     var messageContextTarget = null;
+    var muteMsgUserBtn = messageContextMenuEl.querySelector('[data-action="mute-message-user-in-room"]');
     function showMessageContextMenu(x, y, messageId, userId, content, displayName) {
         messageContextTarget = { messageId: messageId, userId: userId, content: content || '', displayName: displayName || '?' };
         var editBtn = messageContextMenuEl.querySelector('[data-action="edit-message"]');
         var delBtn = messageContextMenuEl.querySelector('[data-action="delete-message"]');
         if (editBtn) editBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
         if (delBtn) delBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
+        if (muteMsgUserBtn) {
+            var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
+            muteMsgUserBtn.style.display = inRoom ? 'block' : 'none';
+            var muted = inRoom && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(userId);
+            muteMsgUserBtn.textContent = muted ? 'Unmute in this room' : 'Mute in this room';
+        }
         messageContextMenuEl.style.left = x + 'px';
         messageContextMenuEl.style.top = y + 'px';
         messageContextMenuEl.style.display = 'block';
@@ -613,6 +669,14 @@
         }
         hideContextMenu();
     });
+    if (muteInRoomBtn) muteInRoomBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (contextMenuTarget && currentRoom) {
+            var muted = roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(contextMenuTarget.user_id);
+            socket.emit(muted ? 'unmute_user_in_room' : 'mute_user_in_room', { room_id: currentRoom.id, muted_user_id: contextMenuTarget.user_id });
+        }
+        hideContextMenu();
+    });
     contextMenuEl.querySelector('[data-action="kick-user"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (contextMenuTarget && currentRoom) {
@@ -627,8 +691,7 @@
             replyToMessageId = messageContextTarget.messageId;
             replyToContent = messageContextTarget.content;
             replyToDisplayName = messageContextTarget.displayName;
-            var quote = (replyToContent || '').slice(0, 200) + ((replyToContent || '').length > 200 ? '…' : '');
-            inputEl.value = '> @' + (replyToDisplayName || '?') + ': ' + quote.replace(/\n/g, ' ') + '\n\n';
+            inputEl.value = '> @' + (replyToDisplayName || '?') + ':\n\n';
             inputEl.focus();
         }
         hideMessageContextMenu();
@@ -671,6 +734,14 @@
             addUnreadMention(currentRoom.id, messageContextTarget.messageId);
             var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
             if (msgEl) msgEl.classList.add('mentioned');
+        }
+        hideMessageContextMenu();
+    });
+    if (muteMsgUserBtn) muteMsgUserBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && currentRoom && messageContextTarget.userId !== currentUserId) {
+            var muted = roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(messageContextTarget.userId);
+            socket.emit(muted ? 'unmute_user_in_room' : 'mute_user_in_room', { room_id: currentRoom.id, muted_user_id: messageContextTarget.userId });
         }
         hideMessageContextMenu();
     });
@@ -971,6 +1042,14 @@
         (stats.favorite_words || []).forEach(function(f) {
             html += '<p><strong>' + escapeHtml(f.username) + '</strong> <span class="favorite-words">' + (f.words || []).map(function(w) { return escapeHtml(w.word) + ' (' + w.count + ')'; }).join(', ') + '</span></p>';
         });
+        var acroLeaderboard = stats.acro_leaderboard || [];
+        if (acroLeaderboard.length) {
+            html += '<h2>Acrophobia leaderboard</h2><ul>';
+            acroLeaderboard.forEach(function(a, i) {
+                html += '<li class="stat-row"><span>' + (i + 1) + '. ' + escapeHtml(a.username) + '</span><span>' + a.wins + ' win(s)</span></li>';
+            });
+            html += '</ul>';
+        }
         div.innerHTML = html;
         messagesEl.appendChild(div);
     }
@@ -983,6 +1062,7 @@
         if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         socket.emit('get_acrobot_status');
+        if (isSuperAdmin) socket.emit('get_role_permissions');
         var div = document.createElement('div');
         div.className = 'settings-view';
         var html = '<h2>Account</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>';
@@ -1020,11 +1100,13 @@
                 { value: 'rookie', label: 'Rookie' },
                 { value: 'bro', label: 'Bro' },
                 { value: 'fam', label: 'Fam' },
-                { value: 'super_admin', label: 'Super Admin' }
+                { value: 'super_admin', label: 'Surfer Girl' }
             ];
-            html += '<h2>Users — Rankings</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Super Admins can set user rankings (lowest to highest: Rookie, Bro, Fam, Super Admin).</p>';
+            html += '<h2>Users — Rankings</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>';
             (allUsersWithStatus || []).forEach(function(u) {
                 var me = u.id === currentUserId;
+                var isSystem = u.username === 'AcroBot' || u.username === 'System';
+                var canDelete = !me && !isSystem;
                 var currentRank = (u.rank || 'rookie').toLowerCase();
                 if (['rookie', 'bro', 'fam', 'super_admin'].indexOf(currentRank) === -1) currentRank = 'rookie';
                 var label = escapeHtml(u.username) + (u.online ? ' <span style="color:#4ade80;">●</span>' : '') + (me ? ' (you)' : '');
@@ -1034,8 +1116,11 @@
                 ranks.forEach(function(r) {
                     html += '<option value="' + escapeAttr(r.value) + '"' + (currentRank === r.value ? ' selected' : '') + '>' + escapeHtml(r.label) + '</option>';
                 });
-                html += '</select></div>';
+                html += '</select>';
+                if (canDelete) html += '<button type="button" class="settings-delete-user" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>';
+                html += '</div>';
             });
+            html += '<div id="rolePermissionsSection" style="margin-top:1rem;"><p style="color:#71717a;">Loading role permissions…</p></div>';
         }
         div.innerHTML = html;
         messagesEl.appendChild(div);
@@ -1071,6 +1156,14 @@
             btn.addEventListener('click', function() {
                 if (!confirm('Delete channel "' + rname + '" and all its messages?')) return;
                 socket.emit('delete_room', { room_id: rid, from_settings: true });
+            });
+        });
+        div.querySelectorAll('button.settings-delete-user').forEach(function(btn) {
+            var uid = parseInt(btn.getAttribute('data-user-id'), 10);
+            var uname = btn.getAttribute('data-username') || '?';
+            btn.addEventListener('click', function() {
+                if (!confirm('Permanently delete user "' + uname + '"? This cannot be undone.')) return;
+                socket.emit('delete_user', { target_user_id: uid });
             });
         });
         var chatBgColorEl = document.getElementById('chatBgColor');
@@ -1148,26 +1241,28 @@
             var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
             var protectedChannels = ['general', 'Stats', 'Acrophobia', 'System Events'];
             var canDelete = protectedChannels.indexOf(r.name) === -1;
-            var showActions = isSuperAdmin;
+            var isOwner = r.created_by_id === currentUserId;
+            var canEdit = isSuperAdmin || isOwner || (userPermissions && userPermissions.update_room);
+            var canDeleteRoom = (isSuperAdmin || isOwner || (userPermissions && userPermissions.delete_room)) && canDelete;
             var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
             return '<div class="room-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
                 '<span class="room-item-grip" title="Drag to reorder">⋮⋮</span>' +
                 '<span class="room-item-unread-dot" style="display:' + (hasUnread ? 'inline-block' : 'none') + ';" title="Unread"></span>' +
                 '<span class="room-item-name">' + escapeHtml(r.name) + '</span>' +
                 '<span class="room-item-actions">' +
-                (showActions ? '<button type="button" class="edit" title="Edit">✎</button>' : '') +
-                (showActions && canDelete ? '<button type="button" class="delete" title="Delete">×</button>' : '') +
+                (canEdit ? '<button type="button" class="edit" title="Edit">✎</button>' : '') +
+                (canDeleteRoom ? '<button type="button" class="delete" title="Delete">×</button>' : '') +
                 '</span></div>';
         }
         function dmItemHtml(r) {
             var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
             var displayName = 'DM: ' + (dmOtherUsername(r) || '?');
             var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
-            return '<div class="room-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
+            return '<div class="room-item dm-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
                 '<span class="room-item-grip" title="Drag to reorder">⋮⋮</span>' +
                 '<span class="room-item-unread-dot" style="display:' + (hasUnread ? 'inline-block' : 'none') + ';" title="Unread"></span>' +
                 '<span class="room-item-name">' + escapeHtml(displayName) + '</span>' +
-                '<span class="room-item-actions"></span></div>';
+                '<span class="room-item-actions"><button type="button" class="delete" title="Delete DM">×</button></span></div>';
         }
         roomListItemsEl.innerHTML = channels.length ? channels.map(channelItemHtml).join('') : '<div class="room-item" style="cursor:default;color:#71717a;">No channels</div>';
         messageListItemsEl.innerHTML = dms.length ? dms.map(dmItemHtml).join('') : '<div class="room-item" style="cursor:default;color:#71717a;">No messages</div>';
@@ -1223,10 +1318,12 @@
                 var room = list.find(function(r) { return r.id === rid; });
                 if (!room) return;
                 el.addEventListener('click', function(ev) {
-                    if (ev.target.closest('.room-item-grip')) return;
+                    if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
                     showingSettings = false;
                     switchRoom(rid);
                 });
+                var delBtn = el.querySelector('button.delete');
+                if (delBtn) delBtn.addEventListener('click', function(e) { e.stopPropagation(); deleteRoom(rid); });
                 el.addEventListener('dragstart', function(e) {
                     e.dataTransfer.setData('text/plain', rid);
                     e.dataTransfer.effectAllowed = 'move';
@@ -1294,10 +1391,13 @@
         const offline = users.filter(function(u) { return !u.online; });
         function itemHtml(u) {
             const isMe = u.id === currentUserId;
-            const cls = 'user-item ' + (u.online ? 'online' : 'offline') + (isMe ? ' me' : '');
+            var statusCls = u.online ? (u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : 'online') : 'offline';
+            const cls = 'user-item ' + statusCls + (isMe ? ' me' : '');
             var label = escapeHtml(u.username) + (isMe ? ' (you)' : '');
             if (u.is_system_user) label = escapeHtml(u.username) + ' <span class="muted">(service)</span>';
-            return '<div class="' + cls + '" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username || '') + '"><span class="user-dot"></span><span class="user-item-name">' + label + '</span></div>';
+            var presence = '';
+            if (u.online && u.current_room_name && !u.is_system_user) presence = '<span class="user-item-presence">in ' + escapeHtml(u.current_room_name) + '</span>';
+            return '<div class="' + cls + '" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username || '') + '"><span class="user-dot"></span><span class="user-item-name">' + label + '</span>' + presence + '</div>';
         }
         userListOnlineItems.innerHTML = online.length ? online.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>';
         userListOfflineItems.innerHTML = offline.length ? offline.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>';
@@ -1334,13 +1434,18 @@
 
     socket = io({ withCredentials: true });
 
+    var socketWasDisconnected = false;
     socket.on('connect', function() {
         setConnected(true);
+        if (socketWasDisconnected) {
+            showPingToast('Reconnected');
+            socketWasDisconnected = false;
+        }
         if (currentRoom) socket.emit('join_room', { room_id: currentRoom.id });
         else socket.emit('join_room', {});
     });
 
-    socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); });
+    socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); socketWasDisconnected = true; });
     socket.on('connect_error', function() { setStatus('Connection failed'); });
 
     let ignoredUsers = [];
@@ -1352,6 +1457,9 @@
         if (data.rooms) renderRoomList(data.rooms, data.room);
         ignoreList = data.ignore_list || [];
         ignoredUsers = data.ignored_users || [];
+        if (currentRoom && data.room_muted_in_room) {
+            roomMutedInRoom[currentRoom.id] = new Set(data.room_muted_in_room);
+        }
         hasMoreMessages = data.has_more === true;
         typingUsers = {};
         updateTypingIndicator();
@@ -1400,6 +1508,12 @@
             if (general) switchRoom(general.id);
             showPingToast('You were kicked from ' + (currentRoom ? currentRoom.name : '') + '.');
         }
+    });
+
+    socket.on('kicked_from_app', function(data) {
+        showPingToast(data.message || 'You were kicked from the app.');
+        if (socket) socket.disconnect();
+        window.location.href = '{{ url_for("login_page") }}?kicked=1';
     });
 
     socket.on('rooms_list', function(data) {
@@ -1471,6 +1585,50 @@
         acrobotActive = data.active !== false;
         var toggle = document.getElementById('acrobotActiveToggle');
         if (toggle) toggle.checked = acrobotActive;
+    });
+
+    socket.on('role_permissions', function(data) {
+        var section = document.getElementById('rolePermissionsSection');
+        if (!section || !data.permissions || !isSuperAdmin) return;
+        var perms = data.permissions;
+        var permLabels = {
+            create_room: 'Create channels',
+            update_room: 'Edit channel names',
+            delete_room: 'Delete channels',
+            kick_user: 'Kick users',
+            set_user_rank: 'Set user rankings',
+            acrobot_control: 'AcroBot on/off',
+            reset_stats: 'Reset Stats data',
+            export_all: 'Export all rooms'
+        };
+        var roles = [
+            { id: 'rookie', label: 'Rookie' },
+            { id: 'bro', label: 'Bro' },
+            { id: 'fam', label: 'Fam' }
+        ];
+        var html = '<h2>Role Permissions</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Surfer Girl can grant these permissions to Rookie, Bro, or Fam. Surfer Girl always has full access.</p>';
+        html += '<table style="font-size:0.85rem;border-collapse:collapse;"><tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th>';
+        roles.forEach(function(r) { html += '<th style="padding:0.35rem 0.5rem;">' + escapeHtml(r.label) + '</th>'; });
+        html += '</tr>';
+        Object.keys(permLabels).forEach(function(perm) {
+            html += '<tr><td style="padding:0.35rem 0.75rem 0.35rem 0;">' + escapeHtml(permLabels[perm]) + '</td>';
+            roles.forEach(function(r) {
+                var checked = perms[r.id] && perms[r.id][perm];
+                html += '<td style="padding:0.35rem 0.5rem;"><input type="checkbox" class="role-perm-cb" data-role="' + escapeAttr(r.id) + '" data-permission="' + escapeAttr(perm) + '" ' + (checked ? 'checked' : '') + '></td>';
+            });
+            html += '</tr>';
+        });
+        html += '</table>';
+        section.innerHTML = html;
+        section.querySelectorAll('.role-perm-cb').forEach(function(cb) {
+            cb.addEventListener('change', function() {
+                socket.emit('set_role_permission', {
+                    role: this.getAttribute('data-role'),
+                    permission: this.getAttribute('data-permission'),
+                    allowed: this.checked
+                });
+            });
+        });
     });
 
     socket.on('stats_reset', function(data) {
@@ -1565,6 +1723,18 @@
         setTimeout(function() { el.remove(); }, 5000);
     });
 
+    socket.on('room_muted_updated', function(data) {
+        if (data.room_id) {
+            roomMutedInRoom[data.room_id] = new Set(data.room_muted_in_room || []);
+            if (currentRoom && currentRoom.id === data.room_id) {
+                messagesEl.querySelectorAll('.msg[data-user-id]').forEach(function(el) {
+                    var uid = parseInt(el.getAttribute('data-user-id'), 10);
+                    el.classList.toggle('hidden', roomMutedInRoom[data.room_id].has(uid) || ignoreList.indexOf(uid) !== -1);
+                });
+            }
+        }
+    });
+
     socket.on('ignore_list_updated', function(data) {
         applyIgnoreList(data.ignore_list);
         if (data.ignored_users) ignoredUsers = data.ignored_users;
@@ -1597,18 +1767,88 @@
         }, 400);
     });
 
-    sendForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const content = inputEl.value.trim();
-        if (!content || !currentRoom) return;
-        var payload = { room_id: currentRoom.id, content: content };
+    function sendMessageWithAttachment() {
+        var content = inputEl.value.trim();
+        if ((!content && !pendingAttachment) || !currentRoom) return;
+        var payload = { room_id: currentRoom.id, content: content || '' };
         if (replyToMessageId) payload.parent_id = replyToMessageId;
+        if (pendingAttachment) {
+            payload.attachment_url = pendingAttachment.url;
+            payload.attachment_filename = pendingAttachment.filename;
+        }
         socket.emit('send_message', payload);
         inputEl.value = '';
         replyToMessageId = null;
         replyToContent = null;
         replyToDisplayName = null;
+        pendingAttachment = null;
+        var attachBtn = document.getElementById('attachBtn');
+        if (attachBtn) attachBtn.title = 'Attach file or image';
+    }
+
+    sendForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        sendMessageWithAttachment();
     });
+
+    var fileInput = document.getElementById('fileInput');
+    var attachBtn = document.getElementById('attachBtn');
+    if (fileInput && attachBtn) {
+        attachBtn.addEventListener('click', function() { fileInput.click(); });
+        fileInput.addEventListener('change', function() {
+            var file = fileInput.files && fileInput.files[0];
+            if (!file) return;
+            var fd = new FormData();
+            fd.append('file', file);
+            attachBtn.disabled = true;
+            attachBtn.title = 'Uploading…';
+            fetch('/upload', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.error) throw new Error(data.error);
+                    pendingAttachment = { url: data.url, filename: data.filename };
+                    attachBtn.title = 'Attached: ' + data.filename + ' — send to post';
+                    sendMessageWithAttachment();
+                })
+                .catch(function(err) {
+                    attachBtn.title = 'Upload failed: ' + (err.message || 'Unknown error');
+                    setTimeout(function() { attachBtn.title = 'Attach file or image'; }, 3000);
+                })
+                .finally(function() {
+                    attachBtn.disabled = false;
+                    fileInput.value = '';
+                });
+        });
+    }
+
+    if (inputEl) {
+        inputEl.addEventListener('paste', function(e) {
+            var items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    e.preventDefault();
+                    var file = items[i].getAsFile();
+                    if (!file) return;
+                    var fd = new FormData();
+                    fd.append('file', file);
+                    fetch('/upload', { method: 'POST', body: fd, credentials: 'same-origin' })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.error) throw new Error(data.error);
+                            pendingAttachment = { url: data.url, filename: data.filename };
+                            if (!inputEl.value.trim()) sendMessageWithAttachment();
+                            else {
+                                var ab = document.getElementById('attachBtn');
+                                if (ab) ab.title = 'Attached: ' + data.filename + ' — send to post';
+                            }
+                        })
+                        .catch(function() {});
+                    break;
+                }
+            }
+        });
+    }
 
     if (loadMoreBtn) loadMoreBtn.addEventListener('click', function() {
         if (!currentRoom || !hasMoreMessages) return;

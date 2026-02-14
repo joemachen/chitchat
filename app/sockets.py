@@ -10,8 +10,8 @@ from collections import Counter
 from datetime import datetime
 
 from flask import current_app, request, session
-from flask_socketio import emit, join_room as socketio_join_room
-from sqlalchemy import and_, func, or_
+from flask_socketio import disconnect as socketio_disconnect, emit, join_room as socketio_join_room
+from sqlalchemy import and_, extract, func, or_
 
 from app.acrophobia import (
     SUBMIT_SECONDS,
@@ -25,7 +25,7 @@ from app.acrophobia import (
 )
 from app.link_preview import get_preview_for_message_content
 from app.logging_config import get_logger
-from app.models import IgnoreList, Message, MessageReport, Room, User, db
+from app.models import AcroScore, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, db
 
 logger = get_logger()
 
@@ -38,6 +38,7 @@ _online_user_ids = set()
 _sid_to_user_id = {}
 _sid_to_connected_at = {}  # sid -> time.time() when connected
 _sid_to_remote_addr = {}  # sid -> IP string
+_user_id_to_room = {}  # user_id -> (room_id, room_name) for rich presence
 
 
 def _get_users_with_online_status():
@@ -57,6 +58,8 @@ def _get_users_with_online_status():
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": False,
+                "user_status": "online",
+                "current_room_name": None,
             })
         elif u.username == "System":
             result.append({
@@ -66,8 +69,11 @@ def _get_users_with_online_status():
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": True,
+                "user_status": "online",
+                "current_room_name": None,
             })
         else:
+            r = _user_id_to_room.get(u.id)
             result.append({
                 "id": u.id,
                 "username": u.username,
@@ -75,8 +81,16 @@ def _get_users_with_online_status():
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": False,
+                "user_status": getattr(u, "user_status", None) or "online",
+                "current_room_name": r[1] if r else None,
             })
     return result
+
+
+def _get_room_mutes_for_user(user_id, room_id):
+    """Return set of user_ids that user_id has muted in room_id."""
+    records = RoomMute.query.filter_by(room_id=room_id, muted_by_id=user_id).all()
+    return {r.muted_user_id for r in records}
 
 
 def _get_ignore_list_and_users(user_id):
@@ -119,13 +133,23 @@ def _get_stats():
         {"user_id": uid, "username": users_by_id.get(uid).username if users_by_id.get(uid) else "?", "count": c}
         for uid, c in top_typers_q
     ]
-    # Active hours (0-23): message count per hour (SQLite strftime)
+    # Active hours (0-23): message count per hour (SQLite strftime; Postgres extract)
     try:
-        hour_expr = func.strftime("%H", Message.created_at)
+        dialect = db.session.get_bind().dialect.name
+        if dialect == "postgresql":
+            hour_expr = extract("hour", Message.created_at)
+        else:
+            hour_expr = func.strftime("%H", Message.created_at)
         hour_counts = (
             db.session.query(hour_expr.label("hour"), func.count(Message.id)).group_by(hour_expr).all()
         )
-        active_hours = [{"hour": int(h) if h and h.isdigit() else 0, "count": c} for h, c in hour_counts]
+        active_hours = []
+        for h, c in hour_counts:
+            try:
+                hour_val = int(h) if h is not None else 0
+            except (TypeError, ValueError):
+                hour_val = 0
+            active_hours.append({"hour": hour_val, "count": c})
     except Exception:
         active_hours = []
     # Favorite words per user (top 5 users, top 10 words each; exclude stop words)
@@ -145,10 +169,22 @@ def _get_stats():
         favorite_words.append(
             {"user_id": uid, "username": u.username if u else "?", "words": [{"word": w, "count": c} for w, c in counts]}
         )
+    # Acrophobia leaderboard (Acrophobia room only)
+    acro_room = Room.query.filter_by(name="Acrophobia").first()
+    acro_leaderboard = []
+    if acro_room:
+        acro_rows = AcroScore.query.filter_by(room_id=acro_room.id).order_by(AcroScore.wins.desc()).limit(10).all()
+        acro_user_ids = [r.user_id for r in acro_rows]
+        acro_users = {u.id: u.username for u in User.query.filter(User.id.in_(acro_user_ids)).all()}
+        acro_leaderboard = [
+            {"user_id": r.user_id, "username": acro_users.get(r.user_id) or "?", "wins": r.wins}
+            for r in acro_rows
+        ]
     return {
         "top_typers": top_typers,
         "active_hours": active_hours,
         "favorite_words": favorite_words,
+        "acro_leaderboard": acro_leaderboard,
     }
 
 
@@ -260,14 +296,41 @@ def register_socket_handlers(socketio):
         _sid_to_remote_addr.pop(request.sid, None)
         if user_id:
             _online_user_ids.discard(user_id)
+            _user_id_to_room.pop(user_id, None)
             _post_system_event(f"{username} went offline")
             logger.info("Socket disconnected: user_id=%s", user_id)
             emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
     def _is_super_admin(user_id):
-        """Return True if user is a Super Admin."""
+        """Return True if user is Surfer Girl (top level, all permissions)."""
         u = User.query.get(user_id)
         return u and getattr(u, "is_super_admin", False)
+
+    def _has_permission(user_id, permission):
+        """Return True if user has permission. Surfer Girl has all; else check RolePermission for user's rank."""
+        if _is_super_admin(user_id):
+            return True
+        u = User.query.get(user_id)
+        if not u:
+            return False
+        rank = (getattr(u, "rank", None) or "rookie").lower()
+        if rank == "super_admin":
+            return True
+        rp = RolePermission.query.filter_by(role=rank, permission=permission).first()
+        return rp and rp.allowed
+
+    def _get_role_permissions_dict():
+        """Return {role: {permission: allowed}} for rookie, bro, fam."""
+        result = {"rookie": {}, "bro": {}, "fam": {}}
+        for rp in RolePermission.query.all():
+            if rp.role in result:
+                result[rp.role][rp.permission] = rp.allowed
+        perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "reset_stats", "export_all")
+        for role in result:
+            for p in perms:
+                if p not in result[role]:
+                    result[role][p] = False
+        return result
 
     def _room_id_from_data(data):
         rid = (data or {}).get("room_id")
@@ -306,6 +369,11 @@ def register_socket_handlers(socketio):
             return
         socket_room = f"room_{room_id}"
         socketio_join_room(socket_room)
+        if room_obj.name.strip().lower() not in ("stats",):
+            _user_id_to_room[user_id] = (room_id, room_obj.name)
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        else:
+            _user_id_to_room.pop(user_id, None)
 
         ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
         users_with_status = _get_users_with_online_status()
@@ -319,27 +387,32 @@ def register_socket_handlers(socketio):
                 "stats": _get_stats(),
                 "ignore_list": ignore_list,
                 "ignored_users": ignored_users,
+                "room_muted_in_room": [],
                 "users": users_with_status,
                 "rooms": rooms_dict,
                 "has_more": False,
             })
             logger.info("User %s joined stats room", user_id)
         else:
-            # Paginate: last 50 messages, server-side ignore filter
+            # Paginate: last 50 messages, server-side ignore + room-mute filter
             ignore_set = set(ignore_list) if ignore_list else set()
+            room_mute_set = _get_room_mutes_for_user(user_id, room_id)
+            exclude_users = ignore_set | room_mute_set
             q = Message.query.filter_by(room_id=room_id)
-            if ignore_set:
-                q = q.filter(~Message.user_id.in_(ignore_set))
+            if exclude_users:
+                q = q.filter(~Message.user_id.in_(exclude_users))
             messages = q.order_by(Message.id.desc()).limit(51).all()
             has_more = len(messages) > 50
             messages = messages[:50]
             messages.reverse()
             history = [m.to_dict() for m in messages]
+            room_muted_in_room = list(_get_room_mutes_for_user(user_id, room_id))
             payload = {
                 "room": room_obj.to_dict(),
                 "history": history,
                 "ignore_list": ignore_list,
                 "ignored_users": ignored_users,
+                "room_muted_in_room": room_muted_in_room,
                 "users": users_with_status,
                 "rooms": rooms_dict,
                 "has_more": has_more,
@@ -388,9 +461,11 @@ def register_socket_handlers(socketio):
             return
         ignore_list, _ = _get_ignore_list_and_users(user_id)
         ignore_set = set(ignore_list) if ignore_list else set()
+        room_mute_set = _get_room_mutes_for_user(user_id, room_id)
+        exclude_users = ignore_set | room_mute_set
         q = Message.query.filter_by(room_id=room_id).filter(Message.id < before_id)
-        if ignore_set:
-            q = q.filter(~Message.user_id.in_(ignore_set))
+        if exclude_users:
+            q = q.filter(~Message.user_id.in_(exclude_users))
         messages = q.order_by(Message.id.desc()).limit(51).all()
         has_more = len(messages) > 50
         messages = messages[:50]
@@ -411,7 +486,8 @@ def register_socket_handlers(socketio):
             return
         raw = (data or {}).get("content") or ""
         content = raw.strip()
-        if not content:
+        has_attachment = bool((data or {}).get("attachment_url"))
+        if not content and not has_attachment:
             return
         room_obj = Room.query.get(room_id)
         if not room_obj:
@@ -512,7 +588,7 @@ def register_socket_handlers(socketio):
             help_lines = [
                 "**ChitChat commands**",
                 "• /help — show this list",
-                "• /away [message] — set away message; clear with /away",
+                "• /away [message] — set away; /dnd — Do Not Disturb; /online — back online",
                 "• /nick <name> — set display name in chat; /nick to clear",
                 "• /status <text> — set status (shown in /whois); /status to clear",
                 "• /whois <username> — user info, last seen, shared rooms",
@@ -536,10 +612,12 @@ def register_socket_handlers(socketio):
             emit("new_message", msg.to_dict(), room=f"room_{room_id}")
             return
 
-        # /away [message] — Set or clear away message; show in chat. If someone /pings an away user, they get the away message.
+        # /away [message] — Set away status and message; clear with /away. /dnd and /online set status.
         if content.lower().startswith("/away"):
             away_text = content[5:].strip()
             user.away_message = away_text or None
+            if hasattr(user, "user_status"):
+                user.user_status = "away" if away_text else "online"
             db.session.commit()
             if away_text:
                 emote_content = f"is away: {away_text}"
@@ -549,6 +627,32 @@ def register_socket_handlers(socketio):
             db.session.add(msg)
             db.session.commit()
             emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            return
+
+        # /dnd — Set Do Not Disturb status.
+        if content.strip().lower() == "/dnd":
+            if hasattr(user, "user_status"):
+                user.user_status = "dnd"
+                db.session.commit()
+            msg = Message(room_id=room_id, user_id=user_id, content="is now Do Not Disturb", message_type="emote")
+            db.session.add(msg)
+            db.session.commit()
+            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            return
+
+        # /online — Clear away/dnd, back to online.
+        if content.strip().lower() == "/online":
+            if hasattr(user, "user_status"):
+                user.user_status = "online"
+                user.away_message = None
+                db.session.commit()
+            msg = Message(room_id=room_id, user_id=user_id, content="is back online", message_type="emote")
+            db.session.add(msg)
+            db.session.commit()
+            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
         # /nick <name> — Set or clear display name (shown in chat). Any user.
@@ -763,12 +867,24 @@ def register_socket_handlers(socketio):
             except (TypeError, ValueError):
                 pass
 
+        attachment_url = (data or {}).get("attachment_url") or None
+        attachment_filename = (data or {}).get("attachment_filename") or None
+        if attachment_url and not attachment_url.startswith("/uploads/"):
+            attachment_url = None
+            attachment_filename = None
+
+        if not content and not attachment_url:
+            emit("error", {"message": "Message or attachment required"})
+            return
+
         msg = Message(
             room_id=room_id,
             user_id=user_id,
-            content=content,
+            content=content or "",
             message_type=message_type,
             parent_id=parent_id,
+            attachment_url=attachment_url,
+            attachment_filename=attachment_filename,
         )
         db.session.add(msg)
         db.session.commit()
@@ -896,6 +1012,64 @@ def register_socket_handlers(socketio):
         emit("report_submitted", {"ok": True, "message": "Report submitted. Thank you."})
         logger.info("Message %s reported by user %s", msg_id, user_id)
 
+    @socketio.on("mute_user_in_room")
+    def on_mute_user_in_room(data):
+        """Mute a user in the current room. Emit room_muted_updated to requester."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = (data or {}).get("room_id")
+        muted_user_id = (data or {}).get("muted_user_id")
+        if not room_id or not muted_user_id:
+            emit("error", {"message": "room_id and muted_user_id required"})
+            return
+        try:
+            room_id = int(room_id)
+            muted_user_id = int(muted_user_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id or muted_user_id"})
+            return
+        if muted_user_id == user_id:
+            emit("error", {"message": "You cannot mute yourself"})
+            return
+        room = Room.query.get(room_id)
+        if not room:
+            emit("error", {"message": "Room not found"})
+            return
+        existing = RoomMute.query.filter_by(room_id=room_id, muted_user_id=muted_user_id, muted_by_id=user_id).first()
+        if existing:
+            emit("room_muted_updated", {"room_id": room_id, "room_muted_in_room": list(_get_room_mutes_for_user(user_id, room_id))})
+            return
+        m = RoomMute(room_id=room_id, muted_user_id=muted_user_id, muted_by_id=user_id)
+        db.session.add(m)
+        db.session.commit()
+        emit("room_muted_updated", {"room_id": room_id, "room_muted_in_room": list(_get_room_mutes_for_user(user_id, room_id))})
+        logger.info("User %s muted user %s in room %s", user_id, muted_user_id, room_id)
+
+    @socketio.on("unmute_user_in_room")
+    def on_unmute_user_in_room(data):
+        """Unmute a user in the current room. Emit room_muted_updated to requester."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = (data or {}).get("room_id")
+        muted_user_id = (data or {}).get("muted_user_id")
+        if not room_id or not muted_user_id:
+            emit("error", {"message": "room_id and muted_user_id required"})
+            return
+        try:
+            room_id = int(room_id)
+            muted_user_id = int(muted_user_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id or muted_user_id"})
+            return
+        RoomMute.query.filter_by(room_id=room_id, muted_user_id=muted_user_id, muted_by_id=user_id).delete()
+        db.session.commit()
+        emit("room_muted_updated", {"room_id": room_id, "room_muted_in_room": list(_get_room_mutes_for_user(user_id, room_id))})
+        logger.info("User %s unmuted user %s in room %s", user_id, muted_user_id, room_id)
+
     @socketio.on("search_messages")
     def on_search_messages(data):
         """Search messages in a room (or all rooms). Returns search_results with list of message dicts."""
@@ -915,11 +1089,14 @@ def register_socket_handlers(socketio):
             room_id = None
         ignore_list, _ = _get_ignore_list_and_users(user_id)
         ignore_set = set(ignore_list) if ignore_list else set()
+        exclude_set = ignore_set.copy()
+        if room_id is not None:
+            exclude_set |= _get_room_mutes_for_user(user_id, room_id)
         q = Message.query.filter(Message.message_type == "chat")
         if room_id is not None:
             q = q.filter(Message.room_id == room_id)
-        if ignore_set:
-            q = q.filter(~Message.user_id.in_(ignore_set))
+        if exclude_set:
+            q = q.filter(~Message.user_id.in_(exclude_set))
         q = q.filter(Message.content.ilike(f"%{query}%"))
         messages = q.order_by(Message.created_at.desc()).limit(50).all()
         room_ids = {m.room_id for m in messages}
@@ -938,8 +1115,8 @@ def register_socket_handlers(socketio):
         if not user_id:
             emit("error", {"message": "Not authenticated"})
             return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can create channels"})
+        if not _has_permission(user_id, "create_room"):
+            emit("error", {"message": "Only Surfer Girls can create channels (or your role needs this permission)"})
             return
         name = ((data or {}).get("name") or "").strip()
         if not name:
@@ -958,13 +1135,10 @@ def register_socket_handlers(socketio):
 
     @socketio.on("update_room")
     def on_update_room(data):
-        """Rename a room. Super Admin only. Broadcast rooms_updated to all."""
+        """Rename a room. Super Admin or room owner. Broadcast rooms_updated to all."""
         user_id = session.get("user_id")
         if not user_id:
             emit("error", {"message": "Not authenticated"})
-            return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can edit channels"})
             return
         room_id = (data or {}).get("room_id")
         name = ((data or {}).get("name") or "").strip()
@@ -980,6 +1154,10 @@ def register_socket_handlers(socketio):
         if not room:
             emit("error", {"message": "Room not found"})
             return
+        is_owner = room.created_by_id == user_id
+        if not _has_permission(user_id, "update_room") and not is_owner:
+            emit("error", {"message": "Only Surfer Girls, room owners, or users with edit permission can edit channels"})
+            return
         if Room.query.filter(Room.name == name, Room.id != room_id).first():
             emit("error", {"message": "A room with that name already exists"})
             return
@@ -991,13 +1169,10 @@ def register_socket_handlers(socketio):
 
     @socketio.on("delete_room")
     def on_delete_room(data):
-        """Delete a room and its messages. Super Admin only. Broadcast rooms_updated to all."""
+        """Delete a room and its messages. Super Admin or room owner. Broadcast rooms_updated to all."""
         user_id = session.get("user_id")
         if not user_id:
             emit("error", {"message": "Not authenticated"})
-            return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can delete channels"})
             return
         room_id = (data or {}).get("room_id")
         if not room_id:
@@ -1012,14 +1187,22 @@ def register_socket_handlers(socketio):
         if not room:
             emit("error", {"message": "Room not found"})
             return
+        is_owner = room.created_by_id == user_id or (room.dm_with_id and room.dm_with_id == user_id)
+        if not _has_permission(user_id, "delete_room") and not is_owner:
+            emit("error", {"message": "Only Surfer Girls, room owners, or users with delete permission can delete channels"})
+            return
         general = Room.query.filter_by(name="general").first()
         if general and room.id == general.id:
             emit("error", {"message": "Cannot delete the general room"})
             return
         protected = ("Stats", "Acrophobia", "System Events")
-        if room.name in protected and not (data or {}).get("from_settings"):
-            emit("error", {"message": "Protected channels (Stats, Acrophobia, System Events) can only be removed via Settings by a Super Admin"})
-            return
+        if room.name in protected:
+            if not (data or {}).get("from_settings"):
+                emit("error", {"message": "Protected channels (Stats, Acrophobia, System Events) can only be removed via Settings by a Surfer Girl"})
+                return
+            if not _has_permission(user_id, "delete_room"):
+                emit("error", {"message": "Only Surfer Girls can delete protected channels"})
+                return
         db.session.delete(room)
         db.session.commit()
         rooms = Room.query.order_by(Room.name).all()
@@ -1199,8 +1382,8 @@ def register_socket_handlers(socketio):
         if not user_id:
             emit("error", {"message": "Not authenticated"})
             return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can kick users"})
+        if not _has_permission(user_id, "kick_user"):
+            emit("error", {"message": "Only Surfer Girls can kick users (or your role needs this permission)"})
             return
         room_id = (data or {}).get("room_id")
         target_id = (data or {}).get("target_user_id")
@@ -1220,8 +1403,9 @@ def register_socket_handlers(socketio):
             return
         for sid, uid in list(_sid_to_user_id.items()):
             if uid == target_id:
-                socketio.emit("kicked_from_room", {"room_id": room_id, "room_name": room.name}, room=sid)
-                logger.info("User %s kicked user %s from room %s", user_id, target_id, room_id)
+                socketio.emit("kicked_from_app", {"message": "You were kicked from the app."}, room=sid)
+                socketio_disconnect(sid)
+                logger.info("User %s kicked user %s out of the app", user_id, target_id)
                 break
 
     @socketio.on("set_super_admin")
@@ -1232,7 +1416,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can assign Super Admin"})
+            emit("error", {"message": "Only Surfer Girls can assign Surfer Girl"})
             return
         target_id = (data or {}).get("target_user_id")
         is_super = (data or {}).get("is_super_admin")
@@ -1260,8 +1444,8 @@ def register_socket_handlers(socketio):
         if not user_id:
             emit("error", {"message": "Not authenticated"})
             return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can set user rankings"})
+        if not _has_permission(user_id, "set_user_rank"):
+            emit("error", {"message": "Only Surfer Girls can set user rankings (or your role needs this permission)"})
             return
         target_id = (data or {}).get("target_user_id")
         rank = ((data or {}).get("rank") or "").strip().lower()
@@ -1286,6 +1470,104 @@ def register_socket_handlers(socketio):
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
 
+    @socketio.on("delete_user")
+    def on_delete_user(data):
+        """Delete a user permanently. Surfer Girl only. Disconnects target if online."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girls can delete users"})
+            return
+        target_id = (data or {}).get("target_user_id")
+        if target_id is None:
+            emit("error", {"message": "target_user_id required"})
+            return
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid target_user_id"})
+            return
+        if target_id == user_id:
+            emit("error", {"message": "Cannot delete yourself; use Delete my account in Settings"})
+            return
+        target = User.query.get(target_id)
+        if not target:
+            emit("error", {"message": "User not found"})
+            return
+        if target.username in ("AcroBot", "System"):
+            emit("error", {"message": "Cannot delete system users"})
+            return
+        # Disconnect target if online
+        for sid, uid in list(_sid_to_user_id.items()):
+            if uid == target_id:
+                socketio.emit("kicked_from_app", {"message": "Your account was deleted."}, room=sid)
+                socketio_disconnect(sid)
+                break
+        # Cascade delete: reports by user, reports of user's messages, ignore list, room refs
+        msg_ids = [r[0] for r in db.session.query(Message.id).filter_by(user_id=target_id).all()]
+        if msg_ids:
+            MessageReport.query.filter(MessageReport.message_id.in_(msg_ids)).delete(synchronize_session=False)
+        MessageReport.query.filter_by(reported_by_user_id=target_id).delete()
+        IgnoreList.query.filter(
+            (IgnoreList.user_id == target_id) | (IgnoreList.ignored_user_id == target_id)
+        ).delete(synchronize_session=False)
+        Message.query.filter_by(user_id=target_id).delete()
+        Room.query.filter(Room.created_by_id == target_id).update({"created_by_id": None})
+        Room.query.filter(Room.topic_set_by_id == target_id).update({"topic_set_by_id": None})
+        Room.query.filter(Room.dm_with_id == target_id).update({"dm_with_id": None})
+        RoomMute.query.filter(
+            (RoomMute.muted_user_id == target_id) | (RoomMute.muted_by_id == target_id)
+        ).delete(synchronize_session=False)
+        AcroScore.query.filter_by(user_id=target_id).delete()
+        db.session.delete(target)
+        db.session.commit()
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        emit("rooms_updated", {"rooms": [r.to_dict() for r in _rooms_sorted_for_user(user_id)]}, broadcast=True)
+        logger.info("User %s deleted user %s", user_id, target_id)
+
+    @socketio.on("get_role_permissions")
+    def on_get_role_permissions(data=None):
+        """Return role permissions for Settings. Surfer Girl only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("role_permissions", {"permissions": {}})
+            return
+        emit("role_permissions", {"permissions": _get_role_permissions_dict()})
+
+    @socketio.on("set_role_permission")
+    def on_set_role_permission(data):
+        """Set a permission for a role. Surfer Girl only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girls can configure role permissions"})
+            return
+        role = ((data or {}).get("role") or "").strip().lower()
+        permission = ((data or {}).get("permission") or "").strip()
+        allowed = (data or {}).get("allowed")
+        if role not in ("rookie", "bro", "fam"):
+            emit("error", {"message": "role must be rookie, bro, or fam"})
+            return
+        valid_perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "reset_stats", "export_all")
+        if permission not in valid_perms:
+            emit("error", {"message": f"permission must be one of: {', '.join(valid_perms)}"})
+            return
+        rp = RolePermission.query.filter_by(role=role, permission=permission).first()
+        if rp:
+            rp.allowed = bool(allowed)
+        else:
+            db.session.add(RolePermission(role=role, permission=permission, allowed=bool(allowed)))
+        db.session.commit()
+        emit("role_permissions", {"permissions": _get_role_permissions_dict()})
+        logger.info("User %s set %s.%s = %s", user_id, role, permission, allowed)
+
     @socketio.on("get_acrobot_status")
     def on_get_acrobot_status(data=None):
         """Return whether AcroBot is active (online). Any user can request."""
@@ -1298,8 +1580,8 @@ def register_socket_handlers(socketio):
         if not user_id:
             emit("error", {"message": "Not authenticated"})
             return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can activate or deactivate AcroBot"})
+        if not _has_permission(user_id, "acrobot_control"):
+            emit("error", {"message": "Only Surfer Girls can activate or deactivate AcroBot (or your role needs this permission)"})
             return
         active = (data or {}).get("active")
         if active is None:
@@ -1317,8 +1599,8 @@ def register_socket_handlers(socketio):
         if not user_id:
             emit("error", {"message": "Not authenticated"})
             return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Super Admins can reset Stats data"})
+        if not _has_permission(user_id, "reset_stats"):
+            emit("error", {"message": "Only Surfer Girls can reset Stats data (or your role needs this permission)"})
             return
         if (data or {}).get("confirm") != "RESET":
             emit("error", {"message": "Send confirm: 'RESET' to reset all message data (Stats). This cannot be undone."})
