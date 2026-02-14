@@ -10,12 +10,13 @@
 - **Flask-SocketIO** — WebSocket support for real-time messaging.
 - **Flask-Migrate** — Database migrations (Alembic); replaces ad-hoc schema changes; `flask db upgrade` / `flask db migrate`.
 - **eventlet** — Async/WSGI server used as the SocketIO async mode; Linux-compatible for VPS deployment.
-- **Flask-SQLAlchemy** — ORM; SQLite for development and small-scale deployment. Schema is managed by Flask-Migrate (Alembic), not `db.create_all()`.
+- **Flask-SQLAlchemy** — ORM; SQLite for development; PostgreSQL (Neon) for production. Schema is managed by Flask-Migrate (Alembic).
 - **requests + BeautifulSoup4** — Link preview: fetch first URL in a message and extract Open Graph (og:title, og:description, og:image) for preview cards.
 
 ## Data
 
-- **SQLite** — Default database (file-based); path configurable via `CHITCHAT_DATABASE_URI` for Linux/VPS.
+- **SQLite** — Default database (file-based) for local development.
+- **PostgreSQL (Neon)** — Production database; set `DATABASE_URL` or `CHITCHAT_DATABASE_URI` (config normalizes `postgres://` to `postgresql://`).
 
 ## Frontend
 
@@ -33,4 +34,6 @@
 
 ## Deployment
 
-- Architecture is **Linux-compatible** (paths, env vars, eventlet) for future VPS deployment.
+- **Koyeb + Neon**: `Procfile` (`web: gunicorn --worker-class eventlet -w 1 wsgi:app`); `wsgi.py` runs `eventlet.monkey_patch()` before imports. Set `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE` in Koyeb environment variables.
+- **Gunicorn** — Production WSGI server; eventlet worker for WebSocket support.
+- **psycopg2-binary** — PostgreSQL driver for Neon.

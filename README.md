@@ -36,7 +36,8 @@ Super Admins can turn the Acrophobia bot on/off in **Settings** (“AcroBot is o
 ## Docs
 
 - **ARCHITECTURE.md** — Layout, data model, real-time, UI.
-- **TECH_STACK.md** — Python, Flask, SocketIO, SQLite, etc.
+- **TECH_STACK.md** — Python, Flask, SocketIO, SQLite/Postgres, Koyeb.
+- **TECHNICAL_OVERVIEW.md** — Detailed technical reference for reviewers.
 - **ROADMAP.md** — Current state, principles, and phases (local → online → polish).
 
 ## Requirements

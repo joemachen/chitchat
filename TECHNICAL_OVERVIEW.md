@@ -9,10 +9,10 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 **ChitChat** is a **private, small-scale chat application** (target: up to ~10 concurrent users) in the spirit of Discord/mIRC. It is:
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
-- **Local-first by default**: Runs on `127.0.0.1` with SQLite; designed so the same codebase can later be deployed online (Phase 3 is on hold).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, and Super Admin moderation (kick, channel CRUD, assign Super Admin, reset stats).
+- **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
 
-**Explicitly out of scope for now**: Sound/notifications, Phase 3 (online deployment), and image/file uploads (paused).
+**Explicitly out of scope for now**: Sound/notifications; image/file uploads supported.
 
 ---
 
@@ -24,17 +24,18 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 | **Web framework** | Flask | 3.x (`requirements.txt`: `flask>=3.0.0`) |
 | **Real-time** | Flask-SocketIO | 5.3+; WebSockets over eventlet |
 | **Async/WSGI** | eventlet | 0.35+; used as SocketIO async mode and for Acrophobia timers |
-| **ORM / DB** | Flask-SQLAlchemy | 3.1+; SQLite by default |
+| **ORM / DB** | Flask-SQLAlchemy | 3.1+; SQLite (dev) / PostgreSQL/Neon (prod) |
 | **Auth** | Session + cookie | Flask session; optional “remember me” with signed cookie (itsdangerous, via Flask) and disk fallback for standalone window |
 | **Frontend** | Vanilla JS | No React/Vue; single-page chat UI in one template |
 | **Socket client** | Socket.IO (client) | 4.7.2 (CDN in template) |
 | **Standalone UI** | pywebview | 4.4+; optional native window wrapper |
 
-**Config**: `app/config.py` — `SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, `INVITE_CODE`, `PERMANENT_SESSION_LIFETIME`, etc. Environment variables: `CHITCHAT_SECRET_KEY`, `CHITCHAT_DATABASE_URI`, `CHITCHAT_INVITE_CODE`.
+**Config**: `app/config.py` — `SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, `INVITE_CODE`, `PERMANENT_SESSION_LIFETIME`, etc. Environment variables: `CHITCHAT_SECRET_KEY`, `CHITCHAT_DATABASE_URI` or `DATABASE_URL`, `CHITCHAT_INVITE_CODE`. Config normalizes `postgres://` to `postgresql://`.
 
 **Entry points**:
 
 - **Browser**: `run.py` — sets up logging, finds an available port (5000–5019), runs `app.socketio.run(app, host="127.0.0.1", port=port, debug=False, use_reloader=False)`.
+- **Production (Koyeb)**: `wsgi.py` — runs `eventlet.monkey_patch()` before imports; `Procfile`: `gunicorn --worker-class eventlet -w 1 wsgi:app`.
 - **Standalone window**: `run_standalone.py` — loads the same app URL in a pywebview window; remember-me token can be stored on disk when cookies are unreliable.
 
 ---
@@ -46,9 +47,12 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 ```
 chitchat/
 ├── run.py                 # Entry point (logging, port fallback, socketio.run)
+├── wsgi.py                # Gunicorn entry; eventlet.monkey_patch before imports
+├── Procfile               # Koyeb: gunicorn --worker-class eventlet -w 1 wsgi:app
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
+├── migrations/            # Flask-Migrate (Alembic) versions 001–010
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -64,9 +68,9 @@ chitchat/
 │   └── static/            # auth.css, etc.
 ├── ARCHITECTURE.md        # High-level architecture
 ├── TECH_STACK.md          # Stack summary
+├── TECHNICAL_OVERVIEW.md  # This file
 ├── ROADMAP.md             # Phases and feature list
-├── IDEAS.md               # Plus-up / backlog ideas
-└── OVERVIEW.md            # This file
+└── IDEAS.md               # Plus-up / backlog ideas
 ```
 
 ### 3.2 Application factory and startup
@@ -74,13 +78,13 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs `db.create_all()`, then **`_ensure_rooms_migrated(app)`** (see below).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–010), then **`_seed_default_data(app)`**.
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="eventlet"`, `cors_allowed_origins=[]`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations** (inline in `_ensure_rooms_migrated`): No Alembic; schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**; users **AcroBot** and **System**; and optionally promotes user “Joe” to Super Admin.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**; users **AcroBot** and **System**; and optionally promotes user “Joe” to Surfer Girl.
 
 ### 3.3 Design principles
 
@@ -107,7 +111,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Fields**: `id`, `name`, `created_at`, `created_by_id`, `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id`.
 - **DM semantics**: If `dm_with_id` is set, the room is a DM between `created_by_id` and `dm_with_id`. Name is stored as `"DM"`; display name (“DM: <other_username>”) is derived on the client from `created_by_id`, `created_by_username`, `dm_with_username`, and current user id.
 - **Relations**: `created_by`, `topic_set_by`, `dm_with`, `messages` (cascade delete).
-- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events** can only be deleted from Settings by a Super Admin (backend checks `from_settings` on delete).
+- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events** can only be deleted from Settings by Surfer Girl (backend checks `from_settings` on delete).
 
 ### 4.3 Message
 
@@ -155,19 +159,21 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `get_rooms` | `on_get_rooms` | Yes | Emit `rooms_list` with rooms in user’s order. |
 | `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), ignore list, users, rooms. |
 | `send_message` | `on_send_message` | Yes | Slash-command handling and/or persist message; broadcast `new_message`. |
-| `create_room` | `on_create_room` | Super Admin | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
-| `update_room` | `on_update_room` | Super Admin | Rename room; emit `topic_updated`-style update. |
-| `delete_room` | `on_delete_room` | Super Admin | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
+| `create_room` | `on_create_room` | Surfer Girl or create_room | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
+| `update_room` | `on_update_room` | Surfer Girl or update_room | Rename room; emit `topic_updated`-style update. |
+| `delete_room` | `on_delete_room` | Surfer Girl or delete_room | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
 | `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
 | `ignore_user` | `on_ignore_user` | Yes | Add to IgnoreList; emit `ignore_list_updated`. |
 | `unignore_user` | `on_unignore_user` | Yes | Remove from IgnoreList; emit `ignore_list_updated`. |
 | `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
 | `get_or_create_dm` | `on_get_or_create_dm` | Yes | Find or create DM room between current user and `other_user_id`; emit `dm_room`; if created, broadcast `rooms_updated`. |
-| `kick_user` | `on_kick_user` | Super Admin | Emit `kicked_from_room` to target’s socket(s). |
-| `set_super_admin` | `on_set_super_admin` | Super Admin | Set/unset `is_super_admin`; broadcast `user_list_updated`. |
+| `kick_user` | `on_kick_user` | Surfer Girl or kick_user | Emit `kicked_from_room` to target’s socket(s). |
+| `set_super_admin` | `on_set_super_admin` | Surfer Girl only | Set/unset `is_super_admin`; broadcast `user_list_updated`. |
 | `get_acrobot_status` | `on_get_acrobot_status` | Any | Emit `acrobot_status` (active flag). |
-| `set_acrobot_active` | `on_set_acrobot_active` | Super Admin | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
-| `reset_stats_data` | `on_reset_stats_data` | Super Admin | Require `confirm: "RESET"`; delete all Message rows; emit `stats_reset` to requester. |
+| `set_acrobot_active` | `on_set_acrobot_active` | Surfer Girl or acrobot_control | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
+| `reset_stats_data` | `on_reset_stats_data` | Surfer Girl or reset_stats | Require `confirm: "RESET"`; delete all Message rows; emit `stats_reset` to requester. |
+| `get_role_permissions` | `on_get_role_permissions` | Surfer Girl only | Emit `role_permissions` for Settings UI. |
+| `set_role_permission` | `on_set_role_permission` | Surfer Girl only | Update role permission; broadcast `role_permissions`. |
 
 ### 6.3 Send message and slash commands
 
@@ -175,7 +181,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 
 1. **`/help`** — Post a single message (from the user) listing all ChitChat and Acrophobia commands; persist and emit.
 2. **`/away [message]`** — Set or clear `user.away_message`; post emote “is away: …” or “is no longer away”; persist and emit.
-3. **`/whois <username>`** — Look up user; emit `whois_result` to requester only (includes online, IP, connected_at for Super Admin).
+3. **`/whois <username>`** — Look up user; emit `whois_result` to requester only (includes online, IP, connected_at for Surfer Girl).
 4. **`/topic <text>`** — Set `room.topic`, topic_set_by_id, topic_set_at; emit `topic_updated` to room.
 5. **Acrophobia room** — If room name is “Acrophobia”, call `acrophobia.handle_message`; if consumed, persist and emit bot messages; if round started, schedule submit-phase timer.
 6. **`/ping <username>`** — Emit `user_pinged` to room; if target has `away_message`, emit `away_message` to sender only.
@@ -206,16 +212,16 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 - **Single file**: `app/templates/chat.html` — HTML, CSS, and JavaScript in one template. Rendered by Flask with `user` (current user); no separate JS bundle.
 - **Socket client**: Socket.IO 4.7.2 from CDN; connection with `withCredentials: true`. No explicit reconnection logic documented; Socket.IO client has built-in reconnect.
-- **Main structure**: Header (title, Settings if Super Admin, Log out), status line, ignored-users panel, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer.
+- **Main structure**: Header (title, Settings if Surfer Girl, Log out), status line, ignored-users panel, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer.
 - **State**: `currentUserId`, `currentRoom`, `allRooms`, `allUsersWithStatus`, `ignoreList`, `showingSettings`, `acrobotActive`, `roomOrderIds`, etc. Room list is reordered by drag-and-drop; order persisted via `save_room_order`.
 - **Key behaviors**:
   - **join_room** on load (no explicit room_id → server uses general).
   - **room_joined**: Renders room list, user list, and either message history or stats view; applies ignore list (messages from ignored users get class `hidden`).
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
-  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Super Admin) with `from_settings: true`.
+  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
-  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Super Admin only).
-  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Super Admin checkboxes. Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
+  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission).
+  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes. Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
 ---
@@ -223,7 +229,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ## 8. Security and permissions
 
 - **Authentication**: All socket handlers that need a user check `session.get("user_id")`; unauthenticated connect is rejected.
-- **Super Admin**: Checked via `_is_super_admin(user_id)` (User.is_super_admin). Required for: create_room, update_room, delete_room (and delete of protected channels only via Settings with `from_settings`), kick_user, set_super_admin, set_acrobot_active, reset_stats_data.
+- **Surfer Girl** (top role, `rank='super_admin'`): Checked via `_is_super_admin(user_id)` (User.is_super_admin). Full access; only Surfer Girl can assign Surfer Girl (`set_super_admin`) and configure role permissions. Other actions use `_has_permission()`: Surfer Girl always allowed; else checks `role_permissions` table (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, reset_stats, export_all).
 - **Room membership**: No per-room membership table; any authenticated user can join any room and send messages. Kick only notifies the target client (`kicked_from_room`) and does not remove from DB “membership” (there is none).
 - **Input**: Slash commands are parsed server-side; message content is stored as-is (no rich HTML from client). Frontend escapes/links content (e.g. linkify) when rendering.
 - **CORS**: `cors_allowed_origins=[]` (same-origin only by default).
@@ -234,12 +240,12 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ## 9. Known limitations and constraints
 
 - **Single process**: eventlet single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
-- **No message edit/delete**: Messages are append-only (except bulk delete on reset stats).
-- **No file/image uploads**: Paused; no attachment storage.
+- **Message edit/delete**: Supported for own messages; bulk delete on reset stats.
+- **File/image uploads**: Supported (instance/uploads/); configurable size limit.
 - **Acrophobia state**: In-memory; games and scores are lost on server restart.
-- **Migrations**: Ad-hoc ALTER in `_ensure_rooms_migrated`; no versioned migrations (e.g. Alembic). Adding columns is done by checking `inspect(db.engine).get_columns(...)`.
+- **Migrations**: Flask-Migrate (Alembic); versioned migrations in `migrations/versions/`.
 - **Stats reset**: Deleting all messages is irreversible and affects all channels.
-- **Phase 3 (online deployment)** and **sound** are on hold; **image uploads** are paused (see ROADMAP/IDEAS).
+- **Phase 3 (online deployment)**: Done (Koyeb + Neon Postgres). **Sound** remains optional.
 
 ---
 
@@ -248,7 +254,8 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | File | Role |
 |------|------|
 | `run.py` | Logging setup, port 5000–5019 fallback, `create_app()`, `socketio.run()`. |
-| `app/__init__.py` | App factory, DB init, `_ensure_rooms_migrated`, SocketIO init, register routes and sockets. |
+| `wsgi.py` | Gunicorn entry; eventlet.monkey_patch before imports; imports app from run. |
+| `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, IgnoreList; to_dict() where needed. |
@@ -264,12 +271,12 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 When suggesting changes or features, consider:
 
-1. **Consistency**: Preserve existing patterns (e.g. emit payloads as dicts with clear keys; Super Admin checks in one place).
-2. **Security**: Any new endpoint or socket event should enforce auth and, if applicable, Super Admin.
+1. **Consistency**: Preserve existing patterns (e.g. emit payloads as dicts with clear keys; Surfer Girl / permission checks via `_has_permission`).
+2. **Security**: Any new endpoint or socket event should enforce auth and, if applicable, Surfer Girl or the relevant permission.
 3. **Persistence**: Acrophobia state is in-memory; any “persistent scores” or new game state would need a migration and model or separate store.
 4. **Frontend**: Single template with vanilla JS; no build step. Larger UI changes may warrant splitting CSS/JS or introducing a minimal build.
-5. **Migrations**: Adding columns is currently done in `_ensure_rooms_migrated`; for complex schema evolution, consider Alembic or similar.
+5. **Migrations**: Flask-Migrate (Alembic); add new migrations for schema changes.
 6. **Testing**: No tests in the repo yet; suggestions for E2E or integration tests (e.g. login, send message, join room, Acrophobia round) would be valuable.
-7. **Docs**: ROADMAP.md, IDEAS.md, and this OVERVIEW.md should be updated if behavior or scope changes.
+7. **Docs**: ROADMAP.md, IDEAS.md, and this TECHNICAL_OVERVIEW.md should be updated if behavior or scope changes.
 
 This overview should give Gemini (or any reviewer) enough context to propose concrete, consistent improvements or features.

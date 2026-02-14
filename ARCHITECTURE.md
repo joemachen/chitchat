@@ -10,8 +10,10 @@ ChitChat is a private chat server for up to 10 users. It uses a modular, SOLID-o
 chitchat/
 ├── run.bat              # Windows: venv, deps, launch run.py
 ├── run.py               # Entry point; env validation, migrations + seed, then socketio.run
-├── requirements.txt     # Python dependencies (includes flask-migrate)
-├── migrations/          # Flask-Migrate (Alembic) — versions/001_initial_schema.py, env.py
+├── wsgi.py              # Gunicorn entry point; eventlet monkey_patch before imports
+├── Procfile             # Koyeb: web: gunicorn --worker-class eventlet -w 1 wsgi:app
+├── requirements.txt    # Python dependencies (flask-migrate, gunicorn, psycopg2-binary)
+├── migrations/          # Flask-Migrate (Alembic) — versions/001..010, env.py
 ├── logs/                # Runtime logs (git-ignored except .gitkeep)
 │   ├── app.log          # General activity (start, connections)
 │   └── errors.log       # Exceptions with stack traces and local variable context
@@ -28,12 +30,13 @@ chitchat/
 
 ## Foundation (Step 1)
 
-- **Environment**: Python 3.11+; `.venv`; `requirements.txt` (Flask, Flask-SocketIO, Flask-Migrate, eventlet, Flask-SQLAlchemy).
+- **Environment**: Python 3.11+; `.venv`; `requirements.txt` (Flask, Flask-SocketIO, Flask-Migrate, eventlet, gunicorn, psycopg2-binary, Flask-SQLAlchemy).
 - **Windows**: `run.bat` creates/activates `.venv`, installs deps silently, runs `run.py` with minimal console output.
-- **Database**: Schema is managed by **Flask-Migrate (Alembic)**. `run.py` runs `flask db upgrade` and then seeds default rooms/users. No ad-hoc `ALTER TABLE` in app code; first migration is `migrations/versions/001_initial_schema.py`. Existing DBs: run `flask db stamp 001_initial` once.
+- **Database**: Schema is managed by **Flask-Migrate (Alembic)**. `create_app()` runs `flask db upgrade` and seeds default rooms/users. SQLite by default; **PostgreSQL** (Neon) supported via `DATABASE_URL` or `CHITCHAT_DATABASE_URI`. Config normalizes `postgres://` to `postgresql://`.
 - **Environment safety**: `run.py` validates `CHITCHAT_SECRET_KEY` and `CHITCHAT_INVITE_CODE` are non-default; exits with a clear message if not.
 - **Logging**: `/logs` directory; `app.log` for general activity; `errors.log` for exceptions with **full stack traces and local variable context** per frame (Recursive Learning Loop).
-- **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `migrations/README`.
+- **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `ROADMAP.md`, `migrations/README`.
+- **Production**: `Procfile` for Koyeb; `wsgi.py` runs `eventlet.monkey_patch()` before imports; gunicorn with eventlet worker. Role permissions (Surfer Girl configures rookie/bro/fam) in `role_permissions` table.
 
 ## Data Model (Step 2)
 
@@ -59,4 +62,4 @@ chitchat/
 
 - **SOLID / DRY**: Single responsibility modules; shared config and logging; app factory for testability.
 - **Modular**: Foundation → Models → Socket logic → UI; each step builds on the previous.
-- **Deployment-ready**: Config via environment variables; Linux-compatible paths and server choice (eventlet) for VPS.
+- **Deployment-ready**: Config via environment variables; Linux-compatible paths; Koyeb + Neon Postgres supported; gunicorn + eventlet for production.
