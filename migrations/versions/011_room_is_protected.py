@@ -17,10 +17,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("rooms", sa.Column("is_protected", sa.Boolean(), nullable=False, server_default="0"))
+    op.add_column("rooms", sa.Column("is_protected", sa.Boolean(), nullable=False, server_default="false"))
     conn = op.get_bind()
     conn.execute(sa.text(
-        "UPDATE rooms SET is_protected = 1 WHERE name IN ('general', 'Stats', 'Acrophobia', 'System Events')"
+        "UPDATE rooms SET is_protected = true WHERE name IN ('general', 'Stats', 'Acrophobia', 'System Events')"
     ))
 
 

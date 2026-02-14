@@ -904,6 +904,12 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Message or attachment required"})
             return
 
+        link_previews_json = None
+        if message_type == "chat":
+            previews = get_previews_for_message_content(content, max_previews=3)
+            if previews:
+                link_previews_json = json.dumps(previews)
+
         msg = Message(
             room_id=room_id,
             user_id=user_id,
@@ -912,16 +918,12 @@ def register_socket_handlers(socketio):
             parent_id=parent_id,
             attachment_url=attachment_url,
             attachment_filename=attachment_filename,
+            link_previews=link_previews_json,
         )
         db.session.add(msg)
         db.session.commit()
 
         payload = msg.to_dict()
-        # Link previews for URLs in content (Open Graph, up to 3)
-        if message_type == "chat":
-            previews = get_previews_for_message_content(content, max_previews=3)
-            if previews:
-                payload["link_previews"] = previews
         emit("new_message", payload, room=f"room_{room_id}")
 
         # @mention: parse @nickname and notify mentioned users (page)
@@ -974,6 +976,8 @@ def register_socket_handlers(socketio):
             return
         msg.content = new_content
         msg.edited_at = datetime.utcnow()
+        previews = get_previews_for_message_content(new_content, max_previews=3)
+        msg.link_previews = json.dumps(previews) if previews else None
         db.session.commit()
         payload = msg.to_dict()
         emit("message_edited", payload, room=f"room_{msg.room_id}")

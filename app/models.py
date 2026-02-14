@@ -1,6 +1,7 @@
 """
 SQLAlchemy models: User, Room, Message, IgnoreList.
 """
+import json
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import ForeignKey, UniqueConstraint
@@ -112,6 +113,7 @@ class Message(db.Model):
     edited_at = db.Column(db.DateTime, nullable=True)
     attachment_url = db.Column(db.String(512), nullable=True)  # /uploads/filename
     attachment_filename = db.Column(db.String(256), nullable=True)
+    link_previews = db.Column(db.Text, nullable=True)  # JSON array of {url, title, description, image}
 
     parent = db.relationship("Message", remote_side=[id], backref=db.backref("replies", lazy="dynamic"))
 
@@ -133,6 +135,12 @@ class Message(db.Model):
             "attachment_url": self.attachment_url,
             "attachment_filename": self.attachment_filename,
         }
+        lp = getattr(self, "link_previews", None)
+        if lp:
+            try:
+                out["link_previews"] = json.loads(lp) if isinstance(lp, str) else lp
+            except (TypeError, ValueError):
+                pass
         if self.parent_id and self.parent:
             p = self.parent
             p_user = p.user
