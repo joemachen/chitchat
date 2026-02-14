@@ -29,7 +29,7 @@ from app.acrophobia import (
 )
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, AppSetting, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -40,6 +40,9 @@ _STOP_WORDS = frozenset(
 # Presence: user_id is "online" while they have an open socket
 _online_user_ids = set()
 _sid_to_user_id = {}
+
+# Rate limit: user_id -> list of timestamps (last minute)
+_rate_limit_timestamps = {}
 _sid_to_connected_at = {}  # sid -> time.time() when connected
 _sid_to_remote_addr = {}  # sid -> IP string
 _user_id_to_room = {}  # user_id -> (room_id, room_name) for rich presence
@@ -473,6 +476,37 @@ def register_socket_handlers(socketio):
         rp = RolePermission.query.filter_by(role=rank, permission=permission).first()
         return rp and rp.allowed
 
+    def _check_rate_limit(user_id):
+        """Return (ok, msg). If not ok, user exceeded messages per minute."""
+        limit = getattr(current_app.config, "MESSAGES_PER_MINUTE", 60) or 0
+        if limit <= 0:
+            return True, None
+        now = time.time()
+        cutoff = now - 60
+        if user_id not in _rate_limit_timestamps:
+            _rate_limit_timestamps[user_id] = []
+        timestamps = _rate_limit_timestamps[user_id]
+        timestamps[:] = [t for t in timestamps if t > cutoff]
+        if len(timestamps) >= limit:
+            return False, f"Rate limit: max {limit} messages per minute. Please slow down."
+        timestamps.append(now)
+        return True, None
+
+    def _audit_log(user_id, action, target_type=None, target_id=None, details=None):
+        """Record an audit log entry."""
+        try:
+            entry = AuditLog(
+                user_id=user_id,
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                details=json.dumps(details) if isinstance(details, (dict, list)) else details,
+            )
+            db.session.add(entry)
+            db.session.commit()
+        except Exception as e:
+            logger.warning("Audit log failed: %s", e)
+
     def _get_role_permissions_dict():
         """Return {role: {permission: allowed}} for rookie, bro, fam."""
         result = {"rookie": {}, "bro": {}, "fam": {}}
@@ -668,6 +702,10 @@ def register_socket_handlers(socketio):
         user_id = session.get("user_id")
         if not user_id:
             emit("error", {"message": "Not authenticated"})
+            return
+        ok, err = _check_rate_limit(user_id)
+        if not ok:
+            emit("error", {"message": err})
             return
         room_id = _room_id_from_data(data)
         if not room_id:
@@ -1415,6 +1453,7 @@ def register_socket_handlers(socketio):
         room = Room(name=name, created_by_id=user_id)
         db.session.add(room)
         db.session.commit()
+        _audit_log(user_id, "create_room", "room", room.id, {"name": name})
         rooms = Room.query.order_by(Room.name).all()
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_created", {"room": room.to_dict()})
@@ -1461,6 +1500,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "No changes to apply"})
             return
         db.session.commit()
+        _audit_log(user_id, "update_room", "room", room_id, {"name": name, "is_protected": getattr(room, "is_protected", None)})
         rooms = Room.query.order_by(Room.name).all()
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_renamed", {"room_id": room_id, "room": room.to_dict()})
@@ -1501,8 +1541,10 @@ def register_socket_handlers(socketio):
             if not _is_super_admin(user_id):
                 emit("error", {"message": "Only Surfer Girls can delete protected channels"})
                 return
+        room_name = room.name
         db.session.delete(room)
         db.session.commit()
+        _audit_log(user_id, "delete_room", "room", room_id, {"name": room_name})
         rooms = Room.query.order_by(Room.name).all()
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_deleted", {"room_id": room_id})
@@ -1531,8 +1573,10 @@ def register_socket_handlers(socketio):
         if not room:
             emit("error", {"message": "Room not found"})
             return
+        room_name = room.name
         deleted = Message.query.filter_by(room_id=room_id).delete()
         db.session.commit()
+        _audit_log(user_id, "wipe_room_history", "room", room_id, {"name": room_name, "deleted": deleted})
         emit("room_history_wiped", {"room_id": room_id, "deleted": deleted})
         logger.info("Room %s history wiped: %s messages deleted by user %s", room_id, deleted, user_id)
 
@@ -1687,6 +1731,9 @@ def register_socket_handlers(socketio):
         room = Room.query.get(room_id)
         if not room:
             return
+        target_user = User.query.get(target_id)
+        target_username = target_user.username if target_user else str(target_id)
+        _audit_log(user_id, "kick_user", "user", target_id, {"room_id": room_id, "target_username": target_username})
         for sid, uid in list(_sid_to_user_id.items()):
             if uid == target_id:
                 socketio.emit("kicked_from_app", {"message": "You were kicked from the app."}, room=sid)
@@ -1720,6 +1767,7 @@ def register_socket_handlers(socketio):
             return
         target.is_super_admin = bool(is_super)
         db.session.commit()
+        _audit_log(user_id, "set_super_admin", "user", target_id, {"target_username": target.username, "is_super_admin": target.is_super_admin})
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set Super Admin for user %s to %s", user_id, target_id, target.is_super_admin)
 
@@ -1753,6 +1801,7 @@ def register_socket_handlers(socketio):
         target.rank = rank
         target.is_super_admin = rank == "super_admin"
         db.session.commit()
+        _audit_log(user_id, "set_user_rank", "user", target_id, {"target_username": target.username, "rank": rank})
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
 
@@ -1785,6 +1834,7 @@ def register_socket_handlers(socketio):
         if target.username in ("AcroBot", "System"):
             emit("error", {"message": "Cannot delete system users"})
             return
+        target_username = target.username
         # Disconnect target if online
         for sid, uid in list(_sid_to_user_id.items()):
             if uid == target_id:
@@ -1809,6 +1859,7 @@ def register_socket_handlers(socketio):
         AcroScore.query.filter_by(user_id=target_id).delete()
         db.session.delete(target)
         db.session.commit()
+        _audit_log(user_id, "delete_user", "user", target_id, {"target_username": target_username})
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         emit("rooms_updated", {"rooms": [r.to_dict() for r in _rooms_sorted_for_user(user_id)]}, broadcast=True)
         logger.info("User %s deleted user %s", user_id, target_id)
@@ -1825,6 +1876,20 @@ def register_socket_handlers(socketio):
             return
         default_rid = _get_default_room_id()
         emit("role_permissions", {"permissions": _get_role_permissions_dict(), "default_room_id": default_rid})
+
+    @socketio.on("get_audit_log")
+    def on_get_audit_log(data=None):
+        """Return recent audit log entries. Surfer Girl only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("audit_log", {"entries": []})
+            return
+        if not _is_super_admin(user_id):
+            emit("audit_log", {"entries": []})
+            return
+        limit = min(100, max(10, int((data or {}).get("limit", 50))))
+        entries = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+        emit("audit_log", {"entries": [e.to_dict() for e in entries]})
 
     @socketio.on("set_default_room")
     def on_set_default_room(data):
@@ -1852,6 +1917,7 @@ def register_socket_handlers(socketio):
         else:
             db.session.add(AppSetting(key="default_room_id", value=str(room_id)))
         db.session.commit()
+        _audit_log(user_id, "set_default_room", "room", room_id, {"room_name": room.name})
         emit("default_room_updated", {"default_room_id": room_id})
         logger.info("User %s set default room to %s", user_id, room_id)
 
@@ -1881,6 +1947,7 @@ def register_socket_handlers(socketio):
         else:
             db.session.add(RolePermission(role=role, permission=permission, allowed=bool(allowed)))
         db.session.commit()
+        _audit_log(user_id, "set_role_permission", None, None, {"role": role, "permission": permission, "allowed": bool(allowed)})
         emit("role_permissions", {"permissions": _get_role_permissions_dict()})
         logger.info("User %s set %s.%s = %s", user_id, role, permission, allowed)
 
@@ -1904,6 +1971,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "active (true/false) required"})
             return
         acrophobia_set_acrobot_active(bool(active))
+        _audit_log(user_id, "set_acrobot_active", None, None, {"active": is_acrobot_active()})
         emit("acrobot_status", {"active": is_acrobot_active()}, broadcast=True)
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set AcroBot active=%s", user_id, is_acrobot_active())
@@ -1923,5 +1991,6 @@ def register_socket_handlers(socketio):
             return
         deleted = Message.query.delete()
         db.session.commit()
+        _audit_log(user_id, "reset_stats_data", None, None, {"deleted": deleted})
         emit("stats_reset", {"deleted": deleted})
         logger.info("User %s reset Stats data: %s messages deleted", user_id, deleted)

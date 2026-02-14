@@ -38,6 +38,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### UX
 
+- **Global features** (all rooms, DMs, Acrophobia): @mention highlights (message pulse, room badge), tab flashing when mentioned and tab is hidden, link previews (OG metadata for URLs; minimize per preview). These apply app-wide, not just in Acrophobia.
 - **Copy/paste**: Message text, channel topic, room names, and stats area are explicitly selectable (user-select: text). Paste in the message input works as usual.
 - **Context menu**: Right-click on a username (in messages or user list) shows View profile and Kick (if Surfer Girl or kick_user permission); menu stays open until click outside or an action is chosen.
 - **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); collapsible info drawer for topic/connection; search in hamburger menu; fixed header; chat fills space.
@@ -63,7 +64,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 - **Done**: AcroBot + Acrophobia room in migration; /help and /msg acrobot help; activate/deactivate in Settings; port fallback; copy/paste; context menu fix; Surfer Girl + Settings + topic + whois; role permissions; **message reactions**; **unread indicators** (server-backed).
 - **Optional remaining**:
   - Acrophobia: optional /score (in-memory or DB), optional per-round time limits.
-  - UX: unread indicators per room; optional sound on ping/message.
+  - UX: unread indicators per room.
   - Quality: light E2E or integration tests; README mention of /help and commands.
 
 ### Phase 2 — Richer chat & moderation
@@ -112,7 +113,7 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 
 | Phase | Focus |
 |-------|--------|
-| **1** | Local stability — **done**; optional /score, unread/sounds, tests |
+| **1** | Local stability — **done**; optional /score, unread, tests |
 | **2** | Richer chat (files, reply, edit), moderation, search/export — **edit/delete, search done** |
 | **3** | Online: Koyeb + Neon — **done** |
 | **4** | DMs done, themes done, persistent scores done, reactions done, unread done, mobile layout done; more bots, reconnection |
@@ -127,13 +128,12 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 4. **Unread indicators** — *(done)*
 5. **Search** — Search messages in current room or all rooms *(done — in-room search; mobile: in hamburger)*
 6. **Reconnection + history re-fetch** — Refetch recent messages on reconnect
-7. **Optional sound** — Ping sound when mentioned (user toggle)
-8. **Netsplit** — Easter egg: `/netsplit` or random fake netsplit for lols
-9. **Accessibility** — Semantic HTML, keyboard nav, reduced motion, high-contrast
-10. **Rate limits** — Throttle messages per user per minute
-11. **Audit log** — Surfer Girl view of who did what
-12. **Voice chat** — 1:1 or small-group (2–4) via WebRTC P2P; long-term
-13. **Desktop/screen sharing** — 1:1 or small-group; long-term
+7. **Netsplit** — Easter egg: `/netsplit` or random fake netsplit for lols
+8. **Accessibility** — Semantic HTML, keyboard nav, reduced motion, high-contrast
+9. **Rate limits** — Throttle messages per user per minute *(done)*
+10. **Audit log** — Surfer Girl view of who did what *(done)*
+11. **Voice chat** — 1:1 or small-group (2–4) via WebRTC P2P; long-term
+12. **Desktop/screen sharing** — 1:1 or small-group; long-term
 | **5** | **Mobile distribution** — long-term, on hold; Report Message & Delete Account in place for store approval |
 
 See **Matrix-inspired / spec-aligned improvements** for event model, state vs message events, private user data, room aliases, and user/device identity (incremental, no federation required).

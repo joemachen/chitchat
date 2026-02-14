@@ -49,3 +49,5 @@ class Config:
         _polling_env in ("1", "true", "yes")
         or (_is_production and _polling_env not in ("0", "false", "no"))
     )
+    # Rate limit: max messages per user per minute (0 = disabled)
+    MESSAGES_PER_MINUTE = int(os.environ.get("CHITCHAT_MESSAGES_PER_MINUTE", "60"))

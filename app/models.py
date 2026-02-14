@@ -264,3 +264,30 @@ class MessageReport(db.Model):
             "reason": self.reason,
             "created_at": _isoformat_utc(self.created_at),
         }
+
+
+class AuditLog(db.Model):
+    """Audit trail of admin/moderation actions. Surfer Girl view only."""
+    __tablename__ = "audit_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False, index=True)
+    action = db.Column(db.String(80), nullable=False, index=True)
+    target_type = db.Column(db.String(40), nullable=True)  # room, user, etc.
+    target_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.Text, nullable=True)  # JSON or human-readable
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref="audit_logs")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.user.username if self.user else None,
+            "action": self.action,
+            "target_type": self.target_type,
+            "target_id": self.target_id,
+            "details": self.details,
+            "created_at": _isoformat_utc(self.created_at),
+        }

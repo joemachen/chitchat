@@ -59,7 +59,8 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Already in place (for reference)
 
-- **Link previews** — OG image + title/description for URLs in messages; minimize per preview.
+- **@mention highlights & tab flashing** — When someone @mentions you: message pulse, room badge, tab title flash when tab is hidden. **Global** (all rooms, DMs, Acrophobia).
+- **Link previews** — OG image + title/description for URLs in messages; minimize per preview. **Global** (all rooms, DMs, Acrophobia).
 - **/help** — Lists all slash commands in channel.
 - **Stats reset** — Super Admin can reset all message data (Stats) from Settings (type RESET).
 - **Acrophobia** — 4–5 letter random acronyms (huge combo space).

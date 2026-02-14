@@ -1470,7 +1470,7 @@
         if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         socket.emit('get_acrobot_status');
-        if (isSuperAdmin) socket.emit('get_role_permissions');
+        if (isSuperAdmin) { socket.emit('get_role_permissions'); socket.emit('get_audit_log', { limit: 50 }); }
         var div = document.createElement('div');
         div.className = 'settings-view';
         var html = '<h2>Account</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>';
@@ -1532,6 +1532,8 @@
                 if (canDelete) html += '<button type="button" class="settings-delete-user" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>';
                 html += '</div>';
             });
+            html += '<h2>Audit log</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>';
+            html += '<div id="auditLogSection" class="audit-log-wrap" style="max-height:200px;overflow-y:auto;background:#0f0f12;border:1px solid #27272a;border-radius:8px;padding:0.5rem;font-size:0.85rem;"><p style="color:#71717a;margin:0;">Loading…</p></div>';
             html += '<h2>Default channel</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Channel users see when they first log in.</p>';
             html += '<div id="defaultChannelSection" class="user-row"><select id="defaultChannelSelect" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">';
             var channels = (allRooms || []).filter(function(r) { return !r.is_dm; });
@@ -2176,6 +2178,31 @@
                 settingsPendingSettings.rolePerms[role][perm] = this.checked;
             });
         });
+    });
+
+    socket.on('audit_log', function(data) {
+        var section = document.getElementById('auditLogSection');
+        if (!section || !data.entries || !Array.isArray(data.entries)) return;
+        if (data.entries.length === 0) {
+            section.innerHTML = '<p style="color:#71717a;margin:0;">No audit entries yet.</p>';
+            return;
+        }
+        var html = '';
+        data.entries.forEach(function(e) {
+            var details = '';
+            try {
+                var d = e.details ? JSON.parse(e.details) : null;
+                if (d && typeof d === 'object') details = ' ' + JSON.stringify(d);
+                else if (e.details) details = ' ' + String(e.details);
+            } catch (_) { if (e.details) details = ' ' + String(e.details); }
+            var time = e.created_at ? new Date(e.created_at).toLocaleString() : '';
+            html += '<div style="padding:0.25rem 0;border-bottom:1px solid #27272a;color:#a1a1aa;">' +
+                '<span style="color:#818cf8;">' + escapeHtml(e.username || '?') + '</span> ' +
+                escapeHtml(e.action || '') + (e.target_type ? ' ' + escapeHtml(e.target_type) + '#' + (e.target_id || '') : '') +
+                (details ? '<span style="color:#71717a;font-size:0.8rem;">' + escapeHtml(details) + '</span>' : '') +
+                ' <span style="font-size:0.75rem;color:#52525b;">' + escapeHtml(time) + '</span></div>';
+        });
+        section.innerHTML = html;
     });
 
     socket.on('stats_reset', function(data) {
