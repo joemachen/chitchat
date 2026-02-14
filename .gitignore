@@ -1,4 +1,5 @@
 # Environment
+.env
 .venv/
 venv/
 env/
@@ -13,8 +14,10 @@ logs/*.log
 
 # Instance data
 instance/*.db
+instance/*.db-journal
 instance/*.sqlite
 instance/remember_token
+instance/uploads/
 
 # IDE / OS
 .idea/

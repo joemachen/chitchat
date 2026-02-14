@@ -27,7 +27,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 ### Real-time & commands
 
 - **Presence**: Online/offline in user list; connect/disconnect broadcasts.
-- **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); ignore list; right-click user → View profile, Kick (Surfer Girl or kick_user permission).
+- **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); room mute; right-click user → View profile, Kick (Surfer Girl or kick_user permission).
 - **IRC-style**: **/whois &lt;username&gt;** — shows account created, online/offline, IP, time connected (modal to requester only). **/topic &lt;content&gt;** for channel topic.
 
 ### Acrophobia (AcroBot)

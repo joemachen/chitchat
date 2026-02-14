@@ -6,7 +6,6 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Polish & UX
 
-- **Link previews** — Show OG image + title/description for URLs in messages; optional minimize per preview (was in original scope, paused).
 - **Message reactions** — One-tap emoji reactions on messages (e.g. 👍 😂).
 - **Edit / delete own message** — Small “edit” / “delete” on your messages with short time window (e.g. 5 min).
 - **Unread indicators** — Badge or bold room name when there are new messages since last view; optional “mark as read”.
@@ -60,6 +59,7 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Already in place (for reference)
 
+- **Link previews** — OG image + title/description for URLs in messages; minimize per preview.
 - **/help** — Lists all slash commands in channel.
 - **Stats reset** — Super Admin can reset all message data (Stats) from Settings (type RESET).
 - **Acrophobia** — 4–5 letter random acronyms (huge combo space).

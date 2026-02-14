@@ -59,7 +59,7 @@ chitchat/
 │   ├── __init__.py        # App factory, DB init, migrations, SocketIO init, route/socket registration
 │   ├── config.py          # Config class (SECRET_KEY, DB, INVITE_CODE, session)
 │   ├── logging_config.py  # File handlers for app.log and errors.log; no console by default
-│   ├── models.py          # User, Room, Message, IgnoreList (SQLAlchemy)
+│   ├── models.py          # User, Room, Message, IgnoreList (legacy table; cascade delete only)
 │   ├── auth.py            # Invite validation, register, login, remember token, password reset
 │   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
@@ -102,7 +102,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 
 - **Table**: `users`.
 - **Fields**: `id`, `username` (unique), `password_hash`, `created_at`, `room_order_ids` (JSON array of room ids as text), `is_super_admin`, `away_message`.
-- **Relations**: `messages`, `ignoring` (IgnoreList as user), `ignored_by` (IgnoreList as ignored), `created_rooms` (Room.created_by_id).
+- **Relations**: `messages`, `created_rooms` (Room.created_by_id). Legacy: `ignoring` / `ignored_by` (IgnoreList) kept for cascade delete only.
 - **Notes**: No open sign-up; invite code checked in `auth.py`. Passwords hashed with Werkzeug. AcroBot and System are special users created by migration.
 
 ### 4.2 Room
@@ -120,12 +120,10 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Relations**: `user`, `room`.
 - **Notes**: All channel history is stored here; Stats view is computed from this table (no separate stats storage). Deleting “Stats data” means deleting all rows in `messages`.
 
-### 4.4 IgnoreList
+### 4.4 IgnoreList (legacy)
 
 - **Table**: `ignore_list`.
-- **Fields**: `id`, `user_id`, `ignored_user_id`, `created_at`.
-- **Unique**: `(user_id, ignored_user_id)`.
-- **Semantics**: Frontend hides messages from ignored users in the message list; they remain in DB and in history.
+- **Status**: Ignore functionality removed. Table retained for cascade delete when users are deleted. No UI or socket handlers use it.
 
 ---
 
@@ -157,14 +155,12 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `connect` | `on_connect` | Session | Reject if no `user_id`; else track presence and post system event. |
 | `disconnect` | `on_disconnect` | — | Remove from presence; post “went offline”. |
 | `get_rooms` | `on_get_rooms` | Yes | Emit `rooms_list` with rooms in user’s order. |
-| `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), ignore list, users, rooms. |
+| `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), room_muted_in_room, users, rooms. |
 | `send_message` | `on_send_message` | Yes | Slash-command handling and/or persist message; broadcast `new_message`. |
 | `create_room` | `on_create_room` | Surfer Girl or create_room | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
 | `update_room` | `on_update_room` | Surfer Girl or update_room | Rename room; emit `topic_updated`-style update. |
 | `delete_room` | `on_delete_room` | Surfer Girl or delete_room | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
 | `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
-| `ignore_user` | `on_ignore_user` | Yes | Add to IgnoreList; emit `ignore_list_updated`. |
-| `unignore_user` | `on_unignore_user` | Yes | Remove from IgnoreList; emit `ignore_list_updated`. |
 | `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
 | `get_or_create_dm` | `on_get_or_create_dm` | Yes | Find or create DM room between current user and `other_user_id`; emit `dm_room`; if created, broadcast `rooms_updated`. |
 | `kick_user` | `on_kick_user` | Surfer Girl or kick_user | Emit `kicked_from_room` to target’s socket(s). |
@@ -212,11 +208,11 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 - **Single file**: `app/templates/chat.html` — HTML, CSS, and JavaScript in one template. Rendered by Flask with `user` (current user); no separate JS bundle.
 - **Socket client**: Socket.IO 4.7.2 from CDN; connection with `withCredentials: true`. No explicit reconnection logic documented; Socket.IO client has built-in reconnect.
-- **Main structure**: Header (title, Settings if Surfer Girl, Log out), status line, ignored-users panel, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer.
-- **State**: `currentUserId`, `currentRoom`, `allRooms`, `allUsersWithStatus`, `ignoreList`, `showingSettings`, `acrobotActive`, `roomOrderIds`, etc. Room list is reordered by drag-and-drop; order persisted via `save_room_order`.
+- **Main structure**: Header (title, Settings, Log out), status line, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer. **Mobile**: Hamburger opens room list; Settings and Log out at bottom of room list (below DMs).
+- **State**: `currentUserId`, `currentRoom`, `allRooms`, `allUsersWithStatus`, `showingSettings`, `acrobotActive`, `roomOrderIds`, etc. Room list is reordered by drag-and-drop; order persisted via `save_room_order`.
 - **Key behaviors**:
   - **join_room** on load (no explicit room_id → server uses general).
-  - **room_joined**: Renders room list, user list, and either message history or stats view; applies ignore list (messages from ignored users get class `hidden`).
+  - **room_joined**: Renders room list, user list, and either message history or stats view; applies room-mute filter (messages from muted users get class `hidden`).
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
@@ -258,7 +254,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
-| `app/models.py` | User, Room, Message, IgnoreList; to_dict() where needed. |
+| `app/models.py` | User, Room, Message, IgnoreList (legacy); to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat; before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user, Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |

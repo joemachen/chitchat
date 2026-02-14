@@ -22,7 +22,7 @@ chitchat/
     ├── __init__.py      # App factory (create_app)
     ├── config.py        # Configuration (invite code, DB, secret)
     ├── logging_config.py # Logging setup (logs dir, handlers)
-    ├── models.py        # (Step 2) Users, Messages, IgnoreList
+    ├── models.py        # (Step 2) Users, Messages, RoomMute; IgnoreList (legacy)
     ├── templates/
     │   └── chat.html    # (Step 4) Chat UI (Vanilla JS)
     └── ...              # Routes, socket handlers, services as needed
@@ -42,13 +42,13 @@ chitchat/
 
 - **Users** — Registered only with a valid **Simple Invite Code** (no open sign-up).
 - **Messages** — Stored per room; SQLAlchemy + SQLite.
-- **Ignore list** — User-to-user; stored in DB; frontend soft-hides ignored users’ messages.
+- **Room mute** — Per-room mute; frontend hides muted users’ messages.
 
 ## Real-Time (Step 3)
 
 - **Flask-SocketIO** over **eventlet** for WebSockets.
 - Events: join room, send message, **user_typing**, **load_more_messages**; server broadcasts to room.
-- On **join room**: server sends last 50 messages (server-side ignore filter), plus **has_more**; client can request older messages via **load_more_messages** (before_id).
+- On **join room**: server sends last 50 messages (server-side room-mute filter), plus **has_more**; client can request older messages via **load_more_messages** (before_id).
 - **Typing**: client emits **user_typing** (debounced); server broadcasts to room; client shows “[User] is typing…” and clears after 5s.
 - **Link previews**: when a chat message contains a URL, server fetches OG metadata (app/link_preview.py) and attaches **link_previews** to the message payload; client renders a card with minimize.
 
