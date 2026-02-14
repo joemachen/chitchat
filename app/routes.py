@@ -1,8 +1,12 @@
 """
 HTTP routes: auth (register, login, logout), chat page, and health check.
 """
-from flask import jsonify, make_response, redirect, render_template, request, session, url_for
+import uuid
+from pathlib import Path
+
+from flask import jsonify, make_response, redirect, render_template, request, send_from_directory, session, url_for
 from markupsafe import escape
+from werkzeug.utils import secure_filename
 
 from app.auth import (
     REMEMBER_COOKIE_NAME as _REMEMBER_COOKIE_NAME,
@@ -19,13 +23,39 @@ from app.auth import (
 from sqlalchemy.exc import OperationalError
 
 from app.config import Config
-from app.models import IgnoreList, Message, MessageReport, Room, User, db
+from app.models import IgnoreList, Message, MessageReport, RolePermission, Room, User, db
+
+
+def _can_export_all(user):
+    """True if user can export all rooms (Surfer Girl or has export_all permission)."""
+    if getattr(user, "is_super_admin", False):
+        return True
+    rank = (getattr(user, "rank", None) or "rookie").lower()
+    if rank == "super_admin":
+        return True
+    rp = RolePermission.query.filter_by(role=rank, permission="export_all").first()
+    return rp and rp.allowed
+
+
+def _user_permissions(user):
+    """Return dict of permission -> bool for user. Surfer Girl has all True."""
+    perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "reset_stats", "export_all")
+    if getattr(user, "is_super_admin", False):
+        return {p: True for p in perms}
+    rank = (getattr(user, "rank", None) or "rookie").lower()
+    if rank == "super_admin":
+        return {p: True for p in perms}
+    result = {}
+    for p in perms:
+        rp = RolePermission.query.filter_by(role=rank, permission=p).first()
+        result[p] = rp and rp.allowed
+    return result
 
 
 def _is_schema_out_of_date_error(exc: BaseException) -> bool:
     """True if the exception looks like a missing DB column (e.g. rank) — run migrations."""
     msg = str(exc).lower()
-    return "rank" in msg or "no such column" in msg or "unknown column" in msg
+    return "rank" in msg or "attachment" in msg or "room_mute" in msg or "user_status" in msg or "acro_score" in msg or "no such column" in msg or "unknown column" in msg
 
 
 def _schema_error_response():
@@ -91,6 +121,40 @@ def register_routes(app):
             return redirect(url_for("chat"))
         return redirect(url_for("login_page"))
 
+    def _allowed_file(filename: str) -> bool:
+        if not filename or "." not in filename:
+            return False
+        ext = filename.rsplit(".", 1)[-1].lower()
+        return ext in getattr(Config, "ALLOWED_EXTENSIONS", {"png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "txt", "zip"})
+
+    @app.route("/upload", methods=["POST"])
+    def upload_file():
+        """Upload a file/image. Returns {url, filename} for use in send_message."""
+        if not session.get("user_id"):
+            return jsonify({"error": "Not authenticated"}), 401
+        file = request.files.get("file") or (list(request.files.values())[0] if request.files else None)
+        if not file or not getattr(file, "filename", None):
+            return jsonify({"error": "No file selected"}), 400
+        if not _allowed_file(file.filename):
+            return jsonify({"error": "File type not allowed"}), 400
+        upload_dir = Path(Config.UPLOAD_FOLDER)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+        safe_name = f"{uuid.uuid4().hex}.{ext}"
+        filepath = upload_dir / safe_name
+        try:
+            file.save(str(filepath))
+        except OSError as e:
+            return jsonify({"error": f"Failed to save file: {e}"}), 500
+        url = f"/uploads/{safe_name}"
+        return jsonify({"url": url, "filename": file.filename})
+
+    @app.route("/uploads/<path:filename>")
+    def serve_upload(filename):
+        """Serve uploaded files from instance/uploads/."""
+        upload_dir = Path(Config.UPLOAD_FOLDER)
+        return send_from_directory(upload_dir, filename, as_attachment=False)
+
     @app.route("/health")
     def health():
         """Simple uptime check for deployment / load balancers. No auth required."""
@@ -121,8 +185,8 @@ def register_routes(app):
             room_name = room.name
             export_all = False
         else:
-            if not getattr(user, "is_super_admin", False):
-                return jsonify({"error": "Super Admin only"}), 403
+            if not _can_export_all(user):
+                return jsonify({"error": "Surfer Girl only (or your role needs export_all permission)"}), 403
             messages = Message.query.order_by(Message.room_id, Message.created_at.asc()).all()
             room_name = None
             export_all = True
@@ -223,7 +287,8 @@ def register_routes(app):
         if not user:
             session.clear()
             return redirect(url_for("login_page"))
-        return render_template("chat.html", user=user)
+        user_perms = _user_permissions(user)
+        return render_template("chat.html", user=user, server_name=getattr(Config, "SERVER_NAME", "ChitChat"), user_permissions=user_perms)
 
     @app.route("/delete-account", methods=["GET", "POST"])
     def delete_account():

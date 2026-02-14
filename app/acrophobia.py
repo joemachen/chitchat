@@ -1,11 +1,17 @@
 """
 Acrophobia game bot (mIRC/AcroBot-style). Hosts rounds: acronym -> submit phrase -> vote -> winner.
-State is in-memory per room. Bot messages are returned for the socket layer to persist and emit.
+State is in-memory per room. Scores are persisted in DB. Bot messages are returned for the socket layer to persist and emit.
 Acronyms are 4 or 5 random letters for hundreds of combinations.
 """
 import random
 import string
 import time
+
+
+def _get_db():
+    """Lazy import to avoid circular deps. Use inside Flask app context."""
+    from app.models import AcroScore, User, db
+    return db, AcroScore, User
 
 
 def _random_acronym(length: int | None = None) -> str:
@@ -16,9 +22,6 @@ def _random_acronym(length: int | None = None) -> str:
 
 # Game state per room_id: phase, acronym, submissions, votes, end_time
 _games = {}
-
-# Wins per room per user_id (in-memory): _scores[room_id][user_id] = {"wins": int, "username": str}
-_scores: dict[int, dict[int, dict]] = {}
 
 # Super Admins can activate/deactivate the bot in Settings
 _acrobot_active = True
@@ -171,26 +174,35 @@ def handle_message(room_id: int, user_id: int, username: str, content: str) -> t
 
 
 def _record_win(room_id: int, user_id: int, username: str) -> None:
-    if room_id not in _scores:
-        _scores[room_id] = {}
-    if user_id not in _scores[room_id]:
-        _scores[room_id][user_id] = {"wins": 0, "username": username}
-    _scores[room_id][user_id]["wins"] += 1
-    _scores[room_id][user_id]["username"] = username
+    """Persist win to DB."""
+    try:
+        db, AcroScore, _ = _get_db()
+        row = AcroScore.query.filter_by(room_id=room_id, user_id=user_id).first()
+        if row:
+            row.wins += 1
+        else:
+            db.session.add(AcroScore(room_id=room_id, user_id=user_id, wins=1))
+        db.session.commit()
+    except Exception:
+        pass  # Fallback: no-op if DB unavailable
 
 
 def _get_score_replies(room_id: int) -> list[str]:
-    """Return leaderboard for this room (wins). In-memory only."""
-    if room_id not in _scores or not _scores[room_id]:
-        return ["**Acrophobia scores** (this channel) — No wins yet. Play a round with /start!"]
-    by_user = _scores[room_id]
-    sorted_users = sorted(by_user.items(), key=lambda x: -x[1]["wins"])
-    lines = ["**Acrophobia scores** (this channel):"]
-    for i, (uid, data) in enumerate(sorted_users[:10], 1):
-        name = data.get("username") or f"User #{uid}"
-        lines.append(f"  **{i}.** {name}: {data['wins']} win(s)")
-    lines.append("(Scores are in-memory and reset when the server restarts.)")
-    return ["\n".join(lines)]
+    """Return leaderboard for this room (wins). Persisted in DB."""
+    try:
+        db, AcroScore, User = _get_db()
+        rows = AcroScore.query.filter_by(room_id=room_id).order_by(AcroScore.wins.desc()).limit(10).all()
+        if not rows:
+            return ["**Acrophobia scores** (this channel) — No wins yet. Play a round with /start!"]
+        user_ids = [r.user_id for r in rows]
+        users = {u.id: u.username for u in User.query.filter(User.id.in_(user_ids)).all()}
+        lines = ["**Acrophobia scores** (this channel):"]
+        for i, row in enumerate(rows, 1):
+            name = users.get(row.user_id) or f"User #{row.user_id}"
+            lines.append(f"  **{i}.** {name}: {row.wins} win(s)")
+        return ["\n".join(lines)]
+    except Exception:
+        return ["**Acrophobia scores** — Unable to load. Play a round with /start!"]
 
 
 def _start_round(room_id: int) -> list[str]:

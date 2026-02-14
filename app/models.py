@@ -22,6 +22,7 @@ class User(db.Model):
     away_message = db.Column(db.Text, nullable=True)
     display_name = db.Column(db.String(80), nullable=True)  # /nick; shown in chat when set
     status_line = db.Column(db.String(120), nullable=True)  # /status
+    user_status = db.Column(db.String(20), nullable=False, default="online")  # online | away | dnd
     last_seen = db.Column(db.DateTime, nullable=True)  # Updated on disconnect for /whois
 
     messages = db.relationship("Message", backref="user", lazy="dynamic", foreign_keys="Message.user_id")
@@ -48,6 +49,7 @@ class User(db.Model):
             "away_message": getattr(self, "away_message", None) or None,
             "display_name": getattr(self, "display_name", None) or None,
             "status_line": getattr(self, "status_line", None) or None,
+            "user_status": getattr(self, "user_status", None) or "online",
             "last_seen": (lambda x: x.isoformat() if x else None)(getattr(self, "last_seen", None)),
         }
 
@@ -101,6 +103,8 @@ class Message(db.Model):
     room_legacy = db.Column("room", db.String(120), nullable=True, default="")
     parent_id = db.Column(db.Integer, ForeignKey("messages.id"), nullable=True, index=True)
     edited_at = db.Column(db.DateTime, nullable=True)
+    attachment_url = db.Column(db.String(512), nullable=True)  # /uploads/filename
+    attachment_filename = db.Column(db.String(256), nullable=True)
 
     parent = db.relationship("Message", remote_side=[id], backref=db.backref("replies", lazy="dynamic"))
 
@@ -119,6 +123,8 @@ class Message(db.Model):
             "message_type": self.message_type or "chat",
             "parent_id": self.parent_id,
             "edited_at": self.edited_at.isoformat() if self.edited_at else None,
+            "attachment_url": self.attachment_url,
+            "attachment_filename": self.attachment_filename,
         }
         if self.parent_id and self.parent:
             p = self.parent
@@ -142,6 +148,43 @@ class IgnoreList(db.Model):
 
     def to_dict(self) -> dict:
         return {"user_id": self.user_id, "ignored_user_id": self.ignored_user_id}
+
+
+class RoomMute(db.Model):
+    """User A mutes User B in Room R. A does not see B's messages in that room."""
+    __tablename__ = "room_mutes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    muted_user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    muted_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("room_id", "muted_user_id", "muted_by_id", name="uq_room_mute"),)
+
+
+class AcroScore(db.Model):
+    """Persistent Acrophobia wins per room per user."""
+    __tablename__ = "acro_scores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    wins = db.Column(db.Integer, nullable=False, default=0)
+
+    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_acro_score"),)
+
+
+class RolePermission(db.Model):
+    """Configurable permissions per role (rookie, bro, fam). Surfer Girl has all; others use this."""
+    __tablename__ = "role_permissions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String(20), nullable=False, index=True)  # rookie | bro | fam
+    permission = db.Column(db.String(40), nullable=False, index=True)
+    allowed = db.Column(db.Boolean, nullable=False, default=False)
+
+    __table_args__ = (UniqueConstraint("role", "permission", name="uq_role_permission"),)
 
 
 class MessageReport(db.Model):
