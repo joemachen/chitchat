@@ -10,7 +10,7 @@ Quick list of features and polish that could make the app even better. Pick and 
 - **Edit / delete own message** — Small “edit” / “delete” on your messages with short time window (e.g. 5 min).
 - **Unread indicators** — Badge or bold room name when there are new messages since last view; optional “mark as read”.
 - **Sound** — Optional ping sound when mentioned or DM’d (excluded for now per your request).
-- **Theme** — Light/dark toggle or accent color in Settings.
+- **Theme** — Light/dark toggle or accent color in Settings. *(done)*
 - **Keyboard shortcuts** — e.g. Ctrl+K to focus search/room switcher, Esc to close modals.
 
 ---

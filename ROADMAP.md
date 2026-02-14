@@ -11,7 +11,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 - **Stack**: Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vanilla JS; optional pywebview standalone.
 - **Run**: `run.py` (browser), `run_standalone.py` (native window). Port fallback: if 5000 is in use, tries 5001–5019 automatically.
 - **Production**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with eventlet worker.
-- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–010), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
+- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–013), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
 
 ### Auth & users
 
@@ -21,7 +21,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Rooms & channels
 
-- **Rooms**: general, Stats (stats view, no send form), **Acrophobia** (game bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop).
+- **Rooms**: general, Stats (stats view, no send form), **Acrophobia** (game bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Default channel**: Surfer Girl can set which channel users see on login (Settings → Default channel).
 - **Channel topic**: Any user can set with **/topic &lt;content&gt;**. Topic is pinned at top of channel with “Set by &lt;user&gt; on &lt;date/time&gt;”; toast notifies the room when topic is updated.
 
 ### Real-time & commands
@@ -32,9 +32,9 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Acrophobia (AcroBot)
 
-- **AcroBot** in room **Acrophobia**: hosts rounds (acronym → submit phrase → vote → winner). Commands: **/start**, **/vote N**, **/help**, **/msg acrobot help** (full help and rules); **/msg acrobot &lt;anything&gt;** gets a short reply when bot is active.
+- **AcroBot** in room **Acrophobia**: hosts rounds (acronym → submit phrase → vote → winner). Commands: **/start** or **/start X** (X=1–7 consecutive rounds), **/vote N**, **/help**, **/msg acrobot help** (full help and rules); **/msg acrobot &lt;anything&gt;** gets a short reply when bot is active. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt same as submission.
 - **Activate/deactivate**: In Settings (Surfer Girl only), “AcroBot is online” toggle. When off, bot does not start rounds or accept votes; user list shows AcroBot as offline. When on, AcroBot appears online in user list.
-- **Timers**: Submit phase (60s) and vote phase (45s) advance automatically; bot messages persisted and broadcast like normal chat.
+- **Timers**: Submit phase (60s) with warnings at 30s and 15s remaining; vote phase (45s) with countdown from 10s to 1s; bot messages persisted and broadcast like normal chat.
 
 ### UX
 
@@ -78,8 +78,8 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 4 — Polish & “best of” features
 
-- **Discord/mIRC-like**: Optional DMs (1:1 rooms); optional server name and branding; optional themes (light/dark); status (online/away/dnd); rich presence (“in Acrophobia”, “in general”).
-- **Acrophobia & bots**: Optional persistent Acrophobia scores (DB), leaderboard in Stats or in-room; more bot channels (trivia, word games) using same pattern.
+- **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; status (online/away/dnd); rich presence (“in Acrophobia”, “in general”).
+- **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room; more bot channels (trivia, word games) using same pattern.
 - **Reliability**: Optional reconnection with history re-fetch; “last N messages” cache; optional read receipts or “last seen”.
 
 ### Phase 5 — Mobile distribution (long-term, on hold)
@@ -113,7 +113,7 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 | **1** | Local stability — **done**; optional /score, unread/sounds, tests |
 | **2** | Richer chat (files, reply, edit), moderation, search/export — **edit/delete message done** |
 | **3** | Online: Koyeb + Neon — **done** |
-| **4** | DMs, themes, persistent scores, more bots, reconnection |
+| **4** | DMs done, themes done, persistent scores done; more bots, reconnection |
 | **5** | **Mobile distribution** — long-term, on hold; Report Message & Delete Account in place for store approval |
 
 See **Matrix-inspired / spec-aligned improvements** for event model, state vs message events, private user data, room aliases, and user/device identity (incremental, no federation required).

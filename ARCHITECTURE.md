@@ -13,7 +13,7 @@ chitchat/
 ├── wsgi.py              # Gunicorn entry point; eventlet monkey_patch before imports
 ├── Procfile             # Koyeb: web: gunicorn --worker-class eventlet -w 1 wsgi:app
 ├── requirements.txt    # Python dependencies (flask-migrate, gunicorn, psycopg2-binary)
-├── migrations/          # Flask-Migrate (Alembic) — versions/001..010, env.py
+├── migrations/          # Flask-Migrate (Alembic) — versions/001..013, env.py
 ├── logs/                # Runtime logs (git-ignored except .gitkeep)
 │   ├── app.log          # General activity (start, connections)
 │   └── errors.log       # Exceptions with stack traces and local variable context

@@ -52,7 +52,7 @@ chitchat/
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–010
+├── migrations/            # Flask-Migrate (Alembic) versions 001–013
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -64,6 +64,7 @@ chitchat/
 │   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
 │   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
+│   ├── version.py         # VERSION from CHITCHAT_VERSION env (deploy announcements)
 │   ├── templates/         # login, register, reset_password, chat.html
 │   └── static/            # auth.css, etc.
 ├── ARCHITECTURE.md        # High-level architecture
@@ -78,7 +79,7 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–010), then **`_seed_default_data(app)`**.
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–013), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts "Server redeployed (v{VERSION})" to System Events).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="eventlet"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
@@ -120,7 +121,13 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Relations**: `user`, `room`.
 - **Notes**: All channel history is stored here; Stats view is computed from this table (no separate stats storage). Deleting “Stats data” means deleting all rows in `messages`.
 
-### 4.4 IgnoreList (legacy)
+### 4.4 AppSetting
+
+- **Table**: `app_settings`.
+- **Fields**: `key` (unique), `value` (text).
+- **Usage**: Key-value store for app-wide settings. `default_room_id` — Surfer Girl chooses which channel users see on login when no room is specified.
+
+### 4.5 IgnoreList (legacy)
 
 - **Table**: `ignore_list`.
 - **Status**: Ignore functionality removed. Table retained for cascade delete when users are deleted. No UI or socket handlers use it.
@@ -168,8 +175,9 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `get_acrobot_status` | `on_get_acrobot_status` | Any | Emit `acrobot_status` (active flag). |
 | `set_acrobot_active` | `on_set_acrobot_active` | Surfer Girl or acrobot_control | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
 | `reset_stats_data` | `on_reset_stats_data` | Surfer Girl or reset_stats | Require `confirm: "RESET"`; delete all Message rows; emit `stats_reset` to requester. |
-| `get_role_permissions` | `on_get_role_permissions` | Surfer Girl only | Emit `role_permissions` for Settings UI. |
+| `get_role_permissions` | `on_get_role_permissions` | Surfer Girl only | Emit `role_permissions` for Settings UI (includes `default_room_id`). |
 | `set_role_permission` | `on_set_role_permission` | Surfer Girl only | Update role permission; broadcast `role_permissions`. |
+| `set_default_room` | `on_set_default_room` | Surfer Girl only | Set default channel for login; persist in `app_settings`; broadcast `role_permissions`. |
 
 ### 6.3 Send message and slash commands
 
@@ -188,10 +196,10 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.4 Acrophobia integration
 
-- **Module**: `app/acrophobia.py`. State is **in-memory**: `_games` (per room: phase, acronym, submissions, votes, end_time), `_scores` (wins per room per user), `_acrobot_active` (toggle from Settings).
-- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **eventlet.spawn_after** in `sockets.py`; callbacks run in app context and call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
+- **Module**: `app/acrophobia.py`. State is **in-memory**: `_games` (per room: phase, acronym, submissions, votes, end_time, rounds_remaining), `_acrobot_active` (toggle from Settings). **Scores** are persisted in `acro_scores` (AcroScore model).
+- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **eventlet.spawn_after** in `sockets.py`. **Submit phase**: warnings at 30s and 15s remaining; **vote phase**: countdown from 10s down to 1s. Callbacks call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
 - **Acronyms**: Random **4- or 5-letter** uppercase string (`random.choices(string.ascii_uppercase, k=4 or 5)`), not a fixed list.
-- **Commands**: `/start`, `/vote N`, `/score`, `/help`, `/msg acrobot help` (and variants). User submissions during submit phase are not stored as messages; only bot messages are persisted.
+- **Commands**: `/start` or `/start X` (X=1–7 consecutive rounds), `/vote N`, `/score`, `/help`, `/msg acrobot help` (and variants). User submissions during submit phase are not stored as messages; only bot messages are persisted. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt ("Got it! Your vote has been received.") same as submission acknowledgment.
 
 ### 6.5 Stats
 
@@ -200,7 +208,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect). Implemented via `_post_system_event(content)` in `sockets.py`: creates a Message, commits, and emits `new_message` to that room.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect). **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events. Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `1.0.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 
@@ -211,13 +219,13 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 - **Main structure**: Header (title, Settings, Log out), status line, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer. **Mobile**: Hamburger opens room list; Settings and Log out at bottom of room list (below DMs).
 - **State**: `currentUserId`, `currentRoom`, `allRooms`, `allUsersWithStatus`, `showingSettings`, `acrobotActive`, `roomOrderIds`, etc. Room list is reordered by drag-and-drop; order persisted via `save_room_order`.
 - **Key behaviors**:
-  - **join_room** on load (no explicit room_id → server uses general).
+  - **join_room** on load (no explicit room_id → server uses default channel from Settings; Surfer Girl configures this in Settings → Default channel).
   - **room_joined**: Renders room list, user list, and either message history or stats view; applies room-mute filter (messages from muted users get class `hidden`).
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
-  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission).
-  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes. Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
+  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`).
+  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
 ---
@@ -238,7 +246,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 - **Single process**: eventlet single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
 - **Message edit/delete**: Supported for own messages; bulk delete on reset stats.
 - **File/image uploads**: Supported (instance/uploads/); configurable size limit.
-- **Acrophobia state**: In-memory; games and scores are lost on server restart.
+- **Acrophobia state**: Game state (phase, submissions, votes) is in-memory and lost on restart; scores are persisted in `acro_scores`.
 - **Migrations**: Flask-Migrate (Alembic); versioned migrations in `migrations/versions/`.
 - **Stats reset**: Deleting all messages is irreversible and affects all channels.
 - **Phase 3 (online deployment)**: Done (Koyeb + Neon Postgres). **Sound** remains optional.
@@ -253,14 +261,15 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 |------|------|
 | `run.py` | Logging setup, port 5000–5019 fallback, `create_app()`, `socketio.run()`. |
 | `wsgi.py` | Gunicorn entry; eventlet.monkey_patch before imports; imports app from run. |
-| `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, SocketIO init, register routes and sockets. |
+| `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 1.0.0); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
-| `app/models.py` | User, Room, Message, IgnoreList (legacy); to_dict() where needed. |
+| `app/models.py` | User, Room, Message, AcroScore, AppSetting, IgnoreList (legacy); to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat; before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user, Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
-| `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, vote, score, submissions), advance_submit_phase, advance_vote_phase, in-memory _scores and _games. |
+| `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
 | `app/templates/chat.html` | Full chat UI: room list, messages, user list, context menu, Settings view, socket listeners, renderRoomList, switchRoom, etc. |
 
 ---
@@ -271,7 +280,7 @@ When suggesting changes or features, consider:
 
 1. **Consistency**: Preserve existing patterns (e.g. emit payloads as dicts with clear keys; Surfer Girl / permission checks via `_has_permission`).
 2. **Security**: Any new endpoint or socket event should enforce auth and, if applicable, Surfer Girl or the relevant permission.
-3. **Persistence**: Acrophobia state is in-memory; any “persistent scores” or new game state would need a migration and model or separate store.
+3. **Persistence**: Acrophobia game state is in-memory; scores are persisted (AcroScore). Any “persistent scores” or new game state would need a migration and model.
 4. **Frontend**: Single template with vanilla JS; no build step. Larger UI changes may warrant splitting CSS/JS or introducing a minimal build.
 5. **Migrations**: Flask-Migrate (Alembic); add new migrations for schema changes.
 6. **Testing**: No tests in the repo yet; suggestions for E2E or integration tests (e.g. login, send message, join room, Acrophobia round) would be valuable.

@@ -27,9 +27,9 @@ Type **/help** or **/msg acrobot help** in that room for full instructions and r
 |--------|-------------|
 | **/help** or **/msg acrobot help** | Full help: how to play, rules, all commands. |
 | **/msg acrobot** &lt;anything&gt; | Short reply from the bot (e.g. “AcroBot here. Type /help…”). |
-| **/start** | Start a new round (acronym → submit phrase → vote → winner). |
+| **/start** or **/start X** (X=1–7) | Start a new round or X consecutive rounds (acronym → submit phrase → vote → winner). |
 | **/vote** &lt;N&gt; | During voting, vote for submission N (e.g. /vote 1). |
-| **/score** | Show the in-channel leaderboard (wins). Scores are in-memory and reset on server restart. |
+| **/score** | Show the in-channel leaderboard (wins). Scores are persisted in the database. |
 
 Super Admins can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle).
 
