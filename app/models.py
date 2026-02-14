@@ -147,6 +147,16 @@ class Message(db.Model):
             out["parent_content"] = p.content
             out["parent_username"] = p_user.username if p_user else None
             out["parent_display_name"] = (getattr(p_user, "display_name", None) or None) if p_user else None
+        # Reactions: [{emoji, count, user_ids}]
+        try:
+            from collections import defaultdict
+            by_emoji = defaultdict(list)
+            reactions = getattr(self, "reactions", None)
+            for r in (reactions.all() if hasattr(reactions, "all") else (reactions or [])):
+                by_emoji[r.emoji].append(r.user_id)
+            out["reactions"] = [{"emoji": e, "count": len(ids), "user_ids": ids} for e, ids in sorted(by_emoji.items())]
+        except Exception:
+            out["reactions"] = []
         return out
 
 
@@ -208,6 +218,30 @@ class RolePermission(db.Model):
     allowed = db.Column(db.Boolean, nullable=False, default=False)
 
     __table_args__ = (UniqueConstraint("role", "permission", name="uq_role_permission"),)
+
+
+class MessageReaction(db.Model):
+    """User reaction (emoji) on a message. One user can add multiple emoji to same message."""
+    __tablename__ = "message_reactions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    emoji = db.Column(db.String(32), nullable=False)
+
+    __table_args__ = (UniqueConstraint("message_id", "user_id", "emoji", name="uq_message_reaction"),)
+
+    message = db.relationship("Message", backref=db.backref("reactions", lazy="dynamic", cascade="all, delete-orphan"))
+    user = db.relationship("User", backref="message_reactions")
+
+
+class UserRoomRead(db.Model):
+    """Tracks last message id read per user per room for unread counts."""
+    __tablename__ = "user_room_read"
+
+    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, primary_key=True)
+    last_message_id = db.Column(db.Integer, nullable=False, default=0)
 
 
 class MessageReport(db.Model):

@@ -94,6 +94,15 @@
         @keyframes ping-fade { 0%, 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
         .msg-actions button { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.75rem; padding: 0; }
         .msg-actions button:hover { color: #f87171; }
+        .msg-reactions { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+        .msg-reaction { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.4rem; border-radius: 12px; background: #27272a; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; }
+        .msg-reaction:hover { background: #3f3f46; }
+        .msg-reaction.own { border-color: #6366f1; background: #1e1e24; }
+        .msg-reaction-add { padding: 0.15rem 0.35rem; color: #71717a; }
+        .msg-reaction-add:hover { color: #a1a1aa; }
+        .reaction-picker { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.35rem; display: flex; gap: 0.25rem; z-index: 2002; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .reaction-picker button { background: none; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; border-radius: 4px; }
+        .reaction-picker button:hover { background: #3f3f46; }
         .form-wrap { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); background: #18181c; border-top: 1px solid #27272a; flex-shrink: 0; }
         .form-wrap form { display: flex; gap: 0.5rem; align-items: center; }
         .form-wrap input[type="text"] { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
@@ -305,6 +314,7 @@
     </div>
     <div id="messageContextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="reply-to-message">Reply</button>
+        <button type="button" data-action="add-reaction">Add reaction</button>
         <button type="button" data-action="edit-message">Edit</button>
         <button type="button" data-action="delete-message">Delete</button>
         <button type="button" data-action="hide-message" id="hideMessageBtn">Hide</button>
@@ -610,7 +620,17 @@
             '<div class="msg-content">' + contentHtml + '</div>' +
             (attachmentHtml || '') +
             (editedHtml || '') +
-            (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '');
+            (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '') +
+            (function() {
+                var rx = msg.reactions || [];
+                var h = '<div class="msg-reactions" data-msg-id="' + msg.id + '">';
+                rx.forEach(function(r) {
+                    var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
+                    h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji + ' (' + (r.count || 0) + ')') + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
+                });
+                h += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span></div>';
+                return h;
+            })();
         div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
             btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
         });
@@ -629,7 +649,52 @@
                 if (parentEl) { parentEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); parentEl.classList.add('highlight-reply-target'); setTimeout(function() { parentEl.classList.remove('highlight-reply-target'); }, 1500); }
             });
         });
+        div.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var emoji = el.getAttribute('data-emoji');
+                var isOwn = el.classList.contains('own');
+                if (isOwn) socket.emit('remove_reaction', { message_id: msg.id, emoji: emoji });
+                else socket.emit('add_reaction', { message_id: msg.id, emoji: emoji });
+            });
+        });
+        div.querySelectorAll('.msg-reaction-add').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showReactionPicker(msg.id, el);
+            });
+        });
         return div;
+    }
+
+    var REACTION_EMOJIS = ['\ud83d\udc4d', '\ud83d\ude02', '\u2764\ufe0f', '\ud83c\udf89', '\ud83d\ude2e', '\ud83d\udc40', '\ud83d\udd25'];
+    function showReactionPicker(msgId, anchorEl) {
+        var existing = document.getElementById('reactionPicker');
+        if (existing) existing.remove();
+        var picker = document.createElement('div');
+        picker.id = 'reactionPicker';
+        picker.className = 'reaction-picker';
+        REACTION_EMOJIS.forEach(function(emoji) {
+            var btn = document.createElement('button');
+            btn.textContent = emoji;
+            btn.title = 'Add ' + emoji;
+            btn.addEventListener('click', function() {
+                socket.emit('add_reaction', { message_id: msgId, emoji: emoji });
+                picker.remove();
+            });
+            picker.appendChild(btn);
+        });
+        document.body.appendChild(picker);
+        var rect = anchorEl.getBoundingClientRect();
+        picker.style.left = (rect.left) + 'px';
+        picker.style.top = (rect.top - picker.offsetHeight - 4) + 'px';
+        function closePicker(e) {
+            if (picker && !picker.contains(e.target) && e.target !== anchorEl) {
+                picker.remove();
+                document.removeEventListener('click', closePicker);
+            }
+        }
+        setTimeout(function() { document.addEventListener('click', closePicker); }, 0);
     }
 
     function showUploadToast(msg, isError) {
@@ -867,6 +932,16 @@
         hideContextMenu();
     });
 
+    messageContextMenuEl.querySelector('[data-action="add-reaction"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && currentRoom) {
+            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
+            var anchor = msgEl ? msgEl.querySelector('.msg-reaction-add, .msg-reactions') : null;
+            if (anchor) showReactionPicker(messageContextTarget.messageId, anchor);
+            else showReactionPicker(messageContextTarget.messageId, messageContextMenuEl);
+        }
+        hideMessageContextMenu();
+    });
     messageContextMenuEl.querySelector('[data-action="reply-to-message"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (messageContextTarget && currentRoom) {
@@ -1706,6 +1781,12 @@
         showingSettings = false;
         currentRoom = data.room || currentRoom;
         if (currentRoom) clearUnreadForRoom(currentRoom.id);
+        if (data.unread_counts) {
+            Object.keys(unreadRooms).forEach(function(k) { delete unreadRooms[k]; });
+            Object.keys(data.unread_counts).forEach(function(rid) {
+                if (data.unread_counts[rid] > 0) unreadRooms[rid] = true;
+            });
+        }
         if (data.users) allUsersWithStatus = data.users;
         if (data.rooms) renderRoomList(data.rooms, data.room);
         if (currentRoom && data.room_muted_in_room) {
@@ -1770,6 +1851,12 @@
         if (data.rooms) {
             allRooms = data.rooms;
             roomOrderIds = data.rooms.map(function(r) { return r.id; });
+            if (data.unread_counts) {
+                Object.keys(unreadRooms).forEach(function(k) { delete unreadRooms[k]; });
+                Object.keys(data.unread_counts).forEach(function(rid) {
+                    if (data.unread_counts[rid] > 0) unreadRooms[rid] = true;
+                });
+            }
             renderRoomList(null, currentRoom);
         }
     });
@@ -1838,6 +1925,41 @@
         allRooms = allRooms.filter(function(r) { return r.id !== data.room_id; });
         roomOrderIds = roomOrderIds.filter(function(id) { return id !== data.room_id; });
         renderRoomList(null, currentRoom);
+    });
+
+    socket.on('unread_incremented', function(data) {
+        if (data && data.room_id) addUnreadForRoom(data.room_id);
+    });
+
+    socket.on('reaction_updated', function(data) {
+        if (!data || !data.message_id || !currentRoom || data.room_id !== currentRoom.id) return;
+        var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
+        if (!msgEl) return;
+        var reactionsEl = msgEl.querySelector('.msg-reactions');
+        if (!reactionsEl) return;
+        var rx = data.reactions || [];
+        var h = '';
+        rx.forEach(function(r) {
+            var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
+            h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji + ' (' + (r.count || 0) + ')') + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
+        });
+        h += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
+        reactionsEl.innerHTML = h;
+        reactionsEl.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var emoji = el.getAttribute('data-emoji');
+                var isOwn = el.classList.contains('own');
+                if (isOwn) socket.emit('remove_reaction', { message_id: data.message_id, emoji: emoji });
+                else socket.emit('add_reaction', { message_id: data.message_id, emoji: emoji });
+            });
+        });
+        reactionsEl.querySelectorAll('.msg-reaction-add').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showReactionPicker(data.message_id, el);
+            });
+        });
     });
 
     socket.on('user_list_updated', function(data) {

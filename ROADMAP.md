@@ -58,7 +58,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 1 — Local, stable (mostly done)
 
-- **Done**: AcroBot + Acrophobia room in migration; /help and /msg acrobot help; activate/deactivate in Settings; port fallback; copy/paste; context menu fix; Surfer Girl + Settings + topic + whois; role permissions.
+- **Done**: AcroBot + Acrophobia room in migration; /help and /msg acrobot help; activate/deactivate in Settings; port fallback; copy/paste; context menu fix; Surfer Girl + Settings + topic + whois; role permissions; **message reactions**; **unread indicators** (server-backed).
 - **Optional remaining**:
   - Acrophobia: optional /score (in-memory or DB), optional per-round time limits.
   - UX: unread indicators per room; optional sound on ping/message.
@@ -113,7 +113,25 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 | **1** | Local stability — **done**; optional /score, unread/sounds, tests |
 | **2** | Richer chat (files, reply, edit), moderation, search/export — **edit/delete message done** |
 | **3** | Online: Koyeb + Neon — **done** |
-| **4** | DMs done, themes done, persistent scores done; more bots, reconnection |
+| **4** | DMs done, themes done, persistent scores done, reactions done, unread done; more bots, reconnection |
+
+---
+
+## Next up (prioritized)
+
+1. **Health endpoint** — `GET /health` for uptime checks *(already in place)*
+2. **Keyboard shortcuts** — Ctrl+K room switcher, Esc close modals
+3. **Message reactions** — *(done)*
+4. **Unread indicators** — *(done)*
+5. **Search** — Search messages in current room or all rooms
+6. **Reconnection + history re-fetch** — Refetch recent messages on reconnect
+7. **Optional sound** — Ping sound when mentioned (user toggle)
+8. **Netsplit** — Easter egg: `/netsplit` or random fake netsplit for lols
+9. **Accessibility** — Semantic HTML, keyboard nav, reduced motion, high-contrast
+10. **Rate limits** — Throttle messages per user per minute
+11. **Audit log** — Surfer Girl view of who did what
+12. **Voice chat** — 1:1 or small-group (2–4) via WebRTC P2P; long-term
+13. **Desktop/screen sharing** — 1:1 or small-group; long-term
 | **5** | **Mobile distribution** — long-term, on hold; Report Message & Delete Account in place for store approval |
 
 See **Matrix-inspired / spec-aligned improvements** for event model, state vs message events, private user data, room aliases, and user/device identity (incremental, no federation required).

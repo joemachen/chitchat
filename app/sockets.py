@@ -27,7 +27,7 @@ from app.acrophobia import (
 )
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, AppSetting, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -199,11 +199,25 @@ def _get_stats():
     }
 
 
+def _broadcast_new_message_impl(socket_io, room_id, msg_dict):
+    """Emit new_message to room and unread_incremented to users not viewing it. Module-level for use in callbacks."""
+    if socket_io:
+        socket_io.emit("new_message", msg_dict, room=f"room_{room_id}")
+        current_viewing = {uid: rid for uid, (rid, _) in _user_id_to_room.items()}
+        for uid in set(_sid_to_user_id.values()):
+            if current_viewing.get(uid) == room_id:
+                continue
+            rooms = _rooms_sorted_for_user(uid)
+            if any(ro.id == room_id for ro in rooms):
+                socket_io.emit("unread_incremented", {"room_id": room_id}, room=f"user_{uid}")
+
+
 def _acrophobia_emit_bot_messages(app, room_id, replies):
     """Create Message records for AcroBot and emit to room. Run inside app.app_context()."""
     acrobot = User.query.filter_by(username="AcroBot").first()
     if not acrobot:
         return
+    socket_io = getattr(app, "socketio", None)
     for text in replies:
         if not text:
             continue
@@ -215,9 +229,7 @@ def _acrophobia_emit_bot_messages(app, room_id, replies):
         )
         db.session.add(msg)
         db.session.commit()
-        socket_io = getattr(app, "socketio", None)
-        if socket_io:
-            socket_io.emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+        _broadcast_new_message_impl(socket_io, room_id, msg.to_dict())
 
 
 def _acrophobia_submit_warning_callback(app, room_id, seconds_left):
@@ -326,7 +338,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=sys_room.id, user_id=sys_user.id, content=content, message_type="chat")
             db.session.add(msg)
             db.session.commit()
-            socketio.emit("new_message", msg.to_dict(), room=f"room_{sys_room.id}")
+            _broadcast_new_message_impl(socketio, sys_room.id, msg.to_dict())
 
     @socketio.on("connect")
     def on_connect(auth=None):
@@ -340,6 +352,7 @@ def register_socket_handlers(socketio):
         _sid_to_connected_at[request.sid] = time.time()
         _sid_to_remote_addr[request.sid] = getattr(request, "remote_addr", None) or (request.environ.get("REMOTE_ADDR") if request.environ else None)
         _online_user_ids.add(user_id)
+        socketio_join_room(f"user_{user_id}")  # For unread_incremented and other user-specific events
         if was_offline:
             _post_system_event(f"{username} came online")
         logger.info("Socket connected: user_id=%s", user_id)
@@ -424,6 +437,24 @@ def register_socket_handlers(socketio):
         except (TypeError, ValueError):
             return None
 
+    def _get_unread_counts(user_id):
+        """Return {room_id: unread_count} for all rooms user has access to."""
+        rooms = _rooms_sorted_for_user(user_id)
+        result = {}
+        for r in rooms:
+            if r.name.strip().lower() == "stats":
+                continue
+            row = UserRoomRead.query.filter_by(user_id=user_id, room_id=r.id).first()
+            last_id = row.last_message_id if row else 0
+            count = Message.query.filter(Message.room_id == r.id, Message.id > last_id).count()
+            if count > 0:
+                result[r.id] = count
+        return result
+
+    def _broadcast_new_message(room_id, msg_dict):
+        """Emit new_message to room and unread_incremented to users not viewing it."""
+        _broadcast_new_message_impl(socketio, room_id, msg_dict)
+
     @socketio.on("get_rooms")
     def on_get_rooms(data=None):
         """Return list of all rooms in user's order."""
@@ -432,7 +463,8 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         rooms = _rooms_sorted_for_user(user_id)
-        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms]})
+        unread_counts = _get_unread_counts(user_id)
+        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts})
 
     @socketio.on("join_room")
     def on_join_room(data):
@@ -462,6 +494,7 @@ def register_socket_handlers(socketio):
         rooms_dict = [r.to_dict() for r in rooms]
 
         if room_obj.name.strip().lower() == "stats":
+            unread_counts = _get_unread_counts(user_id)
             emit("room_joined", {
                 "room": room_obj.to_dict(),
                 "history": [],
@@ -470,6 +503,7 @@ def register_socket_handlers(socketio):
                 "users": users_with_status,
                 "rooms": rooms_dict,
                 "has_more": False,
+                "unread_counts": unread_counts,
             })
             logger.info("User %s joined stats room", user_id)
         else:
@@ -484,6 +518,14 @@ def register_socket_handlers(socketio):
             messages.reverse()
             history = [m.to_dict() for m in messages]
             room_muted_in_room = list(_get_room_mutes_for_user(user_id, room_id))
+            last_msg_id = messages[-1].id if messages else 0
+            urr = UserRoomRead.query.filter_by(user_id=user_id, room_id=room_id).first()
+            if urr:
+                urr.last_message_id = last_msg_id
+            else:
+                db.session.add(UserRoomRead(user_id=user_id, room_id=room_id, last_message_id=last_msg_id))
+            db.session.commit()
+            unread_counts = _get_unread_counts(user_id)
             payload = {
                 "room": room_obj.to_dict(),
                 "history": history,
@@ -491,6 +533,7 @@ def register_socket_handlers(socketio):
                 "users": users_with_status,
                 "rooms": rooms_dict,
                 "has_more": has_more,
+                "unread_counts": unread_counts,
             }
             if room_obj.name.strip() == "Acrophobia":
                 payload["acrophobia"] = acrophobia_get_phase_info(room_id)
@@ -592,7 +635,7 @@ def register_socket_handlers(socketio):
                                 )
                                 db.session.add(msg)
                                 db.session.commit()
-                                emit("new_message", msg.to_dict(), room=f"room_{acrophobia_room.id}")
+                                _broadcast_new_message(acrophobia_room.id, msg.to_dict())
                         for target_user_id, dm_text in dm_replies:
                             if dm_text:
                                 dm_room = _get_or_create_dm_room(target_user_id, acrobot.id)
@@ -604,7 +647,7 @@ def register_socket_handlers(socketio):
                                 )
                                 db.session.add(dm_msg)
                                 db.session.commit()
-                                emit("new_message", dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                                _broadcast_new_message(dm_room.id, dm_msg.to_dict())
                         # Fall through so the user's message is also saved to the DM (shows their phrase + AcroBot reply)
                     # If not consumed (e.g. not in submit phase), fall through and save message to DM as normal
 
@@ -651,7 +694,7 @@ def register_socket_handlers(socketio):
                 )
                 db.session.add(dm_msg)
                 db.session.commit()
-                emit("new_message", dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                _broadcast_new_message(dm_room.id, dm_msg.to_dict())
                 emit("dm_room", {"room": dm_room.to_dict()})
                 return
 
@@ -681,7 +724,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=help_content, message_type="chat")
             db.session.add(msg)
             db.session.commit()
-            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            _broadcast_new_message(room_id, msg.to_dict())
             return
 
         # /away [message] — Set away status and message; clear with /away. /dnd and /online set status.
@@ -698,7 +741,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            _broadcast_new_message(room_id, msg.to_dict())
             emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
@@ -710,7 +753,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content="is now Do Not Disturb", message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            _broadcast_new_message(room_id, msg.to_dict())
             emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
@@ -723,7 +766,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content="is back online", message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            _broadcast_new_message(room_id, msg.to_dict())
             emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
@@ -738,7 +781,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            _broadcast_new_message(room_id, msg.to_dict())
             emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             _post_system_event(f"{user.username} changed nick to " + (nick or "(cleared)"))
             return
@@ -753,7 +796,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            _broadcast_new_message(room_id, msg.to_dict())
             return
 
         # /whois <username> — IRC-style whois: user info, last seen, shared rooms. Reply to requester only.
@@ -839,7 +882,7 @@ def register_socket_handlers(socketio):
                         )
                         db.session.add(user_dm_msg)
                         db.session.commit()
-                        emit("new_message", user_dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                        _broadcast_new_message(dm_room.id, user_dm_msg.to_dict())
                     for text in bot_replies:
                         if text:
                             msg = Message(
@@ -850,7 +893,7 @@ def register_socket_handlers(socketio):
                             )
                             db.session.add(msg)
                             db.session.commit()
-                            emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+                            _broadcast_new_message(room_id, msg.to_dict())
                     for target_user_id, dm_text in dm_replies:
                         if dm_text:
                             dm_room = _get_or_create_dm_room(target_user_id, acrobot.id)
@@ -862,7 +905,7 @@ def register_socket_handlers(socketio):
                             )
                             db.session.add(dm_msg)
                             db.session.commit()
-                            emit("new_message", dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                            _broadcast_new_message(dm_room.id, dm_msg.to_dict())
                     if bot_replies and is_acrobot_active() and "Round started!" in (bot_replies[0] or ""):
                         _schedule_acrophobia_submit_timer(room_id)
                         emit(
@@ -916,7 +959,7 @@ def register_socket_handlers(socketio):
                 )
                 db.session.add(user_dm_msg)
                 db.session.commit()
-                emit("new_message", user_dm_msg.to_dict(), room=f"room_{dm_room.id}")
+                _broadcast_new_message(dm_room.id, user_dm_msg.to_dict())
                 return
 
         # /em or /me text — third-person emote (saved as message_type='emote')
@@ -972,7 +1015,7 @@ def register_socket_handlers(socketio):
         db.session.commit()
 
         payload = msg.to_dict()
-        emit("new_message", payload, room=f"room_{room_id}")
+        _broadcast_new_message(room_id, payload)
 
         # @mention: parse @nickname and notify mentioned users (page)
         if message_type == "chat":
@@ -1059,6 +1102,64 @@ def register_socket_handlers(socketio):
         db.session.commit()
         emit("message_deleted", {"message_id": msg_id, "room_id": room_id}, room=f"room_{room_id}")
         logger.info("Message %s deleted by user %s", msg_id, user_id)
+
+    @socketio.on("add_reaction")
+    def on_add_reaction(data):
+        """Add emoji reaction to message. Emit reaction_updated to room."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        msg_id = (data or {}).get("message_id")
+        emoji = ((data or {}).get("emoji") or "").strip()
+        if not msg_id or not emoji or len(emoji) > 32:
+            emit("error", {"message": "message_id and emoji (1-32 chars) required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        msg = Message.query.get(msg_id)
+        if not msg:
+            emit("error", {"message": "Message not found"})
+            return
+        existing = MessageReaction.query.filter_by(message_id=msg_id, user_id=user_id, emoji=emoji).first()
+        if existing:
+            return
+        r = MessageReaction(message_id=msg_id, user_id=user_id, emoji=emoji)
+        db.session.add(r)
+        db.session.commit()
+        msg = Message.query.get(msg_id)
+        payload = {"message_id": msg_id, "room_id": msg.room_id, "reactions": msg.to_dict().get("reactions", [])}
+        socketio.emit("reaction_updated", payload, room=f"room_{msg.room_id}")
+
+    @socketio.on("remove_reaction")
+    def on_remove_reaction(data):
+        """Remove emoji reaction from message. Emit reaction_updated to room."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        msg_id = (data or {}).get("message_id")
+        emoji = ((data or {}).get("emoji") or "").strip()
+        if not msg_id or not emoji:
+            emit("error", {"message": "message_id and emoji required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        r = MessageReaction.query.filter_by(message_id=msg_id, user_id=user_id, emoji=emoji).first()
+        if not r:
+            return
+        room_id = r.message.room_id
+        db.session.delete(r)
+        db.session.commit()
+        msg = Message.query.get(msg_id)
+        payload = {"message_id": msg_id, "room_id": room_id, "reactions": msg.to_dict().get("reactions", []) if msg else []}
+        socketio.emit("reaction_updated", payload, room=f"room_{room_id}")
 
     @socketio.on("report_message")
     def on_report_message(data):
@@ -1345,7 +1446,8 @@ def register_socket_handlers(socketio):
         user.room_order_ids = json.dumps(room_ids)
         db.session.commit()
         rooms = _rooms_sorted_for_user(user_id)
-        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms]})
+        unread_counts = _get_unread_counts(user_id)
+        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts})
 
     @socketio.on("get_user_profile")
     def on_get_user_profile(data):

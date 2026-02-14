@@ -6,9 +6,9 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Polish & UX
 
-- **Message reactions** — One-tap emoji reactions on messages (e.g. 👍 😂).
+- **Message reactions** — One-tap emoji reactions on messages (e.g. 👍 😂). *(done)*
 - **Edit / delete own message** — Small “edit” / “delete” on your messages with short time window (e.g. 5 min).
-- **Unread indicators** — Badge or bold room name when there are new messages since last view; optional “mark as read”.
+- **Unread indicators** — Badge or bold room name when there are new messages since last view. *(done)* “mark as read”.
 - **Sound** — Optional ping sound when mentioned or DM’d (excluded for now per your request).
 - **Theme** — Light/dark toggle or accent color in Settings. *(done)*
 - **Keyboard shortcuts** — e.g. Ctrl+K to focus search/room switcher, Esc to close modals.
@@ -51,7 +51,7 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Dev & ops
 
-- **Health endpoint** — e.g. `GET /health` for uptime checks when you deploy.
+- **Health endpoint** — e.g. `GET /health` for uptime checks when you deploy. *(done)*
 - **Backup** — One-click “Export DB” or “Backup messages” from Settings (Super Admin).
 - **Tests** — A few E2E or integration tests for login, send message, Acro round.
 
