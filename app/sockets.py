@@ -213,6 +213,25 @@ def _get_stats():
     }
 
 
+def broadcast_system_event(app, content: str) -> None:
+    """Post a system event to System Events room. Call from anywhere; pass app for context."""
+    with app.app_context():
+        sys_room = Room.query.filter_by(name="System Events").first()
+        sys_user = User.query.filter_by(username="System").first()
+        if sys_room and sys_user:
+            msg = Message(
+                room_id=sys_room.id,
+                user_id=sys_user.id,
+                content=content,
+                message_type="chat",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            socket_io = getattr(app, "socketio", None)
+            if socket_io:
+                _broadcast_new_message_impl(socket_io, sys_room.id, msg.to_dict())
+
+
 def _broadcast_new_message_impl(socket_io, room_id, msg_dict):
     """Emit new_message to room and unread_incremented to users not viewing it. Module-level for use in callbacks."""
     if socket_io:
@@ -286,7 +305,7 @@ def _acrophobia_submit_timer_callback(app, room_id, sudden_death: bool = False):
 def _acrophobia_vote_timer_callback(app, room_id):
     """Called when vote phase ends. Reveal winner and send bot messages; start next round or sudden death."""
     with app.app_context():
-        replies, start_next, is_sudden_death = advance_vote_phase(room_id)
+        replies, start_next, is_sudden_death, winner_info = advance_vote_phase(room_id)
         _acrophobia_emit_bot_messages(app, room_id, replies)
         socket_io = getattr(app, "socketio", None)
         if socket_io:
@@ -294,6 +313,11 @@ def _acrophobia_vote_timer_callback(app, room_id):
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
             if replies and "Winner:" in (replies[0] or ""):
                 socket_io.emit("acrophobia_winner", {}, room=f"room_{room_id}")
+            if winner_info:
+                broadcast_system_event(app, f"**{winner_info['username']}** just won Acrophobia!")
+                row = AcroScore.query.filter_by(room_id=room_id, user_id=winner_info["user_id"]).first()
+                if row and row.wins >= 5 and row.wins % 5 == 0:
+                    broadcast_system_event(app, f"🔥 **{winner_info['username']}** hit a {row.wins}-win streak in Acrophobia!")
         if start_next:
             if is_sudden_death:
                 _schedule_sudden_death_submit_timer(room_id)
@@ -369,13 +393,8 @@ def register_socket_handlers(socketio):
 
     def _post_system_event(content: str):
         """Post a system message to the System Events room."""
-        sys_room = Room.query.filter_by(name="System Events").first()
-        sys_user = User.query.filter_by(username="System").first()
-        if sys_room and sys_user:
-            msg = Message(room_id=sys_room.id, user_id=sys_user.id, content=content, message_type="chat")
-            db.session.add(msg)
-            db.session.commit()
-            _broadcast_new_message_impl(socketio, sys_room.id, msg.to_dict())
+        app = current_app._get_current_object()
+        broadcast_system_event(app, content)
 
     @socketio.on("connect")
     def on_connect(auth=None):
@@ -943,7 +962,7 @@ def register_socket_handlers(socketio):
                             db.session.add(dm_msg)
                             db.session.commit()
                             _broadcast_new_message(dm_room.id, dm_msg.to_dict())
-                    if bot_replies and is_acrobot_active() and "Round started!" in (bot_replies[0] or ""):
+                    if bot_replies and is_acrobot_active() and "**Acronym:" in (bot_replies[0] or ""):
                         _schedule_acrophobia_submit_timer(room_id)
                         emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
                     return

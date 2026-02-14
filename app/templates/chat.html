@@ -106,6 +106,11 @@
         .msg-content a { color: #818cf8; text-decoration: none; }
         .msg-content a:hover { text-decoration: underline; }
         .msg.emote .msg-content { font-style: italic; color: #a1a1aa; }
+        .msg.msg-system .msg-content { font-style: italic; color: #94a3b8; }
+        .msg.msg-system .msg-header .msg-username { color: #64748b; }
+        .msg.msg-system .msg-header .msg-username::after { content: ' (System)'; font-size: 0.7em; color: #64748b; }
+        .msg.msg-mention-pulse { animation: pulse-mention 1.5s ease-in-out 2; }
+        @keyframes pulse-mention { 0% { background-color: transparent; } 50% { background-color: rgba(255, 255, 0, 0.2); } 100% { background-color: transparent; } }
         .messages.is-dm .msg { background: #1e1e24; border-left: 3px solid #6366f1; }
         .messages.is-dm .msg .msg-header { color: #94a3b8; }
         .messages.is-dm .msg .msg-content { color: #cbd5e1; font-style: normal; }
@@ -140,13 +145,9 @@
         .form-wrap button:disabled { opacity: 0.6; cursor: not-allowed; }
         .form-wrap.acro-urgency input[type="text"] { animation: acro-urgency-pulse 0.8s ease-in-out infinite; }
         @keyframes acro-urgency-pulse { 0%, 100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { border-color: #dc2626; box-shadow: 0 0 0 4px rgba(239,68,68,0.2); } }
-        .acro-acronym-reveal { display: flex; justify-content: center; gap: 0.25rem; padding: 0.5rem 1rem; font-size: 1.5rem; font-weight: 700; letter-spacing: 0.15em; color: #818cf8; min-height: 2.5rem; align-items: center; }
-        .acro-acronym-reveal.hidden { display: none; }
-        .acro-acronym-reveal .acro-letter { display: inline-block; animation: acro-letter-slam 0.25s ease-out forwards; transform-origin: center bottom; }
-        @keyframes acro-letter-slam { 0% { opacity: 0; transform: scale(0.3) translateY(-0.5em); } 70% { transform: scale(1.05) translateY(0); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
-        .typing-indicator { padding: 0.35rem 1rem; font-size: 0.8rem; color: #71717a; min-height: 1.5rem; }
+        .typing-indicator { padding: 0.35rem 1rem; font-size: 0.8rem; color: #71717a; min-height: 1.5rem; flex-shrink: 0; }
         .typing-indicator.empty { visibility: hidden; }
-        .acro-timer { padding: 0.35rem 1rem; font-size: 0.85rem; color: #818cf8; min-height: 1.5rem; background: #1e1e24; border-top: 1px solid #27272a; }
+        .acro-timer { padding: 0.35rem 1rem; font-size: 0.85rem; color: #818cf8; min-height: 1.5rem; flex-shrink: 0; background: #1e1e24; border-top: 1px solid #27272a; }
         .acro-timer.hidden { display: none; }
         .search-bar-wrap { padding: 0 1rem; background: #18181c; border-bottom: 1px solid #27272a; display: flex; justify-content: flex-end; }
         .search-toggle-btn { padding: 0.35rem 0.5rem; margin: 0; background: none; border: none; color: #818cf8; font-size: 0.9rem; cursor: pointer; }
@@ -177,7 +178,7 @@
         .msg-link-preview .link-preview-body { padding: 0.5rem; }
         .msg-link-preview .link-preview-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
         .msg-link-preview .link-preview-desc { font-size: 0.8rem; color: #a1a1aa; margin-bottom: 0.35rem; }
-        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 200px; border-radius: 4px; display: block; }
+        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 80px; width: auto; height: auto; object-fit: cover; border-radius: 4px; display: block; }
         .status { padding: 0.25rem 1rem; font-size: 0.85rem; color: #71717a; }
         .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
         .room-list {
@@ -279,6 +280,8 @@
         body.theme-light .msg-header { color: #6366f1; }
         body.theme-light .msg-time { color: #71717a; }
         body.theme-light .msg-content a { color: #6366f1; }
+        body.theme-light .msg.msg-system .msg-content { color: #64748b; }
+        body.theme-light .msg.msg-system .msg-header .msg-username { color: #94a3b8; }
         body.theme-light .form-wrap { background: #e4e4e7; border-color: #d4d4d8; }
         body.theme-light .form-wrap input { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .acro-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
@@ -455,7 +458,6 @@
             </div>
             <div class="typing-indicator empty" id="typingIndicator"></div>
             <div class="acro-timer hidden" id="acroTimer"></div>
-            <div class="acro-acronym-reveal hidden" id="acroAcronymReveal"></div>
             <div class="form-wrap">
                 <form id="sendForm">
                     <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
@@ -481,6 +483,7 @@
     <script>
 (function() {
     const currentUserId = {{ user.id }};
+    const currentUsername = {{ user.username|tojson }};
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
@@ -523,6 +526,9 @@
     var unreadRooms = {};    // room_id -> true when room has new message(s) not yet read
     var lastReadByRoom = {}; // room_id -> last message id we've "read" (cleared highlight)
     var baseTitle = document.title || 'No Homers Club';
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) stopMentionTabFlash();
+    });
     var acroPhase = null;
     var acroEndTime = null;
     var acroAcronym = null;
@@ -618,11 +624,33 @@
         return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true });
     }
 
+    function messageMentionsMe(content) {
+        if (!content || !currentUsername) return false;
+        var re = new RegExp('@' + (currentUsername || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+        return re.test(content);
+    }
+    function startMentionTabFlash() {
+        if (document.hidden && !window._mentionFlashInterval) {
+            var orig = baseTitle;
+            window._mentionFlashInterval = setInterval(function() {
+                document.title = document.title === orig ? '\u26a0\ufe0f New Mention!' : orig;
+            }, 1000);
+        }
+    }
+    function stopMentionTabFlash() {
+        if (window._mentionFlashInterval) {
+            clearInterval(window._mentionFlashInterval);
+            window._mentionFlashInterval = null;
+        }
+        updateUnreadBadge();
+    }
     function renderMessage(msg, isOwn) {
         const isEmote = msg.message_type === 'emote';
+        const isSystem = (msg.username || '') === 'System';
         const userHidden = isMessageUserHidden(msg.id);
+        const mentionsMe = messageMentionsMe(msg.content || '');
         const div = document.createElement('div');
-        div.className = 'msg' + (isOwn ? ' own' : '') + (isEmote ? ' emote' : '') + (isHidden(msg) ? ' hidden' : '') + (userHidden ? ' msg-user-hidden' : '');
+        div.className = 'msg' + (isOwn ? ' own' : '') + (isEmote ? ' emote' : '') + (isSystem ? ' msg-system' : '') + (mentionsMe ? ' msg-mention-pulse' : '') + (isHidden(msg) ? ' hidden' : '') + (userHidden ? ' msg-user-hidden' : '');
         div.dataset.msgId = msg.id;
         div.dataset.userId = msg.user_id;
         if (msg.room_id != null && isMessageUnread(msg.room_id, msg.id)) div.classList.add('mentioned');
@@ -1310,24 +1338,6 @@
                 inputEl.removeAttribute('autocorrect');
                 inputEl.removeAttribute('autocapitalize');
                 inputEl.removeAttribute('spellcheck');
-            }
-        }
-        var acroAcronymRevealEl = document.getElementById('acroAcronymReveal');
-        if (acroAcronymRevealEl) {
-            if (phase === 'submitting' && acronym) {
-                acroAcronymRevealEl.classList.remove('hidden');
-                acroAcronymRevealEl.innerHTML = '';
-                var letters = acronym.split('');
-                letters.forEach(function(letter, i) {
-                    var span = document.createElement('span');
-                    span.className = 'acro-letter';
-                    span.textContent = letter;
-                    span.style.animationDelay = (i * 0.08) + 's';
-                    acroAcronymRevealEl.appendChild(span);
-                });
-            } else {
-                acroAcronymRevealEl.classList.add('hidden');
-                acroAcronymRevealEl.innerHTML = '';
             }
         }
         if (!acroTimerEl) return;
@@ -2171,6 +2181,9 @@
         const el = renderMessage(msg, msg.user_id === currentUserId);
         messagesEl.appendChild(el);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (messageMentionsMe(msg.content) && msg.user_id !== currentUserId) {
+            startMentionTabFlash();
+        }
     });
 
     socket.on('message_edited', function(msg) {
@@ -2216,9 +2229,13 @@
         if (roomEl) roomEl.classList.add('mentioned');
         if (currentRoom && currentRoom.id === data.room_id) {
             var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
-            if (msgEl) msgEl.classList.add('mentioned');
+            if (msgEl) {
+                msgEl.classList.add('mentioned');
+                msgEl.classList.add('msg-mention-pulse');
+            }
         }
         showPingToast((data.from_username || 'Someone') + ' mentioned you');
+        startMentionTabFlash();
     });
 
     socket.on('user_pinged', function(data) {
