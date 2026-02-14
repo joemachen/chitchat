@@ -1,5 +1,18 @@
 # Release notes
 
+## v1.8.0 — Message hover position & Acrophobia polish
+
+**Message hover bar**
+- **Top-right placement** — Reaction, edit, and reply icons now appear on the top-right of each message (was top-left). Light theme styling updated for the new position.
+
+**Acrophobia**
+- **Submission countdown urgency** — The submission countdown now matches the vote countdown: color change and "Hurry!" when 15 seconds or less remain.
+- **Vote receipt acknowledgment** — AcroBot announces "A vote has been received." in the Acrophobia room when votes come in, same as for submissions.
+- **Full round results** — At the end of each round, AcroBot shows a complete list of submissions with vote counts (e.g. "**1.** \"phrase\" by **username** — X vote(s)") before the winner announcement.
+- **Multi-round tally** — When there are multiple rounds, AcroBot keeps an ongoing total votes tally between rounds and adds some smack talk (e.g. "Don't get too comfortable.", "The crown is still up for grabs.").
+
+---
+
 ## v1.7.0 — Message hover overlay & sidebar layout
 
 **Message hover bar (desktop)**

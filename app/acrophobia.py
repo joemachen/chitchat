@@ -80,6 +80,18 @@ def _acrobot_nickname() -> str:
     return random.choice(["L'il Bro", "L'il Homey"])
 
 
+def _smack_talk() -> str:
+    """Return a random smack talk line for between rounds."""
+    return random.choice([
+        "Don't get too comfortable.",
+        "The crown is still up for grabs.",
+        "Anyone can get lucky once.",
+        "Let's see if you can back that up.",
+        "Still a long way to go, champ.",
+        "Don't count your chickens yet.",
+    ])
+
+
 def _phrase_matches_acronym(phrase: str, acronym: str) -> bool:
     """True if the phrase's first letter of each word (case-insensitive) spells the acronym."""
     if not phrase or not acronym:
@@ -156,6 +168,7 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
     if low == "/start" or (low.startswith("/start ") and low[7:].strip().isdigit()):
         if g["phase"] != "idle":
             return True, ["A round is already in progress. Wait for it to finish."], []
+        g.pop("total_votes", None)  # Reset running tally for fresh game
         rounds = 1
         if low.startswith("/start "):
             try:
@@ -193,8 +206,9 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
                 return True, [f"Vote 1–{len(g['submissions'])} only."], []
             g["votes"][user_id] = n - 1
             nick = _acrobot_nickname()
+            room_ack = [] if from_dm else ["A vote has been received."]
             dm_ack = [(user_id, f"Thanks. I got your vote for this round, {nick}.")] if from_dm else []
-            return True, [], dm_ack
+            return True, room_ack, dm_ack
         return True, [], []  # Ignore non-commands during voting
     # idle: allow normal chat or /start
     return False, [], []
@@ -300,11 +314,33 @@ def advance_vote_phase(room_id: int) -> tuple[list[str], bool, bool, dict | None
     _record_win(room_id, winner["user_id"], winner["username"])
     rounds_left = g.get("rounds_remaining", 1) - 1
     g["rounds_remaining"] = rounds_left
-    msg = f"**Winner:** \"{winner['phrase']}\" by **{winner['username']}**! Fine, you got lucky on that one. Check ball."
+
+    # Full round results: submissions with vote counts
+    replies = ["**Round results:**"]
+    for i, s in enumerate(g["submissions"]):
+        vc = counts.get(i, 0)
+        replies.append(f"**{i + 1}.** \"{s['phrase']}\" by **{s['username']}** — {vc} vote{'s' if vc != 1 else ''}")
+
+    # Update running total votes for multi-round games
+    total_votes = g.setdefault("total_votes", {})
+    for i, s in enumerate(g["submissions"]):
+        uname = s["username"]
+        total_votes[uname] = total_votes.get(uname, 0) + counts.get(i, 0)
+
+    winner_msg = f"**Winner:** \"{winner['phrase']}\" by **{winner['username']}**! Fine, you got lucky on that one. Check ball."
+    replies.append(winner_msg)
     winner_info = {"username": winner["username"], "user_id": winner["user_id"]}
+
     if rounds_left > 0:
-        return [msg + f" {rounds_left} round(s) left. Next round starting…"], True, False, winner_info
-    return [msg + " Type /start for another round."], False, False, winner_info
+        # Ongoing tally + smack talk between rounds
+        tally_parts = [f"**{u}**: {v}" for u, v in sorted(total_votes.items(), key=lambda x: -x[1])]
+        tally_msg = "**Total votes so far:** " + ", ".join(tally_parts) + "."
+        replies.append(tally_msg)
+        replies.append(_smack_talk())
+        replies.append(f"{rounds_left} round(s) left. Next round starting…")
+        return replies, True, False, winner_info
+    replies[-1] += " Type /start for another round."
+    return replies, False, False, winner_info
 
 
 def get_submit_end_time(room_id: int) -> float | None:
@@ -323,7 +359,9 @@ def get_vote_end_time(room_id: int) -> float | None:
 
 
 def get_submit_warning_message(seconds_left: int) -> str:
-    """Return warning message for submit phase (30 or 15 seconds left)."""
+    """Return warning message for submit phase (30 or 15 seconds left). Adds urgency when <= 15 seconds."""
+    if seconds_left <= 15:
+        return f"**{seconds_left} seconds** left to submit your phrase! Hurry!"
     return f"**{seconds_left} seconds** left to submit your phrase!"
 
 

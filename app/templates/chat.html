@@ -147,7 +147,7 @@
         .msg-reaction.own { border-color: #6366f1; background: #1e1e24; }
         .msg-reaction-add { padding: 0.15rem 0.35rem; color: #71717a; cursor: pointer; background: none; border: none; font-size: 1rem; }
         .msg-reaction-add:hover { color: #a1a1aa; }
-        .msg-hover-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: none; align-items: center; gap: 0.35rem; padding: 0.25rem 0.5rem; border-radius: 8px 8px 0 0; background: linear-gradient(to bottom, rgba(30, 30, 36, 0.92), rgba(30, 30, 36, 0.7)); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(63, 63, 70, 0.5); border-bottom: none; opacity: 0; transition: opacity 0.15s ease; }
+        .msg-hover-bar { position: absolute; top: 0; right: 0; left: auto; z-index: 2; display: none; align-items: center; justify-content: flex-end; gap: 0.35rem; padding: 0.25rem 0.5rem; border-radius: 0 8px 0 0; background: linear-gradient(to bottom, rgba(30, 30, 36, 0.92), rgba(30, 30, 36, 0.7)); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(63, 63, 70, 0.5); border-bottom: none; border-left: none; opacity: 0; transition: opacity 0.15s ease; }
         .msg:hover .msg-hover-bar { display: flex !important; opacity: 1; }
         .msg.hover-bar-visible .msg-hover-bar { display: flex !important; opacity: 1; }
         .msg-hover-bar .msg-hover-btn { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.9rem; padding: 0.2rem 0.35rem; border-radius: 4px; }
@@ -324,7 +324,7 @@
         body.theme-light .messages { background: #fafafa; }
         body.theme-light .msg { background: #e4e4e7; }
         body.theme-light .msg.own { background: #d4d4d8; }
-        body.theme-light .msg .msg-hover-bar { background: linear-gradient(to bottom, rgba(228, 228, 231, 0.95), rgba(228, 228, 231, 0.75)); border-color: rgba(212, 212, 216, 0.6); }
+        body.theme-light .msg .msg-hover-bar { background: linear-gradient(to bottom, rgba(228, 228, 231, 0.95), rgba(228, 228, 231, 0.75)); border-color: rgba(212, 212, 216, 0.6); border-left: none; }
         body.theme-light .msg-username:hover { background: #d4d4d8; }
         body.theme-light .msg-header { color: #6366f1; }
         body.theme-light .msg-time { color: #71717a; }
@@ -1935,7 +1935,7 @@
                 acroTimerEl.textContent = label + ': ' + sec + 's';
                 var formWrap = document.querySelector('.form-wrap');
                 if (formWrap && currentRoom && currentRoom.name === 'Acrophobia') {
-                    var urgent = (acroPhase === 'submitting' && sec <= 10) || (acroPhase === 'voting' && sec <= 15);
+                    var urgent = (acroPhase === 'submitting' && sec <= 15) || (acroPhase === 'voting' && sec <= 15);
                     if (urgent) formWrap.classList.add('acro-urgency');
                     else formWrap.classList.remove('acro-urgency');
                 }

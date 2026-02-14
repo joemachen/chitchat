@@ -369,7 +369,7 @@ def _acrophobia_vote_timer_callback(app, room_id):
         if socket_io:
             info = acrophobia_get_phase_info(room_id)
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
-            if replies and "Winner:" in (replies[0] or ""):
+            if replies and any("Winner:" in (r or "") for r in replies):
                 socket_io.emit("acrophobia_winner", {}, room=f"room_{room_id}")
             if winner_info:
                 broadcast_system_event(app, f"**{winner_info['username']}** just won Acrophobia!")
@@ -395,16 +395,19 @@ def _acrophobia_vote_timer_callback(app, room_id):
 
 
 def _schedule_acrophobia_submit_timer(room_id):
-    """Schedule 30s/15s warnings and advance from submit phase to voting after SUBMIT_SECONDS."""
+    """Schedule 30s/15s warnings, 15-1s countdown (like vote), and advance from submit phase to voting after SUBMIT_SECONDS."""
     app = current_app._get_current_object()
     eventlet.spawn_after(30, _acrophobia_submit_warning_callback, app, room_id, 30)
-    eventlet.spawn_after(45, _acrophobia_submit_warning_callback, app, room_id, 15)
+    for s in range(15, 0, -1):
+        eventlet.spawn_after(SUBMIT_SECONDS - s, _acrophobia_submit_warning_callback, app, room_id, s)
     eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id, False)
 
 
 def _schedule_sudden_death_submit_timer(room_id):
-    """Schedule sudden death submit phase (30s, no mid-phase warnings)."""
+    """Schedule sudden death submit phase (30s) with 15-1s countdown for urgency."""
     app = current_app._get_current_object()
+    for s in range(min(15, SUDDEN_DEATH_SUBMIT), 0, -1):
+        eventlet.spawn_after(SUDDEN_DEATH_SUBMIT - s, _acrophobia_submit_warning_callback, app, room_id, s)
     eventlet.spawn_after(SUDDEN_DEATH_SUBMIT, _acrophobia_submit_timer_callback, app, room_id, True)
 
 
