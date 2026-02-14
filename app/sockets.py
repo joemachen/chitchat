@@ -96,15 +96,6 @@ def _get_room_mutes_for_user(user_id, room_id):
     return {r.muted_user_id for r in records}
 
 
-def _get_ignore_list_and_users(user_id):
-    """Return (list of ignored_user_ids, list of {id, username})."""
-    records = IgnoreList.query.filter_by(user_id=user_id).all()
-    ignore_list = [r.ignored_user_id for r in records]
-    users = User.query.filter(User.id.in_([r.ignored_user_id for r in records])).all()
-    ignored_users = [{"id": u.id, "username": u.username} for u in users]
-    return ignore_list, ignored_users
-
-
 def _rooms_sorted_for_user(user_id):
     """Return all rooms in this user's preferred order (room_order_ids), then by name for any new rooms."""
     all_rooms = {r.id: r for r in Room.query.all()}
@@ -382,7 +373,6 @@ def register_socket_handlers(socketio):
         else:
             _user_id_to_room.pop(user_id, None)
 
-        ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
         users_with_status = _get_users_with_online_status()
         rooms = _rooms_sorted_for_user(user_id)
         rooms_dict = [r.to_dict() for r in rooms]
@@ -392,8 +382,6 @@ def register_socket_handlers(socketio):
                 "room": room_obj.to_dict(),
                 "history": [],
                 "stats": _get_stats(),
-                "ignore_list": ignore_list,
-                "ignored_users": ignored_users,
                 "room_muted_in_room": [],
                 "users": users_with_status,
                 "rooms": rooms_dict,
@@ -401,13 +389,11 @@ def register_socket_handlers(socketio):
             })
             logger.info("User %s joined stats room", user_id)
         else:
-            # Paginate: last 50 messages, server-side ignore + room-mute filter
-            ignore_set = set(ignore_list) if ignore_list else set()
+            # Paginate: last 50 messages, server-side room-mute filter
             room_mute_set = _get_room_mutes_for_user(user_id, room_id)
-            exclude_users = ignore_set | room_mute_set
             q = Message.query.filter_by(room_id=room_id)
-            if exclude_users:
-                q = q.filter(~Message.user_id.in_(exclude_users))
+            if room_mute_set:
+                q = q.filter(~Message.user_id.in_(room_mute_set))
             messages = q.order_by(Message.id.desc()).limit(51).all()
             has_more = len(messages) > 50
             messages = messages[:50]
@@ -417,8 +403,6 @@ def register_socket_handlers(socketio):
             payload = {
                 "room": room_obj.to_dict(),
                 "history": history,
-                "ignore_list": ignore_list,
-                "ignored_users": ignored_users,
                 "room_muted_in_room": room_muted_in_room,
                 "users": users_with_status,
                 "rooms": rooms_dict,
@@ -450,7 +434,7 @@ def register_socket_handlers(socketio):
 
     @socketio.on("load_more_messages")
     def on_load_more_messages(data):
-        """Return older messages (paginated, server-side ignore). Emit older_messages."""
+        """Return older messages (paginated, server-side room-mute filter). Emit older_messages."""
         user_id = session.get("user_id")
         if not user_id:
             emit("error", {"message": "Not authenticated"})
@@ -466,13 +450,10 @@ def register_socket_handlers(socketio):
         except (TypeError, ValueError):
             emit("error", {"message": "Invalid room_id or before_id"})
             return
-        ignore_list, _ = _get_ignore_list_and_users(user_id)
-        ignore_set = set(ignore_list) if ignore_list else set()
         room_mute_set = _get_room_mutes_for_user(user_id, room_id)
-        exclude_users = ignore_set | room_mute_set
         q = Message.query.filter_by(room_id=room_id).filter(Message.id < before_id)
-        if exclude_users:
-            q = q.filter(~Message.user_id.in_(exclude_users))
+        if room_mute_set:
+            q = q.filter(~Message.user_id.in_(room_mute_set))
         messages = q.order_by(Message.id.desc()).limit(51).all()
         has_more = len(messages) > 50
         messages = messages[:50]
@@ -1097,11 +1078,9 @@ def register_socket_handlers(socketio):
                 room_id = int(room_id)
         except (TypeError, ValueError):
             room_id = None
-        ignore_list, _ = _get_ignore_list_and_users(user_id)
-        ignore_set = set(ignore_list) if ignore_list else set()
-        exclude_set = ignore_set.copy()
+        exclude_set = set()
         if room_id is not None:
-            exclude_set |= _get_room_mutes_for_user(user_id, room_id)
+            exclude_set = _get_room_mutes_for_user(user_id, room_id)
         q = Message.query.filter(Message.message_type == "chat")
         if room_id is not None:
             q = q.filter(Message.room_id == room_id)
@@ -1269,47 +1248,6 @@ def register_socket_handlers(socketio):
         db.session.commit()
         rooms = _rooms_sorted_for_user(user_id)
         emit("rooms_list", {"rooms": [r.to_dict() for r in rooms]})
-
-    @socketio.on("ignore_user")
-    def on_ignore_user(data):
-        """Add ignored_user_id to current user's ignore list; broadcast ignore_list update."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        ignored_id = (data or {}).get("ignored_user_id")
-        if not ignored_id or ignored_id == user_id:
-            return
-        try:
-            ignored_id = int(ignored_id)
-        except (TypeError, ValueError):
-            return
-        if IgnoreList.query.filter_by(user_id=user_id, ignored_user_id=ignored_id).first():
-            return
-        rec = IgnoreList(user_id=user_id, ignored_user_id=ignored_id)
-        db.session.add(rec)
-        db.session.commit()
-        ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
-        emit("ignore_list_updated", {"ignore_list": ignore_list, "ignored_users": ignored_users})
-
-    @socketio.on("unignore_user")
-    def on_unignore_user(data):
-        """Remove ignored_user_id from current user's ignore list."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        ignored_id = (data or {}).get("ignored_user_id")
-        if not ignored_id:
-            return
-        try:
-            ignored_id = int(ignored_id)
-        except (TypeError, ValueError):
-            return
-        IgnoreList.query.filter_by(user_id=user_id, ignored_user_id=ignored_id).delete()
-        db.session.commit()
-        ignore_list, ignored_users = _get_ignore_list_and_users(user_id)
-        emit("ignore_list_updated", {"ignore_list": ignore_list, "ignored_users": ignored_users})
 
     @socketio.on("get_user_profile")
     def on_get_user_profile(data):

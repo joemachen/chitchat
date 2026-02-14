@@ -131,10 +131,6 @@
         .msg-link-preview .link-preview-desc { font-size: 0.8rem; color: #a1a1aa; margin-bottom: 0.35rem; }
         .msg-link-preview .link-preview-img { max-width: 100%; max-height: 200px; border-radius: 4px; display: block; }
         .status { padding: 0.25rem 1rem; font-size: 0.85rem; color: #71717a; }
-        .ignored-panel { padding: 0.5rem 1rem; background: #18181c; border-bottom: 1px solid #27272a; font-size: 0.85rem; color: #71717a; }
-        .ignored-panel span { margin-right: 0.5rem; }
-        .ignored-panel button { background: none; border: none; color: #818cf8; cursor: pointer; font-size: 0.85rem; padding: 0 0.25rem; }
-        .ignored-panel button:hover { text-decoration: underline; }
         .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
         .room-list {
             width: 220px;
@@ -244,12 +240,20 @@
         body.theme-light .theme-btn { background: #fafafa; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
         .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
-        body.theme-light .ignored-panel { background: #e4e4e7; border-color: #d4d4d8; color: #52525b; }
         /* Mobile responsive */
         .mobile-menu-btn { display: none; background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; padding: 0.35rem 0.5rem; }
         .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; }
         .sidebar-overlay.visible { display: block; }
+        .room-list-footer-mobile { display: none; padding: 0.5rem 1rem; border-top: 1px solid #27272a; }
+        .room-list-footer-mobile button, .room-list-footer-mobile form { display: inline-block; }
+        .room-list-footer-mobile button, .room-list-footer-mobile form button { background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 0.9rem; padding: 0.25rem 0; margin-right: 0.75rem; }
+        .room-list-footer-mobile button:hover, .room-list-footer-mobile form button:hover { color: #e4e4e7; }
+        body.theme-light .room-list-footer-mobile { border-color: #d4d4d8; }
+        body.theme-light .room-list-footer-mobile button, body.theme-light .room-list-footer-mobile form button { color: #52525b; }
+        body.theme-light .room-list-footer-mobile button:hover, body.theme-light .room-list-footer-mobile form button:hover { color: #18181b; }
         @media (max-width: 768px) {
+            .header-settings-logout { display: none !important; }
+            .room-list-footer-mobile { display: block !important; }
             .mobile-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
             .room-list, .user-list { position: fixed; top: 0; bottom: 0; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
             .room-list { left: 0; }
@@ -315,14 +319,15 @@
         <h1>{{ server_name|default('No Homers Club') }} — {{ user.username }}</h1>
         <div class="header-actions">
             <button type="button" id="usersToggleBtn" class="mobile-menu-btn" aria-label="Toggle users">👥</button>
-            <button type="button" id="settingsBtn">Settings</button>
-            <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
-                <button type="submit">Log out</button>
-            </form>
+            <span class="header-settings-logout">
+                <button type="button" id="settingsBtn">Settings</button>
+                <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
+                    <button type="submit">Log out</button>
+                </form>
+            </span>
         </div>
     </div>
     <div class="status" id="status">Connecting…</div>
-    <div class="ignored-panel" id="ignoredPanel" style="display: none;"></div>
     <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
     <div class="main">
         <aside class="room-list" id="roomList">
@@ -335,6 +340,12 @@
                 {% if user.is_super_admin or (user_permissions|default({})).get('create_room') %}
                 <button type="button" id="newRoomBtn">+ New room</button>
                 {% endif %}
+            </div>
+            <div class="room-list-footer-mobile">
+                <button type="button" id="settingsBtnMobile">Settings</button>
+                <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
+                    <button type="submit">Log out</button>
+                </form>
             </div>
         </aside>
         <div class="chat-area">
@@ -382,7 +393,6 @@
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
-    let ignoreList = [];
     var roomMutedInRoom = {};  // room_id -> Set of muted user_ids
     let currentRoom = null;
     let allRooms = [];
@@ -395,7 +405,6 @@
     const sendForm = document.getElementById('sendForm');
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
-    const ignoredPanel = document.getElementById('ignoredPanel');
     const userListOnlineItems = document.getElementById('userListOnlineItems');
     const userListOfflineItems = document.getElementById('userListOfflineItems');
     const roomListItemsEl = document.getElementById('roomListItems');
@@ -488,7 +497,6 @@
     function setConnected(ok) { sendBtn.disabled = !ok; setStatus(ok ? 'Connected' : statusEl.textContent); }
 
     function isHidden(msg) {
-        if (ignoreList.indexOf(msg.user_id) !== -1) return true;
         if (currentRoom && msg.room_id === currentRoom.id && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(msg.user_id)) return true;
         return false;
     }
@@ -577,7 +585,7 @@
             (attachmentHtml || '') +
             (editedHtml || '') +
             (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '') +
-            (!isOwn && !isEmote ? '<div class="msg-actions"><button type="button" class="btn-ignore" data-user-id="' + msg.user_id + '">Ignore user</button></div>' : '');
+            '');
         div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
             btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
         });
@@ -1033,12 +1041,6 @@
             const el = renderMessage(msg, msg.user_id === currentUserId);
             messagesEl.appendChild(el);
         });
-        messagesEl.querySelectorAll('.btn-ignore').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const uid = parseInt(this.getAttribute('data-user-id'), 10);
-                if (uid) socket.emit('ignore_user', { ignored_user_id: uid });
-            });
-        });
         if (loadMoreWrap) loadMoreWrap.style.display = hasMoreMessages ? 'block' : 'none';
         if (channelTopicEl) channelTopicEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
         if (searchBarWrapEl) searchBarWrapEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
@@ -1056,12 +1058,6 @@
             frag.appendChild(el);
         });
         messagesEl.insertBefore(frag, messagesEl.firstChild);
-        messagesEl.querySelectorAll('.btn-ignore').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const uid = parseInt(this.getAttribute('data-user-id'), 10);
-                if (uid) socket.emit('ignore_user', { ignored_user_id: uid });
-            });
-        });
     }
 
     function setAcroPhase(phase, endTime) {
@@ -1338,15 +1334,6 @@
         if (theme === 'light') document.body.classList.add('theme-light');
     }
 
-    function applyIgnoreList(list) {
-        ignoreList = list || [];
-        messagesEl.querySelectorAll('.msg').forEach(function(el) {
-            const uid = parseInt(el.dataset.userId, 10);
-            el.classList.toggle('hidden', ignoreList.indexOf(uid) !== -1);
-        });
-        updateIgnoredPanel();
-    }
-
     function roomsInOrder() {
         var byId = {};
         allRooms.forEach(function(r) { byId[r.id] = r; });
@@ -1549,35 +1536,6 @@
         userListOfflineItems.innerHTML = offline.length ? offline.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>';
     }
 
-    function updateIgnoredPanel() {
-        const byId = {};
-        ignoredUsers.forEach(function(u) { byId[u.id] = u.username; });
-        messagesEl.querySelectorAll('.msg[data-user-id]').forEach(function(el) {
-            const uid = parseInt(el.dataset.userId, 10);
-            if (ignoreList.indexOf(uid) !== -1 && !byId[uid]) {
-                const header = el.querySelector('.msg-header');
-                byId[uid] = header ? header.textContent.split(' ')[0] : ('User ' + uid);
-            }
-        });
-        const entries = ignoreList.map(function(uid) {
-            return { id: uid, name: byId[uid] || ('User ' + uid) };
-        });
-        if (entries.length === 0) {
-            ignoredPanel.style.display = 'none';
-            return;
-        }
-        ignoredPanel.style.display = 'block';
-        ignoredPanel.innerHTML = 'Ignored: ' + entries.map(function(e) {
-            return '<span>' + escapeHtml(e.name) + ' <button type="button" class="unignore" data-user-id="' + e.id + '">Unignore</button></span>';
-        }).join('');
-        ignoredPanel.querySelectorAll('.unignore').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const uid = parseInt(this.getAttribute('data-user-id'), 10);
-                if (uid) socket.emit('unignore_user', { ignored_user_id: uid });
-            });
-        });
-    }
-
     socket = io({ withCredentials: true });
 
     var socketWasDisconnected = false;
@@ -1594,15 +1552,12 @@
     socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); socketWasDisconnected = true; });
     socket.on('connect_error', function() { setStatus('Connection failed'); });
 
-    let ignoredUsers = [];
     socket.on('room_joined', function(data) {
         showingSettings = false;
         currentRoom = data.room || currentRoom;
         if (currentRoom) clearUnreadForRoom(currentRoom.id);
         if (data.users) allUsersWithStatus = data.users;
         if (data.rooms) renderRoomList(data.rooms, data.room);
-        ignoreList = data.ignore_list || [];
-        ignoredUsers = data.ignored_users || [];
         if (currentRoom && data.room_muted_in_room) {
             roomMutedInRoom[currentRoom.id] = new Set(data.room_muted_in_room);
         }
@@ -1611,7 +1566,6 @@
         updateTypingIndicator();
         if (data.stats) renderStatsView(data.stats);
         else renderAllMessages(data.history || []);
-        updateIgnoredPanel();
         if (data.users) renderUserList(data.users);
         if (currentRoom && currentRoom.name === 'Acrophobia' && data.acrophobia) {
             setAcroPhase(data.acrophobia.phase, data.acrophobia.end_time);
@@ -1829,12 +1783,6 @@
         if (msg.room_id == null && currentRoom) msg.room_id = currentRoom.id;
         const el = renderMessage(msg, msg.user_id === currentUserId);
         messagesEl.appendChild(el);
-        el.querySelectorAll('.btn-ignore').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const uid = parseInt(this.getAttribute('data-user-id'), 10);
-                if (uid) socket.emit('ignore_user', { ignored_user_id: uid });
-            });
-        });
         messagesEl.scrollTop = messagesEl.scrollHeight;
     });
 
@@ -1905,16 +1853,10 @@
             if (currentRoom && currentRoom.id === data.room_id) {
                 messagesEl.querySelectorAll('.msg[data-user-id]').forEach(function(el) {
                     var uid = parseInt(el.getAttribute('data-user-id'), 10);
-                    el.classList.toggle('hidden', roomMutedInRoom[data.room_id].has(uid) || ignoreList.indexOf(uid) !== -1);
+                    el.classList.toggle('hidden', roomMutedInRoom[data.room_id].has(uid));
                 });
             }
         }
-    });
-
-    socket.on('ignore_list_updated', function(data) {
-        applyIgnoreList(data.ignore_list);
-        if (data.ignored_users) ignoredUsers = data.ignored_users;
-        updateIgnoredPanel();
     });
 
     socket.on('error', function(data) { setStatus('Error: ' + (data.message || 'Unknown')); });
@@ -2122,6 +2064,11 @@
             else openUserList();
         });
         if (overlay) overlay.addEventListener('click', closeSidebars);
+        var settingsBtnMobile = document.getElementById('settingsBtnMobile');
+        if (settingsBtnMobile) settingsBtnMobile.addEventListener('click', function() {
+            closeSidebars();
+            showSettings();
+        });
     })();
 
     (function setupPanelResizer() {
