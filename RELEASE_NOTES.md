@@ -1,5 +1,20 @@
 # Release notes
 
+## v1.6.0 — Mobile bottom navigation
+
+**Mobile navigation**
+- **3-tab bottom bar** — On screens under 768px, the side-drawer is replaced by a fixed bottom navigation bar with **Rooms**, **DMs**, and **Settings**.
+- **Rooms tab** — Opens the drawer showing group channels.
+- **DMs tab** — Opens the drawer showing direct messages.
+- **Settings tab** — Opens the Settings view directly.
+- **Ergonomics** — 48×48px tap targets, 60-30-10 color rule (active 100% opacity, inactive 60%), safe-area padding for notched devices.
+- **OLED-safe** — Uses dark gray (#18181c) instead of true black to reduce smearing.
+
+**Desktop unchanged**
+- Above 768px, the existing sidebar layout remains (room list, chat area, user list).
+
+---
+
 ## v1.5.0 — Edit profile, away message & channel topic
 
 **Edit profile**

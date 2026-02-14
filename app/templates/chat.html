@@ -359,11 +359,87 @@
         body.theme-light .room-list-footer-mobile { }
         body.theme-light .room-list-footer-mobile button, body.theme-light .room-list-footer-mobile form button { color: #52525b; }
         body.theme-light .room-list-footer-mobile button:hover, body.theme-light .room-list-footer-mobile form button:hover { color: #18181b; }
+        /* Mobile bottom nav: 3-tab bar for <768px. 60-30-10 color rule, safe-area, OLED-safe (no #000). */
+        .mobile-bottom-nav { display: none; }
+        @media (max-width: 768px) {
+            .mobile-bottom-nav {
+                display: flex;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                z-index: 1002;
+                background: #18181c;
+                border-top: 1px solid #27272a;
+                justify-content: space-around;
+                align-items: stretch;
+                padding: 0.5rem 0;
+                padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+                min-height: 56px;
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.2);
+            }
+            .mobile-bottom-nav .nav-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                flex: 1;
+                min-width: 48px;
+                min-height: 48px;
+                padding: 0.5rem 0.75rem;
+                background: none;
+                border: none;
+                color: #a1a1aa;
+                font-size: 0.75rem;
+                font-family: inherit;
+                cursor: pointer;
+                text-decoration: none;
+                opacity: 0.6;
+                transition: opacity 0.2s, color 0.2s;
+                -webkit-tap-highlight-color: transparent;
+            }
+            .mobile-bottom-nav .nav-item:hover { opacity: 0.85; }
+            .mobile-bottom-nav .nav-item:active { opacity: 0.9; }
+            .mobile-bottom-nav .nav-item.active {
+                opacity: 1;
+                color: #6366f1;
+                font-weight: 600;
+            }
+            .mobile-bottom-nav .nav-item.active::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 24px;
+                height: 3px;
+                background: #6366f1;
+                border-radius: 2px;
+            }
+            .mobile-bottom-nav .nav-item { position: relative; }
+            .mobile-bottom-nav .nav-item .nav-icon { font-size: 1.25rem; margin-bottom: 0.2rem; }
+            body.theme-light .mobile-bottom-nav { background: #fafafa; border-color: #d4d4d8; }
+            body.theme-light .mobile-bottom-nav .nav-item { color: #52525b; }
+            body.theme-light .mobile-bottom-nav .nav-item.active { color: #6366f1; }
+            .main .chat-area { padding-bottom: 72px; }
+        }
+        .mobile-tab-panel { display: flex; flex-direction: column; }
+        .mobile-tab-panel.mobile-tab-rooms { flex: 1 1 0; min-height: 0; max-height: 45%; }
+        .mobile-tab-panel.mobile-tab-rooms .room-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+        .mobile-tab-panel.mobile-tab-dms { flex: 1 1 0; min-height: 0; overflow: hidden; }
+        .mobile-tab-panel.mobile-tab-dms .message-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+        @media (max-width: 768px) {
+            .mobile-tab-panel { max-height: none; }
+            .room-list.open .mobile-tab-panel { display: none; }
+            .room-list.open .mobile-tab-panel.active { display: flex; flex: 1 1 0; min-height: 0; overflow: hidden; }
+            .room-list.open .mobile-tab-panel.active .room-list-items,
+            .room-list.open .mobile-tab-panel.active .message-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; max-height: none; }
+        }
         @media (max-width: 768px) {
             .header { flex-wrap: nowrap; min-height: 48px; height: 48px; padding: 0 0.5rem; }
             .header-settings-logout { display: none !important; }
             .room-list-footer-mobile { display: block !important; }
-            .mobile-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+            .mobile-menu-btn { display: none !important; }
             .room-list, .user-list { position: fixed; top: 0; bottom: 0; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
             .room-list { left: 0; }
             .user-list { left: auto; right: 0; transform: translateX(100%); border-left: none; border-right: 1px solid #27272a; }
@@ -381,10 +457,11 @@
             .mobile-room-name { display: none !important; }
             .form-wrap textarea, .form-wrap button { min-height: 44px; }
             .form-wrap { position: sticky; bottom: 0; z-index: 100; }
-            .room-list-footer button, .room-item, .user-item { min-height: 44px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+            .room-list-footer button, .room-item, .user-item { min-height: 48px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
             .msg-link-preview { max-width: 100% !important; }
             .msg-link-preview:not(.minimized) .link-preview-body { display: block !important; }
             .msg-link-preview .link-preview-img { max-height: 160px; }
+            .room-list.open .panel-resizer { display: none; }
         }
         body.theme-light .mobile-room-name { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
         body.theme-light .room-list.open { box-shadow: 4px 0 12px rgba(0,0,0,0.2); }
@@ -520,11 +597,15 @@
     <main class="main" role="main">
         <nav class="room-list" id="roomList" aria-label="Rooms and channels">
             <div class="room-list-scroll">
-                <div class="room-list-title">ROOMS</div>
-                <div class="room-list-items" id="roomListItems"></div>
+                <div class="mobile-tab-panel mobile-tab-rooms active" data-tab="rooms">
+                    <div class="room-list-title">ROOMS</div>
+                    <div class="room-list-items" id="roomListItems"></div>
+                </div>
                 <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
-                <div class="message-list-title">MESSAGES</div>
-                <div class="message-list-items" id="messageListItems"></div>
+                <div class="mobile-tab-panel mobile-tab-dms" data-tab="dms">
+                    <div class="message-list-title">MESSAGES</div>
+                    <div class="message-list-items" id="messageListItems"></div>
+                </div>
             </div>
             <div class="room-list-footer-sticky">
                 <div class="room-list-footer">
@@ -581,12 +662,27 @@
         </aside>
     </main>
 
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile navigation">
+        <button type="button" class="nav-item active" data-tab="rooms" aria-label="Rooms" aria-current="page">
+            <span class="nav-icon" aria-hidden="true">#</span>
+            <span>Rooms</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="dms" aria-label="Direct messages">
+            <span class="nav-icon" aria-hidden="true">✉</span>
+            <span>DMs</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="settings" aria-label="Settings">
+            <span class="nav-icon" aria-hidden="true">⚙</span>
+            <span>Settings</span>
+        </button>
+    </nav>
+
     <script>
 (function() {
     const currentUserId = {{ user.id }};
     const currentUsername = {{ user.username|tojson }};
-    const currentUserStatusLine = {{ (user.status_line or '')|tojson }};
-    const currentUserAwayMessage = {{ (user.away_message or '')|tojson }};
+    var currentUserStatusLine = {{ (user.status_line or '')|tojson }};
+    var currentUserAwayMessage = {{ (user.away_message or '')|tojson }};
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
     var messageRetentionDays = {{ (message_retention_days|default(none))|tojson }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
@@ -1241,6 +1337,26 @@
             }
         }
     });
+    (function() {
+        var msgLongPressTimer = null;
+        var msgLongPressEl = null;
+        messagesEl.addEventListener('touchstart', function(e) {
+            var el = e.target.closest('.msg-username');
+            if (!el) return;
+            msgLongPressEl = el;
+            msgLongPressTimer = setTimeout(function() {
+                msgLongPressTimer = null;
+                var uid = parseInt(msgLongPressEl.getAttribute('data-user-id'), 10);
+                var uname = msgLongPressEl.getAttribute('data-username') || '';
+                if (uid) {
+                    var rect = msgLongPressEl.getBoundingClientRect();
+                    showContextMenu(rect.left + rect.width / 2, rect.top + 20, uid, uname);
+                }
+            }, 500);
+        }, { passive: true });
+        messagesEl.addEventListener('touchend', function() { if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; } }, { passive: true });
+        messagesEl.addEventListener('touchmove', function() { if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; } }, { passive: true });
+    })();
     messagesEl.addEventListener('contextmenu', function(e) {
         var sel = window.getSelection ? window.getSelection().toString().trim() : '';
         var userEl = e.target.closest('.msg-username');
@@ -1282,18 +1398,77 @@
         }
     });
     (function() {
-        var rl = document.getElementById('roomList');
-        if (rl) rl.addEventListener('contextmenu', function(e) {
-        var el = e.target.closest('.room-item[data-room-id]');
-        if (el) {
-            e.preventDefault();
-            hideContextMenu();
-            hideMessageContextMenu();
-            var rid = parseInt(el.getAttribute('data-room-id'), 10);
-            var room = allRooms.find(function(r) { return r.id === rid; });
-            if (room) showRoomContextMenu(e.clientX, e.clientY, room);
+        var longPressTimer = null;
+        var longPressEl = null;
+        function clearLongPress() { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } }
+        var headerUsername = document.querySelector('.header-username');
+        if (headerUsername) {
+            headerUsername.addEventListener('touchstart', function(e) {
+                longPressEl = e.currentTarget;
+                longPressTimer = setTimeout(function() {
+                    longPressTimer = null;
+                    var uid = parseInt(longPressEl.getAttribute('data-user-id'), 10);
+                    var uname = longPressEl.getAttribute('data-username') || '';
+                    if (uid) {
+                        var rect = longPressEl.getBoundingClientRect();
+                        showContextMenu(rect.left + rect.width / 2, rect.top + 20, uid, uname);
+                    }
+                }, 500);
+            }, { passive: true });
+            headerUsername.addEventListener('touchend', clearLongPress, { passive: true });
+            headerUsername.addEventListener('touchmove', clearLongPress, { passive: true });
         }
-    });
+        var ul = document.getElementById('userList');
+        if (ul) {
+            ul.addEventListener('touchstart', function(e) {
+                var el = e.target.closest('.user-item[data-user-id]');
+                if (!el) return;
+                longPressEl = el;
+                longPressTimer = setTimeout(function() {
+                    longPressTimer = null;
+                    var uid = parseInt(longPressEl.getAttribute('data-user-id'), 10);
+                    var uname = longPressEl.getAttribute('data-username') || '';
+                    if (uid) {
+                        var rect = longPressEl.getBoundingClientRect();
+                        showContextMenu(rect.left + rect.width / 2, rect.top + 20, uid, uname);
+                    }
+                }, 500);
+            }, { passive: true });
+            ul.addEventListener('touchend', clearLongPress, { passive: true });
+            ul.addEventListener('touchmove', clearLongPress, { passive: true });
+        }
+        var rl = document.getElementById('roomList');
+        if (rl) {
+            rl.addEventListener('contextmenu', function(e) {
+                var el = e.target.closest('.room-item[data-room-id]');
+                if (el) {
+                    e.preventDefault();
+                    hideContextMenu();
+                    hideMessageContextMenu();
+                    var rid = parseInt(el.getAttribute('data-room-id'), 10);
+                    var room = allRooms.find(function(r) { return r.id === rid; });
+                    if (room) showRoomContextMenu(e.clientX, e.clientY, room);
+                }
+            });
+            rl.addEventListener('touchstart', function(e) {
+                var el = e.target.closest('.room-item[data-room-id]');
+                if (!el) return;
+                longPressEl = el;
+                longPressTimer = setTimeout(function() {
+                    longPressTimer = null;
+                    var rid = parseInt(longPressEl.getAttribute('data-room-id'), 10);
+                    var room = allRooms.find(function(r) { return r.id === rid; });
+                    if (room) {
+                        var rect = longPressEl.getBoundingClientRect();
+                        hideContextMenu();
+                        hideMessageContextMenu();
+                        showRoomContextMenu(rect.left + rect.width / 2, rect.top + 20, room);
+                    }
+                }, 500);
+            }, { passive: true });
+            rl.addEventListener('touchend', clearLongPress, { passive: true });
+            rl.addEventListener('touchmove', clearLongPress, { passive: true });
+        }
     })();
 
     roomContextMenuEl.querySelector('[data-action="room-mute-notifications"]').addEventListener('click', function(e) {
@@ -1547,6 +1722,7 @@
         hideWhoisModal();
         hideSearchResultsModal();
         if (editMessageModal && editMessageModal.style.display === 'block') hideEditMessageModal();
+        if (editProfileModal && editProfileModal.style.display === 'block') hideEditProfileModal();
         if (editRoomModal && editRoomModal.style.display === 'block') hideEditRoomModal();
         if (selectionContextMenuEl && selectionContextMenuEl.style.display === 'block') hideSelectionContextMenu();
     }
@@ -2330,10 +2506,15 @@
         showEditRoomModal(roomId);
     }
     if (editRoomOk) editRoomOk.addEventListener('click', function() {
+        var room = allRooms.find(function(r) { return r.id === editRoomTargetId; });
         var name = editRoomInput ? editRoomInput.value.trim() : '';
         var topic = editRoomTopicInput ? editRoomTopicInput.value.trim() : '';
         if (editRoomTargetId) {
-            socket.emit('update_room', { room_id: editRoomTargetId, name: name || undefined, topic: topic || null });
+            socket.emit('update_room', {
+                room_id: editRoomTargetId,
+                name: name || (room && room.name) || undefined,
+                topic: topic
+            });
         }
         hideEditRoomModal();
     });
@@ -2653,6 +2834,17 @@
             allUsersWithStatus = data.users;
             renderUserList(data.users);
             if (showingSettings) renderSettingsView();
+        }
+    });
+
+    socket.on('profile_updated', function(data) {
+        if (data.status_line !== undefined) currentUserStatusLine = data.status_line || '';
+        if (data.away_message !== undefined) currentUserAwayMessage = data.away_message || '';
+        var me = allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
+        if (me) {
+            if (data.status_line !== undefined) me.status_line = data.status_line || null;
+            if (data.away_message !== undefined) me.away_message = data.away_message || null;
+            me.user_status = data.away_message ? 'away' : 'online';
         }
     });
 
@@ -3165,6 +3357,7 @@
         var overlay = document.getElementById('sidebarOverlay');
         var roomList = document.getElementById('roomList');
         var userList = document.getElementById('userList');
+        var mobileBottomNav = document.getElementById('mobileBottomNav');
         function closeSidebars() {
             if (roomList) roomList.classList.remove('open');
             if (userList) userList.classList.remove('open');
@@ -3180,6 +3373,33 @@
             if (userList) userList.classList.add('open');
             if (overlay) overlay.classList.add('visible');
         }
+        function switchTab(tabName) {
+            var navItems = mobileBottomNav ? mobileBottomNav.querySelectorAll('.nav-item') : [];
+            navItems.forEach(function(item) {
+                var t = item.getAttribute('data-tab');
+                item.classList.toggle('active', t === tabName);
+                item.setAttribute('aria-current', t === tabName ? 'page' : null);
+            });
+            var panels = roomList ? roomList.querySelectorAll('.mobile-tab-panel') : [];
+            panels.forEach(function(p) {
+                p.classList.toggle('active', p.getAttribute('data-tab') === tabName);
+            });
+            if (tabName === 'settings') {
+                closeSidebars();
+                showSettings();
+            } else if (tabName === 'rooms' || tabName === 'dms') {
+                openRoomList();
+            }
+        }
+        if (mobileBottomNav) {
+            mobileBottomNav.addEventListener('click', function(e) {
+                var item = e.target.closest('.nav-item');
+                if (item) {
+                    var tab = item.getAttribute('data-tab');
+                    if (tab) switchTab(tab);
+                }
+            });
+        }
         if (menuBtn && roomList) menuBtn.addEventListener('click', function() {
             if (roomList.classList.contains('open')) closeSidebars();
             else openRoomList();
@@ -3191,8 +3411,8 @@
         if (overlay) overlay.addEventListener('click', closeSidebars);
         var settingsBtnMobile = document.getElementById('settingsBtnMobile');
         if (settingsBtnMobile) settingsBtnMobile.addEventListener('click', function() {
-            closeSidebars();
-            showSettings();
+            if (mobileBottomNav) switchTab('settings');
+            else { closeSidebars(); showSettings(); }
         });
         var searchBtnMobile = document.getElementById('searchBtnMobile');
         var mobileSearchOverlay = document.getElementById('mobileSearchOverlay');
