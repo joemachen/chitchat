@@ -2,6 +2,9 @@
 ChitChat entry point. Validates environment, initializes logging, runs migrations, seeds data, starts the app.
 For Flask CLI (e.g. flask db upgrade): FLASK_APP=run:app and use the app created at import.
 """
+import eventlet
+eventlet.monkey_patch()
+
 import socket
 import sys
 
