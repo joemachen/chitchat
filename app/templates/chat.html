@@ -92,6 +92,8 @@
         .edit-message-modal textarea:focus { outline: none; border-color: #6366f1; }
         .edit-message-modal .edit-room-input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; box-sizing: border-box; margin-bottom: 0.75rem; }
         .edit-message-modal .edit-room-input:focus { outline: none; border-color: #6366f1; }
+        .edit-profile-label { display: block; font-size: 0.85rem; color: #a1a1aa; margin: 0.5rem 0 0.25rem; }
+        .edit-profile-label:first-of-type { margin-top: 0; }
         .edit-message-hint { margin: 0.35rem 0 0.75rem; font-size: 0.75rem; color: #71717a; }
         .edit-message-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
         .edit-message-ok { padding: 0.5rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
@@ -143,8 +145,13 @@
         .msg-reaction { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.4rem; border-radius: 12px; background: #27272a; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; }
         .msg-reaction:hover { background: #3f3f46; }
         .msg-reaction.own { border-color: #6366f1; background: #1e1e24; }
-        .msg-reaction-add { padding: 0.15rem 0.35rem; color: #71717a; }
+        .msg-reaction-add { padding: 0.15rem 0.35rem; color: #71717a; cursor: pointer; background: none; border: none; font-size: 1rem; }
         .msg-reaction-add:hover { color: #a1a1aa; }
+        .msg-hover-bar { display: none; align-items: center; gap: 0.35rem; margin-top: 0.25rem; padding: 0.2rem 0.5rem; border-radius: 8px; background: #1e1e24; border: 1px solid #3f3f46; }
+        .msg:hover .msg-hover-bar { display: flex !important; }
+        .msg.hover-bar-visible .msg-hover-bar { display: flex !important; }
+        .msg-hover-bar .msg-hover-btn { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.9rem; padding: 0.2rem 0.35rem; border-radius: 4px; }
+        .msg-hover-bar .msg-hover-btn:hover { background: #3f3f46; color: #e4e4e7; }
         .reaction-picker { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.35rem; display: flex; flex-direction: column; gap: 0.35rem; max-height: 260px; max-width: 280px; z-index: 2002; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         .reaction-picker-search { padding: 0.35rem 0.5rem; border: 1px solid #3f3f46; border-radius: 6px; background: #0f0f12; color: #e4e4e7; font-size: 0.9rem; }
         .reaction-picker-search:focus { outline: none; border-color: #6366f1; }
@@ -153,7 +160,7 @@
         .reaction-picker button { background: none; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; border-radius: 4px; }
         .reaction-picker button:hover { background: #3f3f46; }
         @media (max-width: 768px) {
-            .msg-reaction-add { display: none !important; }
+            .msg:hover .msg-hover-bar { display: none !important; }
         }
         .form-wrap { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); background: #18181c; border-top: 1px solid #27272a; flex-shrink: 0; }
         .form-wrap form { display: flex; gap: 0.5rem; align-items: flex-end; }
@@ -228,6 +235,8 @@
             flex-direction: column;
             overflow: hidden;
         }
+        .room-list-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+        .room-list-footer-sticky { flex-shrink: 0; margin-top: auto; border-top: 1px solid #27272a; }
         .room-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; }
         .room-list-items { flex: 1 1 0; min-height: 0; max-height: 45%; overflow-y: auto; padding: 0.5rem 0; }
         .room-item { padding: 0.5rem 1rem; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; cursor: pointer; border-radius: 4px; margin: 0 4px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -242,7 +251,7 @@
         .room-item-actions button { background: none; border: none; color: #71717a; cursor: pointer; padding: 2px; font-size: 0.85rem; }
         .room-item-actions button:hover { color: #e4e4e7; }
         .room-item-actions button.delete:hover { color: #f87171; }
-        .room-list-footer { padding: 0.5rem 1rem; border-top: 1px solid #27272a; }
+        .room-list-footer { padding: 0.5rem 1rem; }
         .room-list-footer button { width: 100%; padding: 0.5rem; background: #6366f1; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
         .room-list-footer button:hover { background: #5558e3; }
         .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
@@ -303,7 +312,7 @@
         body.theme-light .room-list-title, body.theme-light .user-list-title { border-color: #d4d4d8; color: #52525b; }
         body.theme-light .room-item:hover { background: #d4d4d8; }
         body.theme-light .room-item.active .room-item-name { color: #15803d; }
-        body.theme-light .room-list-footer { border-color: #d4d4d8; }
+        body.theme-light .room-list-footer-sticky { border-color: #d4d4d8; }
         body.theme-light .channel-topic { background: #fafafa; border-color: #d4d4d8; color: #52525b; }
         body.theme-light .header-info-btn { color: #52525b; }
         body.theme-light .header-info-btn:hover { color: #18181b; }
@@ -343,11 +352,11 @@
         .mobile-menu-btn { display: none; background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; padding: 0.35rem 0.5rem; }
         .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; }
         .sidebar-overlay.visible { display: block; }
-        .room-list-footer-mobile { display: none; padding: 0.5rem 1rem; border-top: 1px solid #27272a; }
+        .room-list-footer-mobile { display: none; padding: 0.5rem 1rem; }
         .room-list-footer-mobile button, .room-list-footer-mobile form { display: inline-block; }
         .room-list-footer-mobile button, .room-list-footer-mobile form button { background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 0.9rem; padding: 0.25rem 0; margin-right: 0.75rem; }
         .room-list-footer-mobile button:hover, .room-list-footer-mobile form button:hover { color: #e4e4e7; }
-        body.theme-light .room-list-footer-mobile { border-color: #d4d4d8; }
+        body.theme-light .room-list-footer-mobile { }
         body.theme-light .room-list-footer-mobile button, body.theme-light .room-list-footer-mobile form button { color: #52525b; }
         body.theme-light .room-list-footer-mobile button:hover, body.theme-light .room-list-footer-mobile form button:hover { color: #18181b; }
         @media (max-width: 768px) {
@@ -388,6 +397,7 @@
         <button type="button" data-action="message-user">Message</button>
         <button type="button" data-action="mute-in-room">Mute in this room</button>
         <button type="button" data-action="kick-user">Kick user</button>
+        <button type="button" data-action="edit-profile" id="contextMenuEditProfile" style="display:none;">Edit profile</button>
         <div class="context-menu-divider" style="display:none;" id="contextMenuStatusDivider"></div>
         <button type="button" data-action="set-status-online" id="contextMenuStatusOnline" style="display:none;">Set status: Online</button>
         <button type="button" data-action="set-status-away" id="contextMenuStatusAway" style="display:none;">Set status: Away</button>
@@ -448,9 +458,23 @@
             <button type="button" id="editMessageCancel" class="edit-message-cancel">Cancel</button>
         </div>
     </div>
+    <div id="editProfileModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit profile" aria-modal="true">
+        <h3 id="editProfileTitle">Edit profile</h3>
+        <label for="editProfileStatusInput" class="edit-profile-label">Status (shown in whois)</label>
+        <input type="text" id="editProfileStatusInput" placeholder="e.g. Working from home" maxlength="120" class="edit-room-input" aria-label="Status">
+        <label for="editProfileAwayInput" class="edit-profile-label">Away message (auto-replies to DMs)</label>
+        <textarea id="editProfileAwayInput" placeholder="e.g. Out for lunch, back soon" rows="3" class="edit-room-input" aria-label="Away message"></textarea>
+        <div class="edit-message-actions">
+            <button type="button" id="editProfileOk" class="edit-message-ok">OK</button>
+            <button type="button" id="editProfileCancel" class="edit-message-cancel">Cancel</button>
+        </div>
+    </div>
     <div id="editRoomModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit channel" aria-modal="true">
         <h3 id="editRoomTitle">Edit channel</h3>
+        <label for="editRoomInput" class="edit-profile-label">Channel name</label>
         <input type="text" id="editRoomInput" placeholder="Room name…" class="edit-room-input" aria-label="Room name">
+        <label for="editRoomTopicInput" class="edit-profile-label">Topic</label>
+        <textarea id="editRoomTopicInput" placeholder="Channel topic…" rows="3" class="edit-room-input" aria-label="Topic"></textarea>
         <div class="edit-message-actions">
             <button type="button" id="editRoomOk" class="edit-message-ok">OK</button>
             <button type="button" id="editRoomCancel" class="edit-message-cancel">Cancel</button>
@@ -495,22 +519,26 @@
     </div>
     <main class="main" role="main">
         <nav class="room-list" id="roomList" aria-label="Rooms and channels">
-            <div class="room-list-title">ROOMS</div>
-            <div class="room-list-items" id="roomListItems"></div>
-            <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
-            <div class="message-list-title">MESSAGES</div>
-            <div class="message-list-items" id="messageListItems"></div>
-            <div class="room-list-footer">
-                {% if user.is_super_admin or (user_permissions|default({})).get('create_room') %}
-                <button type="button" id="newRoomBtn">+ New room</button>
-                {% endif %}
+            <div class="room-list-scroll">
+                <div class="room-list-title">ROOMS</div>
+                <div class="room-list-items" id="roomListItems"></div>
+                <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
+                <div class="message-list-title">MESSAGES</div>
+                <div class="message-list-items" id="messageListItems"></div>
             </div>
-            <div class="room-list-footer-mobile">
-                <button type="button" id="searchBtnMobile">Search</button>
-                <button type="button" id="settingsBtnMobile">Settings</button>
-                <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
-                    <button type="submit">Log out</button>
-                </form>
+            <div class="room-list-footer-sticky">
+                <div class="room-list-footer">
+                    {% if user.is_super_admin or (user_permissions|default({})).get('create_room') %}
+                    <button type="button" id="newRoomBtn">+ New room</button>
+                    {% endif %}
+                </div>
+                <div class="room-list-footer-mobile">
+                    <button type="button" id="searchBtnMobile">Search</button>
+                    <button type="button" id="settingsBtnMobile">Settings</button>
+                    <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
+                        <button type="submit">Log out</button>
+                    </form>
+                </div>
             </div>
         </nav>
         <section class="chat-area" aria-label="Chat">
@@ -557,6 +585,8 @@
 (function() {
     const currentUserId = {{ user.id }};
     const currentUsername = {{ user.username|tojson }};
+    const currentUserStatusLine = {{ (user.status_line or '')|tojson }};
+    const currentUserAwayMessage = {{ (user.away_message or '')|tojson }};
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
     var messageRetentionDays = {{ (message_retention_days|default(none))|tojson }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
@@ -793,8 +823,18 @@
                     var tip = (r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')');
                     h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(tip) + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
                 });
-                h += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span></div>';
-                return h;
+                h += '</div>';
+                var top3 = (rx || []).slice().sort(function(a,b){ return (b.count||0) - (a.count||0); }).slice(0, 3);
+                var bar = '<div class="msg-hover-bar" data-msg-id="' + msg.id + '">';
+                top3.forEach(function(r) {
+                    var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
+                    bar += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji) + '">' + escapeHtml(r.emoji) + '</span>';
+                });
+                bar += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
+                if (isOwn) bar += '<button type="button" class="msg-hover-btn msg-hover-edit" title="Edit">✎</button>';
+                bar += '<button type="button" class="msg-hover-btn msg-hover-reply" title="Reply">↩</button>';
+                bar += '</div>';
+                return h + bar;
             })();
         div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
             btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
@@ -829,6 +869,46 @@
                 showReactionPicker(msg.id, el);
             });
         });
+        div.querySelectorAll('.msg-hover-edit').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (msg.user_id === currentUserId) showEditMessageModal(msg.id, msg.content);
+            });
+        });
+        div.querySelectorAll('.msg-hover-reply').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (currentRoom) {
+                    var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
+                    replyToMessageId = msg.id;
+                    replyToContent = msg.content;
+                    replyToDisplayName = displayName;
+                    var quoted = (replyToContent || '').replace(/\n/g, '\n> ');
+                    inputEl.value = '> @' + (displayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
+                    inputEl.style.height = 'auto';
+                    inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
+                    setTimeout(function() { inputEl.focus(); }, 50);
+                }
+            });
+        });
+        var longPressTimer = null;
+        div.addEventListener('touchstart', function(e) {
+            if (e.target.closest('a') || e.target.closest('button')) return;
+            longPressTimer = setTimeout(function() {
+                longPressTimer = null;
+                div.classList.add('hover-bar-visible');
+                document.addEventListener('touchend', function hideBar() {
+                    document.removeEventListener('touchend', hideBar);
+                    setTimeout(function() { div.classList.remove('hover-bar-visible'); }, 2000);
+                }, { once: true });
+            }, 500);
+        }, { passive: true });
+        div.addEventListener('touchend', function() {
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        }, { passive: true });
+        div.addEventListener('touchmove', function() {
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        }, { passive: true });
         return div;
     }
 
@@ -996,6 +1076,7 @@
     var muteInRoomBtn = contextMenuEl.querySelector('[data-action="mute-in-room"]');
     var whoisBtn = contextMenuEl.querySelector('[data-action="whois"]');
     var messageUserBtn = contextMenuEl.querySelector('[data-action="message-user"]');
+    var editProfileBtn = contextMenuEl.querySelector('[data-action="edit-profile"]');
     var statusDivider = document.getElementById('contextMenuStatusDivider');
     var statusOnlineBtn = document.getElementById('contextMenuStatusOnline');
     var statusAwayBtn = document.getElementById('contextMenuStatusAway');
@@ -1016,6 +1097,7 @@
             var muted = inRoom && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(userId);
             muteInRoomBtn.textContent = muted ? 'Unmute in this room' : 'Mute in this room';
         }
+        if (editProfileBtn) editProfileBtn.style.display = isSelf ? 'block' : 'none';
         if (statusDivider) statusDivider.style.display = isSelf ? 'block' : 'none';
         if (statusOnlineBtn) statusOnlineBtn.style.display = isSelf ? 'block' : 'none';
         if (statusAwayBtn) statusAwayBtn.style.display = isSelf ? 'block' : 'none';
@@ -1255,6 +1337,11 @@
         }
         hideContextMenu();
     });
+    if (editProfileBtn) editProfileBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showEditProfileModal();
+        hideContextMenu();
+    });
     if (muteInRoomBtn) muteInRoomBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         if (contextMenuTarget && currentRoom) {
@@ -1265,8 +1352,9 @@
     });
     contextMenuEl.querySelector('[data-action="kick-user"]').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (contextMenuTarget && currentRoom) {
-            socket.emit('kick_user', { room_id: currentRoom.id, target_user_id: contextMenuTarget.user_id });
+        if (contextMenuTarget) {
+            var rid = (currentRoom && currentRoom.id) || (allRooms.find(function(r) { return r.name === 'general'; }) || allRooms[0] || {}).id;
+            if (rid) socket.emit('kick_user', { room_id: rid, target_user_id: contextMenuTarget.user_id });
         }
         hideContextMenu();
     });
@@ -2188,8 +2276,36 @@
         if (ov) ov.classList.remove('visible');
     }
 
+    var editProfileModal = document.getElementById('editProfileModal');
+    var editProfileStatusInput = document.getElementById('editProfileStatusInput');
+    var editProfileAwayInput = document.getElementById('editProfileAwayInput');
+    var editProfileOk = document.getElementById('editProfileOk');
+    var editProfileCancel = document.getElementById('editProfileCancel');
+    function showEditProfileModal() {
+        if (editProfileStatusInput) editProfileStatusInput.value = typeof currentUserStatusLine === 'string' ? currentUserStatusLine : '';
+        if (editProfileAwayInput) editProfileAwayInput.value = typeof currentUserAwayMessage === 'string' ? currentUserAwayMessage : '';
+        if (editProfileModal) editProfileModal.style.display = 'block';
+        if (modalBackdrop) modalBackdrop.style.display = 'block';
+        setTimeout(function() { if (editProfileStatusInput) editProfileStatusInput.focus(); }, 50);
+    }
+    function hideEditProfileModal() {
+        if (editProfileModal) editProfileModal.style.display = 'none';
+        if (modalBackdrop) modalBackdrop.style.display = 'none';
+    }
+    if (editProfileOk) editProfileOk.addEventListener('click', function() {
+        var statusLine = editProfileStatusInput ? editProfileStatusInput.value.trim().slice(0, 120) : '';
+        var awayMessage = editProfileAwayInput ? editProfileAwayInput.value.trim() : '';
+        socket.emit('update_profile', { status_line: statusLine || null, away_message: awayMessage || null });
+        hideEditProfileModal();
+    });
+    if (editProfileCancel) editProfileCancel.addEventListener('click', hideEditProfileModal);
+    if (editProfileStatusInput) editProfileStatusInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); if (editProfileOk) editProfileOk.click(); }
+    });
+
     var editRoomModal = document.getElementById('editRoomModal');
     var editRoomInput = document.getElementById('editRoomInput');
+    var editRoomTopicInput = document.getElementById('editRoomTopicInput');
     var editRoomOk = document.getElementById('editRoomOk');
     var editRoomCancel = document.getElementById('editRoomCancel');
     var editRoomTargetId = null;
@@ -2198,6 +2314,7 @@
         if (!room) return;
         editRoomTargetId = roomId;
         if (editRoomInput) editRoomInput.value = room.name || '';
+        if (editRoomTopicInput) editRoomTopicInput.value = room.topic || '';
         if (editRoomModal) editRoomModal.style.display = 'block';
         if (modalBackdrop) modalBackdrop.style.display = 'block';
         setTimeout(function() { if (editRoomInput) editRoomInput.focus(); }, 50);
@@ -2214,8 +2331,9 @@
     }
     if (editRoomOk) editRoomOk.addEventListener('click', function() {
         var name = editRoomInput ? editRoomInput.value.trim() : '';
-        if (name && editRoomTargetId) {
-            socket.emit('update_room', { room_id: editRoomTargetId, name: name });
+        var topic = editRoomTopicInput ? editRoomTopicInput.value.trim() : '';
+        if (editRoomTargetId) {
+            socket.emit('update_room', { room_id: editRoomTargetId, name: name || undefined, topic: topic || null });
         }
         hideEditRoomModal();
     });
@@ -2468,7 +2586,6 @@
             var tip = (r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')');
             h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(tip) + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
         });
-        h += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
         reactionsEl.innerHTML = h;
         reactionsEl.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
             el.addEventListener('click', function(e) {
@@ -2479,12 +2596,56 @@
                 else socket.emit('add_reaction', { message_id: data.message_id, emoji: emoji });
             });
         });
-        reactionsEl.querySelectorAll('.msg-reaction-add').forEach(function(el) {
-            el.addEventListener('click', function(e) {
-                e.stopPropagation();
-                showReactionPicker(data.message_id, el);
+        var hoverBar = msgEl.querySelector('.msg-hover-bar');
+        if (hoverBar) {
+            var top3 = rx.slice().sort(function(a,b){ return (b.count||0) - (a.count||0); }).slice(0, 3);
+            var barHtml = '';
+            top3.forEach(function(r) {
+                var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
+                barHtml += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji) + '">' + escapeHtml(r.emoji) + '</span>';
             });
-        });
+            barHtml += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
+            var isOwnMsg = parseInt(msgEl.getAttribute('data-user-id'), 10) === currentUserId;
+            if (isOwnMsg) barHtml += '<button type="button" class="msg-hover-btn msg-hover-edit" title="Edit">✎</button>';
+            barHtml += '<button type="button" class="msg-hover-btn msg-hover-reply" title="Reply">↩</button>';
+            hoverBar.innerHTML = barHtml;
+            hoverBar.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var emoji = el.getAttribute('data-emoji');
+                    var isOwn = el.classList.contains('own');
+                    if (isOwn) socket.emit('remove_reaction', { message_id: data.message_id, emoji: emoji });
+                    else socket.emit('add_reaction', { message_id: data.message_id, emoji: emoji });
+                });
+            });
+            hoverBar.querySelectorAll('.msg-reaction-add').forEach(function(el) {
+                el.addEventListener('click', function(e) { e.stopPropagation(); showReactionPicker(data.message_id, el); });
+            });
+            hoverBar.querySelectorAll('.msg-hover-edit').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var contentEl = msgEl.querySelector('.msg-content');
+                    if (contentEl) showEditMessageModal(data.message_id, contentEl.textContent);
+                });
+            });
+            hoverBar.querySelectorAll('.msg-hover-reply').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var contentEl = msgEl.querySelector('.msg-content');
+                    var headerEl = msgEl.querySelector('.msg-username');
+                    var displayName = headerEl ? headerEl.textContent.trim() : '?';
+                    var content = contentEl ? contentEl.textContent : '';
+                    replyToMessageId = data.message_id;
+                    replyToContent = content;
+                    replyToDisplayName = displayName;
+                    var quoted = (content || '').replace(/\n/g, '\n> ');
+                    inputEl.value = '> @' + (displayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
+                    inputEl.style.height = 'auto';
+                    inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
+                    setTimeout(function() { inputEl.focus(); }, 50);
+                });
+            });
+        }
     });
 
     socket.on('user_list_updated', function(data) {

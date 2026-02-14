@@ -1232,6 +1232,21 @@ def register_socket_handlers(socketio):
         payload = msg.to_dict()
         _broadcast_new_message(room_id, payload)
 
+        # DM auto-reply: if the other user has away_message, post an auto-reply from them
+        if room_obj.dm_with_id is not None:
+            other_user_id = room_obj.dm_with_id if room_obj.created_by_id == user_id else room_obj.created_by_id
+            other_user = User.query.get(other_user_id) if other_user_id else None
+            if other_user and getattr(other_user, "away_message", None):
+                away_msg = Message(
+                    room_id=room_id,
+                    user_id=other_user_id,
+                    content=other_user.away_message,
+                    message_type="chat",
+                )
+                db.session.add(away_msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, away_msg.to_dict())
+
         # @mention: parse @nickname and notify mentioned users (page)
         if message_type == "chat":
             mention_re = re.compile(r"@(\w+)", re.IGNORECASE)
@@ -1425,6 +1440,35 @@ def register_socket_handlers(socketio):
                 return
         db.session.commit()
         emit("message_retention_updated", {"days": user.message_retention_days})
+
+    @socketio.on("update_profile")
+    def on_update_profile(data):
+        """Update own profile: status_line and away_message. Post to System Events when away changes."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        user = User.query.get(user_id)
+        if not user:
+            emit("error", {"message": "User not found"})
+            return
+        payload = data or {}
+        status_line = (payload.get("status_line") or "").strip()[:120] or None
+        away_message = (payload.get("away_message") or "").strip() or None
+        old_away = getattr(user, "away_message", None) or None
+        user.status_line = status_line
+        user.away_message = away_message
+        if hasattr(user, "user_status"):
+            user.user_status = "away" if away_message else "online"
+        db.session.commit()
+        if old_away != away_message:
+            if away_message:
+                _post_system_event(f"{user.username} is away: {away_message}")
+            else:
+                _post_system_event(f"{user.username} is no longer away")
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        emit("profile_updated", {"status_line": status_line, "away_message": away_message})
+        logger.info("Profile updated by user %s", user.username)
 
     @socketio.on("set_user_status")
     def on_set_user_status(data):
@@ -1631,7 +1675,9 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         room_id = (data or {}).get("room_id")
-        name = ((data or {}).get("name") or "").strip()
+        payload_data = data or {}
+        name = (payload_data.get("name") or "").strip()
+        topic = payload_data.get("topic")
         if not room_id:
             emit("error", {"message": "room_id required"})
             return
@@ -1658,6 +1704,15 @@ def register_socket_handlers(socketio):
                 return
             room.name = name
             changed = True
+        topic_changed = False
+        if topic is not None:
+            new_topic = (topic if isinstance(topic, str) else str(topic)).strip() or None
+            if room.topic != new_topic:
+                room.topic = new_topic
+                room.topic_set_by_id = user_id
+                room.topic_set_at = datetime.utcnow()
+                changed = True
+                topic_changed = True
         if _is_super_admin(user_id) and "is_protected" in (data or {}):
             new_val = bool((data or {}).get("is_protected"))
             if room.is_protected != new_val:
@@ -1667,10 +1722,21 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "No changes to apply"})
             return
         db.session.commit()
-        _audit_log(user_id, "update_room", "room", room_id, {"name": name, "is_protected": getattr(room, "is_protected", None)})
+        room = Room.query.get(room_id)
+        _audit_log(user_id, "update_room", "room", room_id, {"name": name, "topic": getattr(room, "topic", None), "is_protected": getattr(room, "is_protected", None)})
         rooms = Room.query.order_by(Room.name).all()
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_renamed", {"room_id": room_id, "room": room.to_dict()})
+        if topic_changed:
+            user = User.query.get(user_id)
+            topic_payload = {
+                "room_id": room_id,
+                "room": room.to_dict(),
+                "set_by_username": user.username if user else None,
+                "set_at": _isoformat_utc(room.topic_set_at),
+            }
+            emit("topic_updated", topic_payload, room=f"room_{room_id}")
+            logger.info("User %s set topic in room %s", user.username if user else "?", room_id)
         logger.info("Room updated: %s -> %s", room_id, name)
 
     @socketio.on("delete_room")
@@ -1895,14 +1961,17 @@ def register_socket_handlers(socketio):
         if target_id == user_id:
             emit("error", {"message": "Cannot kick yourself"})
             return
+        target_user = User.query.get(target_id)
+        if not target_user:
+            emit("error", {"message": "User not found"})
+            return
         if target_user.username in ("AcroBot", "Homer") and not _is_super_admin(user_id):
             emit("error", {"message": "Only Surfer Girl can kick AcroBot or Homer"})
             return
         room = Room.query.get(room_id)
         if not room:
             return
-        target_user = User.query.get(target_id)
-        target_username = target_user.username if target_user else str(target_id)
+        target_username = target_user.username
         _audit_log(user_id, "kick_user", "user", target_id, {"room_id": room_id, "target_username": target_username})
         for sid, uid in list(_sid_to_user_id.items()):
             if uid == target_id:
@@ -2011,9 +2080,19 @@ def register_socket_handlers(socketio):
                 socketio.emit("kicked_from_app", {"message": "Your account was deleted."}, room=sid)
                 socketio_disconnect(sid)
                 break
+        # Delete DM rooms involving the deleted user (so "DM: Chachi" disappears for all)
+        dm_rooms_to_delete = Room.query.filter(
+            Room.dm_with_id.isnot(None),
+            (Room.created_by_id == target_id) | (Room.dm_with_id == target_id),
+        ).all()
+        for dm_room in dm_rooms_to_delete:
+            room_id = dm_room.id
+            db.session.delete(dm_room)
+            socketio.emit("room_deleted", {"room_id": room_id}, broadcast=True)
         # Cascade delete: reports by user, reports of user's messages, ignore list, room refs
         msg_ids = [r[0] for r in db.session.query(Message.id).filter_by(user_id=target_id).all()]
         if msg_ids:
+            MessageReaction.query.filter(MessageReaction.message_id.in_(msg_ids)).delete(synchronize_session=False)
             MessageReport.query.filter(MessageReport.message_id.in_(msg_ids)).delete(synchronize_session=False)
         MessageReport.query.filter_by(reported_by_user_id=target_id).delete()
         IgnoreList.query.filter(
@@ -2022,7 +2101,6 @@ def register_socket_handlers(socketio):
         Message.query.filter_by(user_id=target_id).delete()
         Room.query.filter(Room.created_by_id == target_id).update({"created_by_id": None})
         Room.query.filter(Room.topic_set_by_id == target_id).update({"topic_set_by_id": None})
-        Room.query.filter(Room.dm_with_id == target_id).update({"dm_with_id": None})
         RoomMute.query.filter(
             (RoomMute.muted_user_id == target_id) | (RoomMute.muted_by_id == target_id)
         ).delete(synchronize_session=False)

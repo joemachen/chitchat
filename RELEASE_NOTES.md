@@ -1,5 +1,20 @@
 # Release notes
 
+## v1.5.0 — Edit profile, away message & channel topic
+
+**Edit profile**
+- **Right-click or long-press your name** (header, user list, or your messages) to open the context menu. Choose **Edit profile** to set your status (shown in whois) and away message.
+- **Status** — Same as `/status`; appears in whois and profile.
+- **Away message** — Same as `/away`; announces in System Events when set or cleared; auto-replies to DMs when someone messages you while away.
+
+**Edit channel**
+- **Right-click a channel** → Edit channel. You can now edit both the **channel name** and **topic** in the modal (previously only name).
+
+**Cross-platform**
+- Works on Linux Mint (Firefox), iOS (Safari), Android (Chrome), and Windows. Long-press on touch devices opens the same context menus as right-click.
+
+---
+
 ## v1.4.0 — Modals, Whois & bot kick
 
 **Edit channel modal**

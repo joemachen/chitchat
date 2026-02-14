@@ -21,6 +21,8 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 | **!Simpsons** | Homer replies with a random Simpsons quote (when Homer is online). |
 | **/em** &lt;text&gt; or **/me** &lt;text&gt; | Send an emote: “* username text” in italics. |
 
+**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a channel to **Edit channel** (name and topic). Right-click other users for Whois, Message, Mute, etc.
+
 ### In the Acrophobia channel
 
 Type **/help** or **/msg acrobot help** in that room for full instructions and rules. Summary:
