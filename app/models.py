@@ -8,6 +8,11 @@ from sqlalchemy import ForeignKey, UniqueConstraint
 db = SQLAlchemy()
 
 
+def _isoformat_utc(dt):
+    """Serialize naive UTC datetime for JS; append Z so Date() parses as UTC."""
+    return (dt.isoformat() + "Z") if dt else None
+
+
 class User(db.Model):
     """Registered user. No open sign-up; requires invite code to register."""
     __tablename__ = "users"
@@ -43,14 +48,14 @@ class User(db.Model):
         return {
             "id": self.id,
             "username": self.username,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": _isoformat_utc(self.created_at),
             "is_super_admin": getattr(self, "is_super_admin", False),
             "rank": getattr(self, "rank", None) or "rookie",
             "away_message": getattr(self, "away_message", None) or None,
             "display_name": getattr(self, "display_name", None) or None,
             "status_line": getattr(self, "status_line", None) or None,
             "user_status": getattr(self, "user_status", None) or "online",
-            "last_seen": (lambda x: x.isoformat() if x else None)(getattr(self, "last_seen", None)),
+            "last_seen": _isoformat_utc(getattr(self, "last_seen", None)),
         }
 
 
@@ -66,6 +71,7 @@ class Room(db.Model):
     topic_set_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=True)
     topic_set_at = db.Column(db.DateTime, nullable=True)
     dm_with_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=True)  # If set, room is DM between created_by_id and dm_with_id
+    is_protected = db.Column(db.Boolean, nullable=False, default=False)  # Surfer Girl can set; prevents delete by non-Surfer Girl
 
     created_by = db.relationship("User", backref="created_rooms", foreign_keys=[created_by_id])
     topic_set_by = db.relationship("User", foreign_keys=[topic_set_by_id])
@@ -76,16 +82,17 @@ class Room(db.Model):
         return {
             "id": self.id,
             "name": self.name,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": _isoformat_utc(self.created_at),
             "created_by_id": self.created_by_id,
             "created_by_username": self.created_by.username if self.created_by else None,
             "topic": self.topic or "",
             "topic_set_by_id": self.topic_set_by_id,
             "topic_set_by_username": self.topic_set_by.username if self.topic_set_by else None,
-            "topic_set_at": self.topic_set_at.isoformat() if self.topic_set_at else None,
+            "topic_set_at": _isoformat_utc(self.topic_set_at),
             "dm_with_id": self.dm_with_id,
             "is_dm": self.dm_with_id is not None,
             "dm_with_username": self.dm_with.username if self.dm_with else None,
+            "is_protected": getattr(self, "is_protected", False),
         }
 
 
@@ -119,10 +126,10 @@ class Message(db.Model):
             "username": username,
             "display_name": display_name,
             "content": self.content,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": _isoformat_utc(self.created_at),
             "message_type": self.message_type or "chat",
             "parent_id": self.parent_id,
-            "edited_at": self.edited_at.isoformat() if self.edited_at else None,
+            "edited_at": _isoformat_utc(self.edited_at),
             "attachment_url": self.attachment_url,
             "attachment_filename": self.attachment_filename,
         }
@@ -205,5 +212,5 @@ class MessageReport(db.Model):
             "message_id": self.message_id,
             "reported_by_user_id": self.reported_by_user_id,
             "reason": self.reason,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": _isoformat_utc(self.created_at),
         }

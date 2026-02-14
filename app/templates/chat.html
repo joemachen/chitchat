@@ -26,6 +26,10 @@
         .header-actions { display: flex; align-items: center; gap: 0.75rem; }
         .header-actions a, .header-actions button { color: #a1a1aa; text-decoration: none; font-size: 0.9rem; background: none; border: none; cursor: pointer; padding: 0.25rem 0; }
         .header-actions a:hover, .header-actions button:hover { color: #e4e4e7; }
+        .header-actions form button[type="submit"] { padding: 0.35rem 0.75rem; border-radius: 6px; border: 1px solid #3f3f46; background: #27272a; color: #a1a1aa; font-size: 0.9rem; }
+        .header-actions form button[type="submit"]:hover { background: #3f3f46; color: #e4e4e7; }
+        body.theme-light .header-actions form button[type="submit"] { background: #e4e4e7; border-color: #d4d4d8; color: #52525b; }
+        body.theme-light .header-actions form button[type="submit"]:hover { background: #d4d4d8; color: #18181b; }
         .messages {
             flex: 1;
             min-height: 0;
@@ -69,6 +73,15 @@
         .stats-view .stat-bar-wrap { flex: 1; max-width: 200px; background: #27272a; border-radius: 4px; height: 1rem; overflow: hidden; }
         .stats-view .stat-bar { height: 100%; background: #6366f1; border-radius: 4px; }
         .stats-view .favorite-words { font-size: 0.85rem; color: #71717a; }
+        .stats-chart-wrap { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.5rem 0 1rem; }
+        .stats-chart-wrap > div:first-child { display: flex; align-items: stretch; }
+        .stats-chart-y-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.7rem; color: #71717a; padding-right: 0.5rem; min-width: 1.5rem; }
+        .stats-chart-bars-wrap { display: flex; align-items: flex-end; gap: 2px; flex: 1; min-height: 120px; }
+        .stats-chart-hour-group { display: flex; align-items: flex-end; gap: 1px; flex: 1; min-width: 0; }
+        .stats-chart-bar { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; transition: height 0.2s; }
+        .stats-chart-x-axis { display: flex; font-size: 0.7rem; color: #71717a; }
+        .stats-chart-x-label { text-align: center; }
+        .stats-chart-legend { font-size: 0.75rem; color: #71717a; margin-top: 0.25rem; }
         .msg-content { word-break: break-word; user-select: text; -webkit-user-select: text; }
         .msg-content a { color: #818cf8; text-decoration: none; }
         .msg-content a:hover { text-decoration: underline; }
@@ -266,8 +279,12 @@
             .msg { max-width: 95%; }
             .header h1 { font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%; }
             .form-wrap input[type="text"], .form-wrap button { min-height: 44px; }
+            .form-wrap { position: sticky; bottom: 0; z-index: 100; }
             .room-list-footer button, .room-item, .user-item { min-height: 44px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
             .mobile-room-name { display: block !important; }
+            .msg-link-preview { max-width: 100% !important; }
+            .msg-link-preview:not(.minimized) .link-preview-body { display: block !important; }
+            .msg-link-preview .link-preview-img { max-height: 160px; }
         }
         body.theme-light .mobile-room-name { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
         body.theme-light .room-list.open { box-shadow: 4px 0 12px rgba(0,0,0,0.2); }
@@ -280,6 +297,11 @@
         <button type="button" data-action="message-user">Message</button>
         <button type="button" data-action="mute-in-room">Mute in this room</button>
         <button type="button" data-action="kick-user">Kick user</button>
+    </div>
+    <div id="roomContextMenu" class="context-menu" style="display: none;">
+        <button type="button" data-action="room-edit">Edit channel</button>
+        <button type="button" data-action="room-toggle-protected" id="roomToggleProtectedBtn" style="display:none;">Mark as protected</button>
+        <button type="button" data-action="room-delete" id="roomDeleteBtn" style="display:none;">Delete channel</button>
     </div>
     <div id="messageContextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="reply-to-message">Reply</button>
@@ -682,7 +704,9 @@
     }
     document.addEventListener('click', function(e) {
         if (e.target.closest('#contextMenu')) return;
+        if (e.target.closest('#roomContextMenu')) return;
         hideContextMenu();
+        hideRoomContextMenu();
     });
     var messageContextMenuEl = document.getElementById('messageContextMenu');
     var messageContextTarget = null;
@@ -711,6 +735,28 @@
     function hideMessageContextMenu() {
         messageContextMenuEl.style.display = 'none';
         messageContextTarget = null;
+    }
+    var roomContextMenuEl = document.getElementById('roomContextMenu');
+    var roomContextTarget = null;
+    var roomToggleProtectedBtn = document.getElementById('roomToggleProtectedBtn');
+    var roomDeleteBtn = document.getElementById('roomDeleteBtn');
+    function showRoomContextMenu(x, y, room) {
+        if (!room || room.is_dm) return;
+        roomContextTarget = room;
+        var editBtn = roomContextMenuEl.querySelector('[data-action="room-edit"]');
+        if (editBtn) editBtn.style.display = (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.update_room)) ? 'block' : 'none';
+        if (roomToggleProtectedBtn) {
+            roomToggleProtectedBtn.style.display = isSuperAdmin ? 'block' : 'none';
+            roomToggleProtectedBtn.textContent = room.is_protected ? 'Unmark as protected' : 'Mark as protected';
+        }
+        if (roomDeleteBtn) roomDeleteBtn.style.display = (room.name !== 'general' && !room.is_protected && (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.delete_room))) ? 'block' : 'none';
+        roomContextMenuEl.style.left = x + 'px';
+        roomContextMenuEl.style.top = y + 'px';
+        roomContextMenuEl.style.display = 'block';
+    }
+    function hideRoomContextMenu() {
+        if (roomContextMenuEl) roomContextMenuEl.style.display = 'none';
+        roomContextTarget = null;
     }
 
     document.addEventListener('contextmenu', function(e) {
@@ -755,6 +801,40 @@
             var uname = el.getAttribute('data-username') || '';
             if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
         }
+    });
+    (function() {
+        var rl = document.getElementById('roomList');
+        if (rl) rl.addEventListener('contextmenu', function(e) {
+        var el = e.target.closest('.room-item[data-room-id]:not(.dm-item)');
+        if (el) {
+            e.preventDefault();
+            hideContextMenu();
+            hideMessageContextMenu();
+            var rid = parseInt(el.getAttribute('data-room-id'), 10);
+            var room = allRooms.find(function(r) { return r.id === rid; });
+            if (room) showRoomContextMenu(e.clientX, e.clientY, room);
+        }
+    });
+    })();
+
+    roomContextMenuEl.querySelector('[data-action="room-edit"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (roomContextTarget) { editRoom(roomContextTarget.id); }
+        hideRoomContextMenu();
+    });
+    roomContextMenuEl.querySelector('[data-action="room-toggle-protected"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (roomContextTarget) {
+            socket.emit('update_room', { room_id: roomContextTarget.id, name: roomContextTarget.name, is_protected: !roomContextTarget.is_protected });
+        }
+        hideRoomContextMenu();
+    });
+    roomContextMenuEl.querySelector('[data-action="room-delete"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (roomContextTarget && confirm('Delete channel "' + roomContextTarget.name + '" and all its messages?')) {
+            socket.emit('delete_room', { room_id: roomContextTarget.id });
+        }
+        hideRoomContextMenu();
     });
 
     contextMenuEl.querySelector('[data-action="view-profile"]').addEventListener('click', function(e) {
@@ -1130,23 +1210,36 @@
         div.className = 'stats-view';
         var topTypers = stats.top_typers || [];
         var maxTypers = Math.max(1, Math.max.apply(null, topTypers.map(function(t) { return t.count; })));
-        var activeHours = stats.active_hours || [];
-        var maxHours = Math.max(1, Math.max.apply(null, activeHours.map(function(h) { return h.count; })));
         var html = '<h2>Top 10 typers</h2><p style="color:#71717a;font-size:0.85rem;margin:0 0 0.5rem;">By username (login); nick changes do not split counts.</p><ul>';
         topTypers.forEach(function(t) {
             var pct = maxTypers ? (100 * t.count / maxTypers) : 0;
             html += '<li class="stat-row"><span>' + escapeHtml(t.username) + '</span><span>' + t.count + ' msgs</span><span class="stat-bar-wrap"><span class="stat-bar" style="width:' + pct + '%"></span></span></li>';
         });
-        html += '</ul><h2>Active hours (messages per hour)</h2><ul>';
-        var hourCounts = {};
-        activeHours.forEach(function(h) { hourCounts[h.hour] = h.count; });
+        html += '</ul><h2>Active hours (messages per hour, by day)</h2>';
+        var activeHoursByDay = stats.active_hours_by_day || [];
+        var dayColors = ['#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f43f5e','#6366f1'];
+        var maxCount = 0;
+        activeHoursByDay.forEach(function(d) {
+            (d.counts || []).forEach(function(c) { if (c > maxCount) maxCount = c; });
+        });
+        maxCount = Math.max(maxCount, 1);
+        html += '<div class="stats-chart-wrap"><div class="stats-chart-y-axis"><span>' + maxCount + '</span><span>0</span></div><div class="stats-chart-bars-wrap">';
         for (var hour = 0; hour < 24; hour++) {
-            var c = hourCounts[hour] || 0;
-            var pct = maxHours ? (100 * c / maxHours) : 0;
-            var label = (hour === 0 ? '12' : hour > 12 ? hour - 12 : hour) + (hour < 12 ? ' AM' : ' PM');
-            html += '<li class="stat-row"><span>' + label + '</span><span>' + c + '</span><span class="stat-bar-wrap"><span class="stat-bar" style="width:' + pct + '%"></span></span></li>';
+            var label = (hour === 0 ? '12' : hour > 12 ? hour - 12 : hour) + (hour < 12 ? 'am' : 'pm');
+            html += '<div class="stats-chart-hour-group" title="' + label + '">';
+            activeHoursByDay.forEach(function(d, di) {
+                var c = (d.counts || [])[hour] || 0;
+                var pct = maxCount ? (100 * c / maxCount) : 0;
+                html += '<div class="stats-chart-bar" style="height:' + pct + '%;background:' + (dayColors[di] || '#6366f1') + ';" title="' + escapeHtml(d.day) + ': ' + c + '"></div>';
+            });
+            html += '</div>';
         }
-        html += '</ul><h2>Favorite words (top typers)</h2>';
+        html += '</div><div class="stats-chart-x-axis">';
+        [0,6,12,18].forEach(function(h) {
+            var lbl = (h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm'));
+            html += '<span class="stats-chart-x-label" style="flex:1;text-align:center;">' + lbl + '</span>';
+        });
+        html += '</div></div><div class="stats-chart-legend">' + activeHoursByDay.map(function(d,i){ return '<span style="color:' + (dayColors[i]||'#6366f1') + '">' + escapeHtml(d.day) + '</span>'; }).join(' · ') + '</div><h2>Favorite words (top typers)</h2>';
         (stats.favorite_words || []).forEach(function(f) {
             html += '<p><strong>' + escapeHtml(f.username) + '</strong> <span class="favorite-words">' + (f.words || []).map(function(w) { return escapeHtml(w.word) + ' (' + w.count + ')'; }).join(', ') + '</span></p>';
         });
@@ -1194,13 +1287,15 @@
         if (isSuperAdmin) {
             html += '<h2>Stats</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>';
             html += '<div class="user-row"><button type="button" id="resetStatsDataBtn" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>';
-            html += '<h2>Channels</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels (Stats, Acrophobia, System Events) can only be removed here.</p>';
+            html += '<h2>Channels</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Surfer Girl can mark any channel protected.</p>';
             (allRooms || []).forEach(function(r) {
-                var isProtected = ['general', 'Stats', 'Acrophobia', 'System Events'].indexOf(r.name) !== -1;
+                var isProtected = r.is_protected === true;
+                var isGeneral = r.name === 'general';
                 html += '<div class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">' +
                     '<span>' + escapeHtml(r.name) + (isProtected ? ' <span style="color:#71717a;">(protected)</span>' : '') + '</span>' +
-                    '<span style="display:flex;gap:0.35rem;">' +
-                    (r.name !== 'general' ? '<button type="button" class="settings-delete-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>' : '') +
+                    '<span style="display:flex;gap:0.35rem;align-items:center;">' +
+                    (!r.is_dm ? '<label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a1a1aa;"><input type="checkbox" class="settings-protect-room" data-room-id="' + r.id + '" ' + (isProtected ? 'checked' : '') + '> Protect</label>' : '') +
+                    (!isGeneral ? '<button type="button" class="settings-delete-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>' : '') +
                     '<button type="button" class="settings-wipe-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>' +
                     '</span></div>';
             });
@@ -1263,6 +1358,14 @@
                 socket.emit('reset_stats_data', { confirm: 'RESET' });
             });
         }
+        div.querySelectorAll('input.settings-protect-room').forEach(function(cb) {
+            var rid = parseInt(cb.getAttribute('data-room-id'), 10);
+            cb.addEventListener('change', function() {
+                var room = allRooms.find(function(r) { return r.id === rid; });
+                if (!room) return;
+                socket.emit('update_room', { room_id: rid, name: room.name, is_protected: this.checked });
+            });
+        });
         div.querySelectorAll('button.settings-delete-room').forEach(function(btn) {
             var rid = parseInt(btn.getAttribute('data-room-id'), 10);
             var rname = btn.getAttribute('data-room-name') || '';
@@ -1381,8 +1484,8 @@
         var dms = ordered.filter(function(r) { return r.is_dm; });
         function channelItemHtml(r) {
             var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
-            var protectedChannels = ['general', 'Stats', 'Acrophobia', 'System Events'];
-            var canDelete = protectedChannels.indexOf(r.name) === -1;
+            var isProtected = r.is_protected === true;
+            var canDelete = !isProtected && r.name !== 'general';
             var isOwner = r.created_by_id === currentUserId;
             var canEdit = isSuperAdmin || isOwner || (userPermissions && userPermissions.update_room);
             var canDeleteRoom = (isSuperAdmin || isOwner || (userPermissions && userPermissions.delete_room)) && canDelete;
@@ -1913,6 +2016,22 @@
         setTimeout(function() { el.remove(); }, 4000);
     });
 
+    if (inputEl) {
+        inputEl.addEventListener('focus', function() {
+            setTimeout(function() {
+                var wrap = document.querySelector('.form-wrap');
+                if (wrap) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }, 300);
+        });
+        if (typeof window.visualViewport !== 'undefined') {
+            window.visualViewport.addEventListener('resize', function() {
+                if (document.activeElement === inputEl) {
+                    var wrap = document.querySelector('.form-wrap');
+                    if (wrap) wrap.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                }
+            });
+        }
+    }
     var typingEmitTimer = null;
     inputEl.addEventListener('input', function() {
         if (!currentRoom || currentRoom.name && currentRoom.name.toLowerCase() === 'stats') return;

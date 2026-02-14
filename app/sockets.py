@@ -25,7 +25,7 @@ from app.acrophobia import (
 )
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, db
+from app.models import AcroScore, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -127,25 +127,40 @@ def _get_stats():
         {"user_id": uid, "username": users_by_id.get(uid).username if users_by_id.get(uid) else "?", "count": c}
         for uid, c in top_typers_q
     ]
-    # Active hours (0-23): message count per hour (SQLite strftime; Postgres extract)
+    # Active hours by day (0-6) and hour (0-23): vertical bar chart with days overlapped
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    active_hours_by_day = []
     try:
         dialect = db.session.get_bind().dialect.name
         if dialect == "postgresql":
+            dow_expr = extract("dow", Message.created_at)  # 0=Sun
             hour_expr = extract("hour", Message.created_at)
         else:
+            dow_expr = func.strftime("%w", Message.created_at)  # 0=Sun, returns string
             hour_expr = func.strftime("%H", Message.created_at)
-        hour_counts = (
-            db.session.query(hour_expr.label("hour"), func.count(Message.id)).group_by(hour_expr).all()
+        rows = (
+            db.session.query(dow_expr.label("dow"), hour_expr.label("hour"), func.count(Message.id).label("count"))
+            .group_by(dow_expr, hour_expr)
+            .all()
         )
-        active_hours = []
-        for h, c in hour_counts:
+        # Build {dow: {hour: count}}
+        by_day = {d: {h: 0 for h in range(24)} for d in range(7)}
+        for dow, hour, count in rows:
             try:
-                hour_val = int(h) if h is not None else 0
+                d = int(dow) if dow is not None else 0
+                h = int(hour) if hour is not None else 0
+                if 0 <= d <= 6 and 0 <= h <= 23:
+                    by_day[d][h] = count
             except (TypeError, ValueError):
-                hour_val = 0
-            active_hours.append({"hour": hour_val, "count": c})
+                pass
+        for d in range(7):
+            active_hours_by_day.append({
+                "day": day_names[d],
+                "day_num": d,
+                "counts": [by_day[d][h] for h in range(24)],
+            })
     except Exception:
-        active_hours = []
+        active_hours_by_day = [{"day": day_names[d], "day_num": d, "counts": [0] * 24} for d in range(7)]
     # Favorite words per user (top 5 users, top 10 words each; exclude stop words)
     all_msgs = Message.query.filter(Message.message_type == "chat").with_entities(Message.user_id, Message.content).all()
     word_re = re.compile(r"[a-z0-9']+", re.I)
@@ -176,7 +191,7 @@ def _get_stats():
         ]
     return {
         "top_typers": top_typers,
-        "active_hours": active_hours,
+        "active_hours_by_day": active_hours_by_day,
         "favorite_words": favorite_words,
         "acro_leaderboard": acro_leaderboard,
     }
@@ -707,11 +722,11 @@ def register_socket_handlers(socketio):
             payload = {
                 "username": target.username,
                 "user_id": target.id,
-                "created_at": target.created_at.isoformat() if target.created_at else None,
+                "created_at": _isoformat_utc(target.created_at),
                 "online": online,
                 "display_name": getattr(target, "display_name", None) or None,
                 "status_line": getattr(target, "status_line", None) or None,
-                "last_seen": (lambda x: x.isoformat() if x else None)(getattr(target, "last_seen", None)),
+                "last_seen": _isoformat_utc(getattr(target, "last_seen", None)),
             }
             if online:
                 for sid, uid in list(_sid_to_user_id.items()):
@@ -746,7 +761,7 @@ def register_socket_handlers(socketio):
                 "room_id": room_id,
                 "room": room_obj.to_dict(),
                 "set_by_username": user.username,
-                "set_at": room_obj.topic_set_at.isoformat() if room_obj.topic_set_at else None,
+                "set_at": _isoformat_utc(room_obj.topic_set_at),
             }
             emit("topic_updated", payload, room=f"room_{room_id}")
             logger.info("User %s set topic in room %s", user.username, room_id)
@@ -1152,8 +1167,8 @@ def register_socket_handlers(socketio):
             return
         room_id = (data or {}).get("room_id")
         name = ((data or {}).get("name") or "").strip()
-        if not room_id or not name:
-            emit("error", {"message": "room_id and name required"})
+        if not room_id:
+            emit("error", {"message": "room_id required"})
             return
         try:
             room_id = int(room_id)
@@ -1168,10 +1183,21 @@ def register_socket_handlers(socketio):
         if not _has_permission(user_id, "update_room") and not is_owner:
             emit("error", {"message": "Only Surfer Girls, room owners, or users with edit permission can edit channels"})
             return
-        if Room.query.filter(Room.name == name, Room.id != room_id).first():
-            emit("error", {"message": "A room with that name already exists"})
+        changed = False
+        if name:
+            if Room.query.filter(Room.name == name, Room.id != room_id).first():
+                emit("error", {"message": "A room with that name already exists"})
+                return
+            room.name = name
+            changed = True
+        if _is_super_admin(user_id) and "is_protected" in (data or {}):
+            new_val = bool((data or {}).get("is_protected"))
+            if room.is_protected != new_val:
+                room.is_protected = new_val
+                changed = True
+        if not changed:
+            emit("error", {"message": "No changes to apply"})
             return
-        room.name = name
         db.session.commit()
         rooms = Room.query.order_by(Room.name).all()
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
@@ -1206,12 +1232,11 @@ def register_socket_handlers(socketio):
         if general and room.id == general.id:
             emit("error", {"message": "Cannot delete the general room"})
             return
-        protected = ("Stats", "Acrophobia", "System Events")
-        if room.name in protected:
+        if getattr(room, "is_protected", False):
             if not (data or {}).get("from_settings"):
-                emit("error", {"message": "Protected channels (Stats, Acrophobia, System Events) can only be removed via Settings by a Surfer Girl"})
+                emit("error", {"message": "Protected channels can only be removed via Settings by a Surfer Girl"})
                 return
-            if not _has_permission(user_id, "delete_room"):
+            if not _is_super_admin(user_id):
                 emit("error", {"message": "Only Surfer Girls can delete protected channels"})
                 return
         db.session.delete(room)
@@ -1310,11 +1335,11 @@ def register_socket_handlers(socketio):
         payload = {
             "username": target.username,
             "user_id": target.id,
-            "created_at": target.created_at.isoformat() if target.created_at else None,
+            "created_at": _isoformat_utc(target.created_at),
             "online": online,
             "display_name": getattr(target, "display_name", None) or None,
             "status_line": getattr(target, "status_line", None) or None,
-            "last_seen": (lambda x: x.isoformat() if x else None)(getattr(target, "last_seen", None)),
+            "last_seen": _isoformat_utc(getattr(target, "last_seen", None)),
         }
         if online:
             for sid, uid in list(_sid_to_user_id.items()):

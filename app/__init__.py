@@ -22,20 +22,13 @@ def _seed_default_data(app: Flask) -> None:
             # Only create "general" if there are no channels at all (user may have renamed it)
             has_any_channel = Room.query.filter(Room.dm_with_id.is_(None)).first()
             if not has_any_channel:
-                db.session.add(Room(name="general"))
+                db.session.add(Room(name="general", is_protected=True))
                 db.session.commit()
-            stats_room = Room.query.filter_by(name="Stats").first()
-            if not stats_room:
-                db.session.add(Room(name="Stats"))
-                db.session.commit()
-            acrophobia_room = Room.query.filter_by(name="Acrophobia").first()
-            if not acrophobia_room:
-                db.session.add(Room(name="Acrophobia"))
-                db.session.commit()
-            system_events_room = Room.query.filter_by(name="System Events").first()
-            if not system_events_room:
-                db.session.add(Room(name="System Events"))
-                db.session.commit()
+            for rname in ("Stats", "Acrophobia", "System Events"):
+                r = Room.query.filter_by(name=rname).first()
+                if not r:
+                    db.session.add(Room(name=rname, is_protected=True))
+                    db.session.commit()
 
             acrobot = User.query.filter_by(username="AcroBot").first()
             if not acrobot:
