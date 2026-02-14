@@ -30,6 +30,7 @@ class User(db.Model):
     status_line = db.Column(db.String(120), nullable=True)  # /status
     user_status = db.Column(db.String(20), nullable=False, default="online")  # online | away | dnd
     last_seen = db.Column(db.DateTime, nullable=True)  # Updated on disconnect for /whois
+    message_retention_days = db.Column(db.Integer, nullable=True)  # None = keep forever; 7/30/90 = auto-delete after N days
 
     messages = db.relationship("Message", backref="user", lazy="dynamic", foreign_keys="Message.user_id")
     ignoring = db.relationship(
@@ -147,14 +148,29 @@ class Message(db.Model):
             out["parent_content"] = p.content
             out["parent_username"] = p_user.username if p_user else None
             out["parent_display_name"] = (getattr(p_user, "display_name", None) or None) if p_user else None
-        # Reactions: [{emoji, count, user_ids}]
+        # Reactions: [{emoji, count, user_ids, usernames}]
         try:
             from collections import defaultdict
             by_emoji = defaultdict(list)
             reactions = getattr(self, "reactions", None)
             for r in (reactions.all() if hasattr(reactions, "all") else (reactions or [])):
                 by_emoji[r.emoji].append(r.user_id)
-            out["reactions"] = [{"emoji": e, "count": len(ids), "user_ids": ids} for e, ids in sorted(by_emoji.items())]
+            result = []
+            all_ids = set()
+            for ids in by_emoji.values():
+                all_ids.update(ids)
+            id_to_username = {}
+            if all_ids:
+                for u in User.query.filter(User.id.in_(all_ids)).all():
+                    id_to_username[u.id] = u.username or f"User#{u.id}"
+            for e, ids in sorted(by_emoji.items()):
+                result.append({
+                    "emoji": e,
+                    "count": len(ids),
+                    "user_ids": ids,
+                    "usernames": [id_to_username.get(uid, f"User#{uid}") for uid in ids],
+                })
+            out["reactions"] = result
         except Exception:
             out["reactions"] = []
         return out

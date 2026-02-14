@@ -1342,6 +1342,56 @@ def register_socket_handlers(socketio):
         payload = {"message_id": msg_id, "room_id": room_id, "reactions": msg.to_dict().get("reactions", []) if msg else []}
         socketio.emit("reaction_updated", payload, room=f"room_{room_id}")
 
+    @socketio.on("delete_my_messages")
+    def on_delete_my_messages(data):
+        """Delete all messages sent by the current user. Requires confirmation."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        confirm = (data or {}).get("confirm")
+        if confirm != "DELETE_ALL_MY_MESSAGES":
+            emit("error", {"message": "Confirmation required. Send confirm: DELETE_ALL_MY_MESSAGES"})
+            return
+        msgs = Message.query.filter_by(user_id=user_id).all()
+        by_room = {}
+        for m in msgs:
+            by_room.setdefault(m.room_id, []).append(m.id)
+        for m in msgs:
+            db.session.delete(m)
+        db.session.commit()
+        for room_id, msg_ids in by_room.items():
+            socketio.emit("messages_deleted", {"room_id": room_id, "message_ids": msg_ids}, room=f"room_{room_id}")
+        emit("my_messages_deleted", {"deleted_count": len(msgs)})
+        logger.info("User %s deleted all their messages (%d)", user_id, len(msgs))
+
+    @socketio.on("set_message_retention")
+    def on_set_message_retention(data):
+        """Set auto-delete retention: null (never), 7, 30, or 90 days."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        user = User.query.get(user_id)
+        if not user:
+            emit("error", {"message": "User not found"})
+            return
+        val = (data or {}).get("days")
+        if val is None or val == "" or val == "null":
+            user.message_retention_days = None
+        else:
+            try:
+                days = int(val)
+                if days not in (7, 30, 90):
+                    emit("error", {"message": "Retention must be 7, 30, or 90 days"})
+                    return
+                user.message_retention_days = days
+            except (TypeError, ValueError):
+                emit("error", {"message": "Invalid retention value"})
+                return
+        db.session.commit()
+        emit("message_retention_updated", {"days": user.message_retention_days})
+
     @socketio.on("report_message")
     def on_report_message(data):
         """Report a message (App Store compliance). One report per user per message."""

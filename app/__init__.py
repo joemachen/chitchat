@@ -1,5 +1,6 @@
 # ChitChat application package
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from flask import Flask
@@ -31,6 +32,32 @@ def _post_deploy_announcement(app: Flask) -> None:
                 logger.info("Posted deploy announcement v%s", VERSION)
         except Exception as e:
             logger.warning("Deploy announcement skipped: %s", e)
+
+
+def _run_message_retention_cleanup(app: Flask) -> None:
+    """Delete messages for users who have message_retention_days set and messages older than that."""
+    with app.app_context():
+        try:
+            users_with_retention = User.query.filter(User.message_retention_days.isnot(None)).all()
+            cutoff = datetime.utcnow()
+            total_deleted = 0
+            for u in users_with_retention:
+                days = u.message_retention_days
+                if not days or days <= 0:
+                    continue
+                threshold = cutoff - timedelta(days=days)
+                deleted = Message.query.filter(
+                    Message.user_id == u.id,
+                    Message.created_at < threshold,
+                ).delete()
+                if deleted:
+                    total_deleted += deleted
+            if total_deleted:
+                db.session.commit()
+                logger.info("Message retention cleanup: deleted %d old messages", total_deleted)
+        except Exception as e:
+            logger.warning("Message retention cleanup skipped: %s", e)
+            db.session.rollback()
 
 
 def _seed_default_data(app: Flask) -> None:
@@ -131,6 +158,7 @@ def create_app() -> Flask:
             from flask_migrate import upgrade
             upgrade()
             _seed_default_data(app)
+            _run_message_retention_cleanup(app)
             _post_deploy_announcement(app)
         except Exception as e:
             logger.exception("Migrations/seed on startup failed: %s", e)

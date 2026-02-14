@@ -125,9 +125,12 @@
         .msg-reaction.own { border-color: #6366f1; background: #1e1e24; }
         .msg-reaction-add { padding: 0.15rem 0.35rem; color: #71717a; }
         .msg-reaction-add:hover { color: #a1a1aa; }
-        .reaction-picker { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.35rem; display: flex; gap: 0.25rem; z-index: 2002; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .reaction-picker { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.25rem; max-height: 200px; overflow-y: auto; max-width: 280px; z-index: 2002; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         .reaction-picker button { background: none; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; border-radius: 4px; }
         .reaction-picker button:hover { background: #3f3f46; }
+        @media (max-width: 768px) {
+            .msg-reaction-add { display: none !important; }
+        }
         .form-wrap { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); background: #18181c; border-top: 1px solid #27272a; flex-shrink: 0; }
         .form-wrap form { display: flex; gap: 0.5rem; align-items: center; }
         .form-wrap input[type="text"] { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
@@ -503,6 +506,7 @@
     const currentUserId = {{ user.id }};
     const currentUsername = {{ user.username|tojson }};
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
+    var messageRetentionDays = {{ (message_retention_days|default(none))|tojson }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
     var roomMutedInRoom = {};  // room_id -> Set of muted user_ids
@@ -733,7 +737,8 @@
                 var h = '<div class="msg-reactions" data-msg-id="' + msg.id + '">';
                 rx.forEach(function(r) {
                     var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
-                    h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji + ' (' + (r.count || 0) + ')') + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
+                    var tip = (r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')');
+                    h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(tip) + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
                 });
                 h += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span></div>';
                 return h;
@@ -774,7 +779,24 @@
         return div;
     }
 
-    var REACTION_EMOJIS = ['\ud83d\udc4d', '\ud83d\ude02', '\u2764\ufe0f', '\ud83c\udf89', '\ud83d\ude2e', '\ud83d\udc40', '\ud83d\udd25'];
+    var REACTION_EMOJIS = [
+        '\ud83d\udc4d','\ud83d\udc4e','\ud83d\udc4c','\ud83d\udc4a','\u270a','\ud83d\ude4c','\ud83d\udc4f','\ud83d\udc4b','\ud83d\ude4f','\ud83d\udc46','\ud83d\udc47','\u261d\ufe0f','\u270b','\ud83e\udd1a','\ud83e\udd1d',
+        '\u2764\ufe0f','\ud83d\udc9b','\ud83d\udc9a','\ud83d\udc99','\ud83d\udc9c','\ud83d\udda4','\ud83d\udc94','\u2763\ufe0f','\ud83d\udc96','\ud83d\udc95','\ud83d\udc97','\ud83d\udc93','\ud83d\udc9e','\ud83d\udc9f',
+        '\ud83d\ude00','\ud83d\ude01','\ud83d\ude02','\ud83d\ude03','\ud83d\ude04','\ud83d\ude05','\ud83d\ude06','\ud83d\ude09','\ud83d\ude0a','\ud83d\ude0b','\ud83d\ude0e','\ud83d\ude0d','\ud83d\ude18','\ud83d\ude17','\ud83d\ude19',
+        '\ud83d\ude1a','\ud83d\ude1b','\ud83d\ude1c','\ud83d\ude1d','\ud83d\ude12','\ud83d\ude13','\ud83d\ude14','\ud83d\ude15','\ud83d\ude16','\ud83d\ude21','\ud83d\ude22','\ud83d\ude2d','\ud83d\ude2e','\ud83d\ude2f','\ud83d\ude30',
+        '\ud83d\ude31','\ud83d\ude32','\ud83d\ude33','\ud83d\ude34','\ud83d\ude35','\ud83d\ude36','\ud83d\ude37','\ud83d\ude08','\ud83d\udc7f','\ud83d\ude3a','\ud83d\ude3b','\ud83d\ude3c','\ud83d\ude3d','\ud83d\ude40','\ud83d\ude3f',
+        '\ud83d\udc36','\ud83d\udc37','\ud83d\udc31','\ud83d\udc2e','\ud83d\udc39','\ud83d\udc30','\ud83d\udc38','\ud83d\udc35','\ud83d\udc12','\ud83d\udc34','\ud83d\udc0d','\ud83d\udc22','\ud83d\udc0b','\ud83d\udc1b','\ud83d\udc1c',
+        '\ud83d\udc1d','\ud83d\udc1e','\ud83d\udc20','\ud83d\udc1f','\ud83d\udc2c','\ud83d\udc33','\ud83d\udc0c','\ud83d\udc0f','\ud83d\udc26','\ud83d\udc24','\ud83d\udc25','\ud83d\udc23','\ud83d\udc27','\ud83d\udc28','\ud83d\udc2a',
+        '\ud83c\udf52','\ud83c\udf54','\ud83c\udf55','\ud83c\udf56','\ud83c\udf57','\ud83c\udf5e','\ud83c\udf5f','\ud83c\udf60','\ud83c\udf61','\ud83c\udf62','\ud83c\udf63','\ud83c\udf64','\ud83c\udf65','\ud83c\udf66','\ud83c\udf67',
+        '\u2615','\ud83c\udf75','\ud83c\udf76','\ud83c\udf7a','\ud83c\udf7b','\ud83c\udf78','\ud83c\udf79','\ud83c\udf77','\ud83c\udf7e','\ud83c\udf82','\ud83c\udf89','\ud83c\udf8a','\ud83c\udf8b','\ud83c\udf8e','\ud83c\udf8d',
+        '\ud83c\udf93','\ud83c\udf86','\ud83c\udf87','\ud83c\udf88','\ud83c\udf89','\ud83c\udfa8','\ud83c\udfab','\ud83c\udfaf','\ud83c\udfb2','\ud83c\udfb3','\u26bd','\u26be','\ud83c\udfc0','\ud83c\udfc8','\ud83c\udfbe',
+        '\ud83c\udfb9','\ud83c\udfb7','\ud83c\udfba','\ud83d\udcfa','\ud83d\udcfb','\ud83d\udcf1','\ud83d\udcbb','\ud83d\udcf7','\ud83d\udcde','\u2328\ufe0f','\ud83d\udd0d','\ud83d\udd11','\ud83d\udd12','\ud83d\udd13','\ud83d\udd14',
+        '\ud83d\udd22','\ud83d\udd23','\ud83d\udd24','\ud83d\udd25','\ud83d\udd26','\ud83d\udd27','\ud83d\udd28','\ud83d\udd29','\ud83d\udd2a','\ud83d\udd2b','\ud83d\udd2c','\ud83d\udd2d','\ud83d\udd2e','\ud83d\udd2f','\ud83d\udd30',
+        '\u2702\ufe0f','\u2705','\u2709\ufe0f','\u270f\ufe0f','\u2712\ufe0f','\u2714\ufe0f','\u2716\ufe0f','\u271d\ufe0f','\u2721\ufe0f','\u2728','\u2733\ufe0f','\u2734\ufe0f','\u2744\ufe0f','\u2747\ufe0f','\u274c',
+        '\u274e','\u2753','\u2754','\u2755','\u2757','\u2763\ufe0f','\u2764\ufe0f','\u2795','\u2796','\u2797','\u27a1\ufe0f','\u27b0','\u27bf','\u2934\ufe0f','\u2935\ufe0f',
+        '\ud83d\udd25','\ud83d\udd50','\ud83d\udd51','\ud83d\udd52','\ud83d\udd53','\ud83d\udd54','\ud83d\udd55','\ud83d\udd56','\ud83d\udd57','\ud83d\udd58','\ud83d\udd59','\ud83d\udd5a','\ud83d\udd5b','\ud83d\udd5c','\ud83d\udd5d',
+        '\ud83d\ude80','\ud83d\ude83','\ud83d\ude84','\ud83d\ude85','\ud83d\ude87','\ud83d\ude89','\ud83d\ude8a','\u2708\ufe0f','\ud83d\udd1a','\ud83d\udd1b','\ud83d\udd1c','\ud83d\udd1d','\ud83d\udd1e','\ud83d\udd1f','\ud83d\udd20'
+    ];
     function showReactionPicker(msgId, anchorEl) {
         var existing = document.getElementById('reactionPicker');
         if (existing) existing.remove();
@@ -1049,7 +1071,7 @@
         e.stopPropagation();
         if (messageContextTarget && currentRoom) {
             var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
-            var anchor = msgEl ? msgEl.querySelector('.msg-reaction-add, .msg-reactions') : null;
+            var anchor = msgEl ? (msgEl.querySelector('.msg-reactions') || msgEl.querySelector('.msg-reaction-add')) : null;
             if (anchor) showReactionPicker(messageContextTarget.messageId, anchor);
             else showReactionPicker(messageContextTarget.messageId, messageContextMenuEl);
         }
@@ -1478,6 +1500,15 @@
         div.className = 'settings-view';
         var html = '<h2>Account</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>';
         html += '<div class="user-row"><a href="/delete-account" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>';
+        html += '<h2>Chat history</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Delete your messages or set auto-delete after a period.</p>';
+        html += '<div class="user-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">';
+        html += '<button type="button" id="deleteMyMessagesBtn" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Delete all my messages now</button>';
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Auto-delete my messages after:</span> <select id="messageRetentionSelect" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">';
+        html += '<option value=""' + (messageRetentionDays === null ? ' selected' : '') + '>Never</option>';
+        html += '<option value="7"' + (messageRetentionDays === 7 ? ' selected' : '') + '>7 days</option>';
+        html += '<option value="30"' + (messageRetentionDays === 30 ? ' selected' : '') + '>30 days</option>';
+        html += '<option value="90"' + (messageRetentionDays === 90 ? ' selected' : '') + '>90 days</option>';
+        html += '</select></div></div>';
         html += '<h2>Export</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Download messages as JSON or HTML.</p>';
         if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats') {
             html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?room_id=' + currentRoom.id + '&format=json" style="font-size:0.9rem;color:#818cf8;">Export this room (JSON)</a><a href="/export?room_id=' + currentRoom.id + '&format=html" style="font-size:0.9rem;color:#818cf8;">Export this room (HTML)</a></div>';
@@ -1617,6 +1648,24 @@
                 socket.emit('delete_user', { target_user_id: uid });
             });
         });
+        var deleteMyMessagesBtn = document.getElementById('deleteMyMessagesBtn');
+        if (deleteMyMessagesBtn) {
+            deleteMyMessagesBtn.addEventListener('click', function() {
+                var typed = prompt('Type DELETE_ALL_MY_MESSAGES (exactly) to delete all your messages. This cannot be undone.');
+                if (typed !== 'DELETE_ALL_MY_MESSAGES') {
+                    if (typed !== null) setStatus('Cancelled. You must type DELETE_ALL_MY_MESSAGES exactly.');
+                    return;
+                }
+                socket.emit('delete_my_messages', { confirm: 'DELETE_ALL_MY_MESSAGES' });
+            });
+        }
+        var messageRetentionSelect = document.getElementById('messageRetentionSelect');
+        if (messageRetentionSelect) {
+            messageRetentionSelect.addEventListener('change', function() {
+                var val = this.value || null;
+                socket.emit('set_message_retention', { days: val });
+            });
+        }
         var chatBgColorEl = document.getElementById('chatBgColor');
         if (chatBgColorEl) {
             chatBgColorEl.value = localStorage.getItem('chatBgColor') || '#0f0f12';
@@ -2092,7 +2141,8 @@
         var h = '';
         rx.forEach(function(r) {
             var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
-            h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji + ' (' + (r.count || 0) + ')') + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
+            var tip = (r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')');
+            h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(tip) + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
         });
         h += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
         reactionsEl.innerHTML = h;
@@ -2289,6 +2339,23 @@
         if (!currentRoom || data.room_id !== currentRoom.id) return;
         var el = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
         if (el) el.remove();
+    });
+
+    socket.on('messages_deleted', function(data) {
+        if (!data || !data.room_id || !data.message_ids || !currentRoom || data.room_id !== currentRoom.id) return;
+        (data.message_ids || []).forEach(function(msgId) {
+            var el = messagesEl.querySelector('.msg[data-msg-id="' + msgId + '"]');
+            if (el) el.remove();
+        });
+    });
+
+    socket.on('my_messages_deleted', function(data) {
+        setStatus('Deleted ' + (data.deleted_count || 0) + ' of your messages.');
+    });
+
+    socket.on('message_retention_updated', function(data) {
+        messageRetentionDays = data.days !== undefined ? data.days : null;
+        setStatus('Auto-delete setting updated.');
     });
 
     socket.on('user_mentioned', function(data) {

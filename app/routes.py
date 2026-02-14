@@ -298,6 +298,7 @@ def register_routes(app):
         return render_template(
             "chat.html",
             user=user,
+            message_retention_days=getattr(user, "message_retention_days", None),
             server_name=getattr(Config, "SERVER_NAME", "No Homers Club"),
             user_permissions=user_perms,
             socket_polling_only=getattr(Config, "SOCKET_POLLING_ONLY", False),
