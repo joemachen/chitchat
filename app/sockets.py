@@ -247,8 +247,24 @@ def _get_or_create_dm_room(user_id: int, other_user_id: int):
     return room
 
 
+PRESENCE_BROADCAST_INTERVAL = 20  # seconds
+
+
+def _periodic_presence_broadcast(socketio):
+    """Broadcast user list periodically to correct any stale presence state on clients."""
+    try:
+        app = getattr(socketio, "app", None)
+        if app and (_online_user_ids or _sid_to_user_id):
+            with app.app_context():
+                socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+    except Exception as e:
+        logger.warning("Periodic presence broadcast failed: %s", e)
+    eventlet.spawn_after(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
+
+
 def register_socket_handlers(socketio):
     """Register SocketIO event handlers."""
+    eventlet.spawn_after(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
 
     def _post_system_event(content: str):
         """Post a system message to the System Events room."""
@@ -267,11 +283,13 @@ def register_socket_handlers(socketio):
         user_id = session.get("user_id")
         user = User.query.get(user_id)
         username = user.username if user else "Unknown"
+        was_offline = user_id not in _online_user_ids
         _sid_to_user_id[request.sid] = user_id
         _sid_to_connected_at[request.sid] = time.time()
         _sid_to_remote_addr[request.sid] = getattr(request, "remote_addr", None) or (request.environ.get("REMOTE_ADDR") if request.environ else None)
         _online_user_ids.add(user_id)
-        _post_system_event(f"{username} came online")
+        if was_offline:
+            _post_system_event(f"{username} came online")
         logger.info("Socket connected: user_id=%s", user_id)
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
@@ -285,14 +303,17 @@ def register_socket_handlers(socketio):
             if user and hasattr(user, "last_seen"):
                 user.last_seen = datetime.utcnow()
                 db.session.commit()
-        user_id = _sid_to_user_id.pop(request.sid, None)
+        _sid_to_user_id.pop(request.sid, None)
         _sid_to_connected_at.pop(request.sid, None)
         _sid_to_remote_addr.pop(request.sid, None)
         if user_id:
-            _online_user_ids.discard(user_id)
             _user_id_to_room.pop(user_id, None)
-            _post_system_event(f"{username} went offline")
-            logger.info("Socket disconnected: user_id=%s", user_id)
+            # Only remove from online and post "went offline" when this is the last socket for this user
+            other_sockets = [sid for sid, uid in _sid_to_user_id.items() if uid == user_id]
+            if not other_sockets:
+                _online_user_ids.discard(user_id)
+                _post_system_event(f"{username} went offline")
+                logger.info("Socket disconnected: user_id=%s (last socket)", user_id)
             emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
     def _is_super_admin(user_id):
