@@ -160,6 +160,17 @@
         .search-form button { padding: 0.4rem 0.75rem; background: #27272a; border: none; border-radius: 6px; color: #e4e4e7; font-size: 0.9rem; cursor: pointer; }
         .search-form button:hover { background: #3f3f46; }
         .search-results-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem; min-width: 320px; max-width: 90vw; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .room-switcher-modal { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem; width: 400px; max-width: 90vw; max-height: 60vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2002; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .room-switcher-modal input { padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 6px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; margin-bottom: 0.5rem; }
+        .room-switcher-list { overflow-y: auto; flex: 1; min-height: 0; max-height: 300px; }
+        .room-switcher-item { padding: 0.5rem 0.75rem; cursor: pointer; border-radius: 6px; font-size: 0.95rem; }
+        .room-switcher-item:hover, .room-switcher-item.selected { background: #3f3f46; }
+        .room-switcher-hint { font-size: 0.75rem; color: #71717a; margin: 0.5rem 0 0; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
+        body.theme-high-contrast { --accent: #60a5fa; background: #000; color: #fff; }
+        body.theme-high-contrast .msg-content a, body.theme-high-contrast .msg-header, body.theme-high-contrast .room-item.active .room-item-name { color: var(--accent, #60a5fa); }
+        body.theme-high-contrast .msg { border: 1px solid #444; }
+        body.theme-high-contrast .form-wrap input, body.theme-high-contrast .form-wrap button { border-width: 2px; }
         .search-results-modal h3 { margin: 0 0 0.5rem; font-size: 1rem; }
         .search-results-list { overflow-y: auto; flex: 1; min-height: 0; }
         .search-result-item { padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.25rem; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; }
@@ -286,7 +297,9 @@
         body.theme-light .form-wrap input { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .acro-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
         body.theme-light .typing-indicator { color: #71717a; }
-        body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal, body.theme-light .room-switcher-modal { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .room-switcher-modal input { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .room-switcher-item:hover, body.theme-light .room-switcher-item.selected { background: #e4e4e7; }
         body.theme-light .context-menu button, body.theme-light .profile-modal p { color: #52525b; }
         body.theme-light .context-menu button:hover { background: #e4e4e7; }
         body.theme-light .profile-modal .close, body.theme-light .search-result-item:hover { background: #e4e4e7; }
@@ -388,6 +401,11 @@
         <div class="search-results-list" id="searchResultsList"></div>
         <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
     </div>
+    <div id="roomSwitcherModal" class="room-switcher-modal" style="display: none;" role="dialog" aria-label="Switch room">
+        <input type="text" id="roomSwitcherInput" placeholder="Type to filter rooms…" autocomplete="off" aria-label="Filter rooms">
+        <div class="room-switcher-list" id="roomSwitcherList" role="listbox"></div>
+        <p class="room-switcher-hint">↑↓ to navigate, Enter to select, Esc to close</p>
+    </div>
     <div class="header" id="header">
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <div class="header-brand">
@@ -420,8 +438,8 @@
             </form>
         </div>
     </div>
-    <div class="main">
-        <aside class="room-list" id="roomList">
+    <main class="main" role="main">
+        <nav class="room-list" id="roomList" aria-label="Rooms and channels">
             <div class="room-list-title">ROOMS</div>
             <div class="room-list-items" id="roomListItems"></div>
             <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
@@ -439,8 +457,8 @@
                     <button type="submit">Log out</button>
                 </form>
             </div>
-        </aside>
-        <div class="chat-area">
+        </nav>
+        <section class="chat-area" aria-label="Chat">
             <div class="mobile-room-name" id="mobileRoomName"></div>
             <div class="channel-topic empty" id="channelTopic"></div>
             <div class="search-bar-wrap" id="searchBarWrap">
@@ -466,8 +484,8 @@
                     <button type="submit" id="sendBtn" disabled>Send</button>
                 </form>
             </div>
-        </div>
-        <aside class="user-list" id="userList">
+        </section>
+        <aside class="user-list" id="userList" aria-label="Users">
             <div class="user-list-title">Users</div>
             <div class="user-list-section" id="userListOnline">
                 <div class="user-list-title">Online</div>
@@ -478,7 +496,7 @@
                 <div id="userListOfflineItems"></div>
             </div>
         </aside>
-    </div>
+    </main>
 
     <script>
 (function() {
@@ -1466,7 +1484,7 @@
         }
         html += '<h2>Appearance</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Theme and chat background (saved in this browser).</p>';
         var savedTheme = localStorage.getItem('chitchatTheme') || 'dark';
-        html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Theme:</span> <button type="button" class="theme-btn' + (savedTheme === 'dark' ? ' active' : '') + '" data-theme="dark" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button> <button type="button" class="theme-btn' + (savedTheme === 'light' ? ' active' : '') + '" data-theme="light" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button></div>';
+        html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Theme:</span> <button type="button" class="theme-btn' + (savedTheme === 'dark' ? ' active' : '') + '" data-theme="dark" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button> <button type="button" class="theme-btn' + (savedTheme === 'light' ? ' active' : '') + '" data-theme="light" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button> <button type="button" class="theme-btn' + (savedTheme === 'high-contrast' ? ' active' : '') + '" data-theme="high-contrast" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">High contrast</button></div>';
         var savedBg = localStorage.getItem('chatBgColor') || '#0f0f12';
         html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><label style="display:flex;align-items:center;gap:0.5rem;">Chat background: <input type="color" id="chatBgColor" value="' + escapeAttr(savedBg) + '" style="width:2.5rem;height:1.5rem;padding:0;border:none;border-radius:4px;cursor:pointer;"></label></div>';
         if (isSuperAdmin) {
@@ -1644,8 +1662,9 @@
     function applyTheme(theme) {
         theme = theme || localStorage.getItem('chitchatTheme') || 'dark';
         localStorage.setItem('chitchatTheme', theme);
-        document.body.classList.remove('theme-light');
+        document.body.classList.remove('theme-light', 'theme-high-contrast');
         if (theme === 'light') document.body.classList.add('theme-light');
+        else if (theme === 'high-contrast') document.body.classList.add('theme-high-contrast');
     }
 
     function roomsInOrder() {
@@ -1881,6 +1900,7 @@
         if (socketWasDisconnected) {
             showPingToast('Reconnected');
             socketWasDisconnected = false;
+            socket.emit('get_rooms');
         }
         if (currentRoom) socket.emit('join_room', { room_id: currentRoom.id });
         else socket.emit('join_room', {});
@@ -2422,15 +2442,78 @@
     }
     if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
 
+    var roomSwitcherModal = document.getElementById('roomSwitcherModal');
+    var roomSwitcherInput = document.getElementById('roomSwitcherInput');
+    var roomSwitcherList = document.getElementById('roomSwitcherList');
+    var roomSwitcherSelectedIdx = 0;
+    function getFilteredRoomsForSwitcher() {
+        var q = (roomSwitcherInput && roomSwitcherInput.value || '').trim().toLowerCase();
+        var rooms = [];
+        allRooms.forEach(function(r) {
+            var label = r.is_dm ? (r.dm_with_username || r.name || 'DM') : r.name;
+            if (!q || label.toLowerCase().indexOf(q) !== -1) rooms.push(r);
+        });
+        return rooms;
+    }
+    function showRoomSwitcher() {
+        if (!roomSwitcherModal || !roomSwitcherList) return;
+        if (roomSwitcherInput) { roomSwitcherInput.value = ''; roomSwitcherInput.focus(); }
+        roomSwitcherSelectedIdx = 0;
+        renderRoomSwitcherList();
+        roomSwitcherModal.style.display = 'block';
+    }
+    function hideRoomSwitcher() {
+        if (roomSwitcherModal) roomSwitcherModal.style.display = 'none';
+        if (inputEl) inputEl.focus();
+    }
+    function renderRoomSwitcherList() {
+        var rooms = getFilteredRoomsForSwitcher();
+        roomSwitcherList.innerHTML = '';
+        rooms.forEach(function(r, i) {
+            var label = r.is_dm ? (r.dm_with_username || r.name || 'DM') : r.name;
+            var el = document.createElement('div');
+            el.className = 'room-switcher-item' + (i === roomSwitcherSelectedIdx ? ' selected' : '');
+            el.setAttribute('role', 'option');
+            el.dataset.roomId = r.id;
+            el.textContent = label;
+            el.addEventListener('click', function() { switchRoom(r.id); hideRoomSwitcher(); });
+            roomSwitcherList.appendChild(el);
+        });
+    }
+    function selectRoomInSwitcher() {
+        var rooms = getFilteredRoomsForSwitcher();
+        if (rooms.length && roomSwitcherSelectedIdx >= 0 && roomSwitcherSelectedIdx < rooms.length) {
+            switchRoom(rooms[roomSwitcherSelectedIdx].id);
+            hideRoomSwitcher();
+        }
+    }
+    if (roomSwitcherInput) {
+        roomSwitcherInput.addEventListener('input', function() { roomSwitcherSelectedIdx = 0; renderRoomSwitcherList(); });
+        roomSwitcherInput.addEventListener('keydown', function(e) {
+            var rooms = getFilteredRoomsForSwitcher();
+            if (e.key === 'ArrowDown') { e.preventDefault(); roomSwitcherSelectedIdx = Math.min(roomSwitcherSelectedIdx + 1, rooms.length - 1); renderRoomSwitcherList(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); roomSwitcherSelectedIdx = Math.max(roomSwitcherSelectedIdx - 1, 0); renderRoomSwitcherList(); }
+            else if (e.key === 'Enter') { e.preventDefault(); selectRoomInSwitcher(); }
+            else if (e.key === 'Escape') { e.preventDefault(); hideRoomSwitcher(); }
+        });
+    }
+
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            hideContextMenu();
-            hideMessageContextMenu();
-            hideAllModals();
+            if (roomSwitcherModal && roomSwitcherModal.style.display === 'block') hideRoomSwitcher();
+            else {
+                hideContextMenu();
+                hideMessageContextMenu();
+                hideRoomContextMenu();
+                hideAllModals();
+                if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+                var mso = document.getElementById('mobileSearchOverlay');
+                if (mso) mso.classList.remove('visible');
+            }
         }
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            if (inputEl) inputEl.focus();
+            showRoomSwitcher();
         }
     });
 

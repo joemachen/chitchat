@@ -213,6 +213,24 @@ def _get_stats():
     }
 
 
+def _netsplit_reconnect(app, room_id: int, names: str, sys_user_id: int) -> None:
+    """Post netsplit reconnection message (called from eventlet.spawn_after)."""
+    with app.app_context():
+        sys_user = User.query.get(sys_user_id)
+        if sys_user:
+            msg = Message(
+                room_id=room_id,
+                user_id=sys_user_id,
+                content=f"*** End of netsplit. {names} have reconnected.",
+                message_type="chat",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            socket_io = getattr(app, "socketio", None)
+            if socket_io:
+                _broadcast_new_message_impl(socket_io, room_id, msg.to_dict())
+
+
 def broadcast_system_event(app, content: str) -> None:
     """Post a system event to System Events room. Call from anywhere; pass app for context."""
     with app.app_context():
@@ -667,6 +685,45 @@ def register_socket_handlers(socketio):
         user = User.query.get(user_id)
         if not user:
             emit("error", {"message": "User not found"})
+            return
+
+        # /netsplit — Easter egg: fake netsplit message
+        if content.strip().lower() == "/netsplit":
+            import random
+            sys_user = User.query.filter_by(username="System").first()
+            if sys_user:
+                victims = list(
+                    User.query.filter(
+                        User.id != user_id,
+                        User.username.notin_(["AcroBot", "System"]),
+                    ).limit(5).all()
+                )
+                if victims:
+                    chosen = random.sample(victims, min(2, len(victims)))
+                    names = ", ".join(u.username for u in chosen)
+                    msg1 = Message(
+                        room_id=room_id,
+                        user_id=sys_user.id,
+                        content=f"*** Netsplit! {names} have disconnected from the server.",
+                        message_type="chat",
+                    )
+                    db.session.add(msg1)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg1.to_dict())
+                    app = current_app._get_current_object()
+                    eventlet.spawn_after(3000, _netsplit_reconnect, app, room_id, names, sys_user.id)
+                else:
+                    msg1 = Message(
+                        room_id=room_id,
+                        user_id=sys_user.id,
+                        content="*** Netsplit! Server A and Server B have lost connection.",
+                        message_type="chat",
+                    )
+                    db.session.add(msg1)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg1.to_dict())
+                    app = current_app._get_current_object()
+                    eventlet.spawn_after(3000, _netsplit_reconnect, app, room_id, "Server A and Server B", sys_user.id)
             return
 
         # DM with AcroBot: during Acrophobia submit phase, treat message as submission (so DMs count)

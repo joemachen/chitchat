@@ -12,7 +12,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
 - **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
 
-**Explicitly out of scope for now**: Sound/notifications; image/file uploads supported.
+**Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
 ---
 
@@ -52,7 +52,7 @@ chitchat/
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–013
+├── migrations/            # Flask-Migrate (Alembic) versions 001–014
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -79,7 +79,7 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–013), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts "Server redeployed (v{VERSION})" to System Events).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–014), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts "Server redeployed (v{VERSION})" to System Events).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="eventlet"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
@@ -186,10 +186,10 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 
 1. **`/help`** — Post a single message (from the user) listing all ChitChat and Acrophobia commands; persist and emit.
 2. **`/away [message]`** — Set or clear `user.away_message`; post emote “is away: …” or “is no longer away”; persist and emit.
-3. **`/whois <username>`** — Look up user; emit `whois_result` to requester only (includes online, IP, connected_at for Surfer Girl).
+3. **`/whois <username>`** — Look up user (case-insensitive); emit `whois_result` to requester only (includes online, IP, connected_at for Surfer Girl).
 4. **`/topic <text>`** — Set `room.topic`, topic_set_by_id, topic_set_at; emit `topic_updated` to room.
 5. **Acrophobia room** — If room name is “Acrophobia”, call `acrophobia.handle_message`; if consumed, persist and emit bot messages; if round started, schedule submit-phase timer.
-6. **`/ping <username>`** — Emit `user_pinged` to room; if target has `away_message`, emit `away_message` to sender only.
+6. **`/ping <username>`** — Emit `user_pinged` to room (username case-insensitive); if target has `away_message`, emit `away_message` to sender only.
 7. **`/em <text>` / `/me <text>`** — Treat as emote; persist as `message_type='emote'` and emit.
 8. **Otherwise** — Persist as normal chat message and emit `new_message`.
 
@@ -217,7 +217,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 - **Single file**: `app/templates/chat.html` — HTML, CSS, and JavaScript in one template. Rendered by Flask with `user` (current user); no separate JS bundle.
 - **Socket client**: Socket.IO 4.7.2 from CDN; connection with `withCredentials: true`. No explicit reconnection logic documented; Socket.IO client has built-in reconnect.
-- **Main structure**: Header (title, Settings, Log out), status line, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer. **Mobile**: Hamburger opens room list; Settings and Log out at bottom of room list (below DMs).
+- **Main structure**: Header (title, Settings, Log out), status line, main area: **room list** (left), **chat area** (center: channel topic, messages div, send form), **user list** (right). DMs appear in the same room list as “DM: <other_username>”; no separate DM drawer. **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); hamburger opens room list with Search, Settings, Log out; collapsible info drawer for topic/connection status; search in hamburger menu; fixed header height; chat fills remaining space.
 - **State**: `currentUserId`, `currentRoom`, `allRooms`, `allUsersWithStatus`, `showingSettings`, `acrobotActive`, `roomOrderIds`, etc. Room list is reordered by drag-and-drop; order persisted via `save_room_order`.
 - **Key behaviors**:
   - **join_room** on load (no explicit room_id → server uses default channel from Settings; Surfer Girl configures this in Settings → Default channel).
@@ -225,7 +225,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
-  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`).
+  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
   - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
@@ -269,7 +269,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `app/models.py` | User, Room, Message, AcroScore, AppSetting, IgnoreList (legacy); to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat; before_request (restore session from remember); context_processor (inject user). |
-| `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user, Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
+| `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
 | `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
 | `app/templates/chat.html` | Full chat UI: room list, messages, user list, context menu, Settings view, socket listeners, renderRoomList, switchRoom, etc. |
 

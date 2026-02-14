@@ -28,7 +28,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 - **Presence**: Online/offline in user list; connect/disconnect broadcasts.
 - **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); room mute; right-click user → View profile, Kick (Surfer Girl or kick_user permission).
-- **IRC-style**: **/whois &lt;username&gt;** — shows account created, online/offline, IP, time connected (modal to requester only). **/topic &lt;content&gt;** for channel topic.
+- **IRC-style**: **/whois &lt;username&gt;** — shows account created, online/offline, IP, time connected (modal to requester only). **/topic &lt;content&gt;** for channel topic. **Username lookup**: /whois, /ping, /msg, and @mentions are case-insensitive (e.g. /whois joe finds "Joe").
 
 ### Acrophobia (AcroBot)
 
@@ -40,6 +40,8 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 - **Copy/paste**: Message text, channel topic, room names, and stats area are explicitly selectable (user-select: text). Paste in the message input works as usual.
 - **Context menu**: Right-click on a username (in messages or user list) shows View profile and Kick (if Surfer Girl or kick_user permission); menu stays open until click outside or an action is chosen.
+- **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); collapsible info drawer for topic/connection; search in hamburger menu; fixed header; chat fills space.
+- **DMs**: Consolidated per user pair (deduplicated); only DMs you participate in are shown.
 
 ---
 
@@ -111,19 +113,19 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 | Phase | Focus |
 |-------|--------|
 | **1** | Local stability — **done**; optional /score, unread/sounds, tests |
-| **2** | Richer chat (files, reply, edit), moderation, search/export — **edit/delete message done** |
+| **2** | Richer chat (files, reply, edit), moderation, search/export — **edit/delete, search done** |
 | **3** | Online: Koyeb + Neon — **done** |
-| **4** | DMs done, themes done, persistent scores done, reactions done, unread done; more bots, reconnection |
+| **4** | DMs done, themes done, persistent scores done, reactions done, unread done, mobile layout done; more bots, reconnection |
 
 ---
 
 ## Next up (prioritized)
 
-1. **Health endpoint** — `GET /health` for uptime checks *(already in place)*
+1. **Health endpoint** — `GET /health` for uptime checks *(done)*
 2. **Keyboard shortcuts** — Ctrl+K room switcher, Esc close modals
 3. **Message reactions** — *(done)*
 4. **Unread indicators** — *(done)*
-5. **Search** — Search messages in current room or all rooms
+5. **Search** — Search messages in current room or all rooms *(done — in-room search; mobile: in hamburger)*
 6. **Reconnection + history re-fetch** — Refetch recent messages on reconnect
 7. **Optional sound** — Ping sound when mentioned (user toggle)
 8. **Netsplit** — Easter egg: `/netsplit` or random fake netsplit for lols

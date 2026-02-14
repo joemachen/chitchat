@@ -28,8 +28,8 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 - **Pinned messages** — Pin 1–3 messages per channel; show at top or in a “Pinned” strip.
 - **Threads** — Reply to a message in a thread; thread summary under the message.
-- **Search** — Search messages in current room or all rooms (backend: filter Message by content/room/user).
-- **File uploads / images** — **On hold** (no online hosting/storage yet; keeping costs low). When you’re ready, options: (1) **Local-only** — store files under `instance/` or configurable path (no extra cost; not shared across devices). (2) **Free/low-cost tiers** — e.g. Cloudflare R2 (free egress, pay per GB stored), Backblaze B2, or Supabase Storage free tier; single bucket + size limits keeps cost predictable. (3) **Inline tiny images** — base64 in DB or small files on disk for avatars/emotes only.
+- **Search** — Search messages in current room or all rooms. *(done — in-room search; mobile: in hamburger menu)*
+- **File uploads / images** — **Implemented** (instance/uploads/; ephemeral on redeploy). For persistence: Cloudflare R2, Backblaze B2, or Supabase Storage.
 
 ---
 
