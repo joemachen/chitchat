@@ -288,7 +288,13 @@ def register_routes(app):
             session.clear()
             return redirect(url_for("login_page"))
         user_perms = _user_permissions(user)
-        return render_template("chat.html", user=user, server_name=getattr(Config, "SERVER_NAME", "No Homers Club"), user_permissions=user_perms)
+        return render_template(
+            "chat.html",
+            user=user,
+            server_name=getattr(Config, "SERVER_NAME", "No Homers Club"),
+            user_permissions=user_perms,
+            socket_polling_only=getattr(Config, "SOCKET_POLLING_ONLY", False),
+        )
 
     @app.route("/delete-account", methods=["GET", "POST"])
     def delete_account():

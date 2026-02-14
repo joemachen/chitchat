@@ -1,8 +1,4 @@
 """
-WSGI entry point for gunicorn. Runs eventlet.monkey_patch() before any other imports
-so that RLock and other stdlib objects are properly greened.
+WSGI entry point for gunicorn. Uses gevent worker (eventlet deprecated in gunicorn 26).
 """
-import eventlet
-eventlet.monkey_patch()
-
 from run import app

@@ -113,13 +113,14 @@ def create_app() -> Flask:
     from app.routes import register_routes
     register_routes(app)
 
+    _polling_only = app.config.get("SOCKET_POLLING_ONLY", False)
     socketio = SocketIO(
         app,
-        async_mode="eventlet",
-        cors_allowed_origins=[],
+        async_mode="gevent",
+        cors_allowed_origins="*" if _polling_only else [],
         logger=False,
         engineio_logger=False,
-        allow_upgrade=not app.config.get("SOCKET_POLLING_ONLY", False),
+        allow_upgrade=not _polling_only,
     )
     from app.sockets import register_socket_handlers
     register_socket_handlers(socketio)

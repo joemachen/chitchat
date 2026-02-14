@@ -43,4 +43,4 @@ Super Admins can turn the Acrophobia bot on/off in **Settings** (“AcroBot is o
 ## Requirements
 
 - Python 3.11+
-- See `requirements.txt` (Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, etc.). Optional: `pywebview` for the standalone window.
+- See `requirements.txt` (Flask, Flask-SocketIO, gevent, Flask-SQLAlchemy, etc.). Optional: `pywebview` for the standalone window.

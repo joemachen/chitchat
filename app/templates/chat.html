@@ -1536,7 +1536,7 @@
         userListOfflineItems.innerHTML = offline.length ? offline.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>';
     }
 
-    socket = io({ withCredentials: true });
+    socket = io({ withCredentials: true{% if socket_polling_only %}, transports: ['polling']{% endif %} });
 
     var socketWasDisconnected = false;
     socket.on('connect', function() {
