@@ -30,7 +30,7 @@ from app.acrophobia import (
 from app.homer import get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -287,8 +287,14 @@ def _broadcast_new_message_impl(socket_io, room_id, msg_dict):
         socket_io.emit("new_message", msg_dict, room=f"room_{room_id}")
         current_viewing = {uid: rid for uid, (rid, _) in _user_id_to_room.items()}
         sender_id = msg_dict.get("user_id")
+        try:
+            muted_user_ids = {r.user_id for r in UserRoomNotificationMute.query.filter_by(room_id=room_id).all()}
+        except Exception:
+            muted_user_ids = set()
         for uid in set(_sid_to_user_id.values()):
             if uid == sender_id:
+                continue
+            if uid in muted_user_ids:
                 continue
             if current_viewing.get(uid) == room_id:
                 continue
@@ -576,6 +582,14 @@ def register_socket_handlers(socketio):
         except (TypeError, ValueError):
             return None
 
+    def _get_notification_muted_room_ids(user_id):
+        """Return set of room_ids for which user has muted notifications."""
+        try:
+            rows = UserRoomNotificationMute.query.filter_by(user_id=user_id).all()
+            return {r.room_id for r in rows}
+        except Exception:
+            return set()
+
     def _get_unread_counts(user_id):
         """Return {room_id: unread_count} for all rooms user has access to."""
         rooms = _rooms_sorted_for_user(user_id)
@@ -603,7 +617,7 @@ def register_socket_handlers(socketio):
             return
         rooms = _rooms_sorted_for_user(user_id)
         unread_counts = _get_unread_counts(user_id)
-        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts})
+        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
 
     @socketio.on("join_room")
     def on_join_room(data):
@@ -643,6 +657,7 @@ def register_socket_handlers(socketio):
                 "rooms": rooms_dict,
                 "has_more": False,
                 "unread_counts": unread_counts,
+                "room_notification_muted": list(_get_notification_muted_room_ids(user_id)),
             })
             logger.info("User %s joined stats room", user_id)
         else:
@@ -673,6 +688,7 @@ def register_socket_handlers(socketio):
                 "rooms": rooms_dict,
                 "has_more": has_more,
                 "unread_counts": unread_counts,
+                "room_notification_muted": list(_get_notification_muted_room_ids(user_id)),
             }
             if room_obj.name.strip() == "Acrophobia":
                 payload["acrophobia"] = acrophobia_get_phase_info(room_id)
@@ -1520,6 +1536,31 @@ def register_socket_handlers(socketio):
         emit("room_muted_updated", {"room_id": room_id, "room_muted_in_room": list(_get_room_mutes_for_user(user_id, room_id))})
         logger.info("User %s unmuted user %s in room %s", user_id, muted_user_id, room_id)
 
+    @socketio.on("toggle_room_notification_mute")
+    def on_toggle_room_notification_mute(data):
+        """Toggle mute notifications (unread dot) for a room."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = _room_id_from_data(data)
+        if not room_id:
+            emit("error", {"message": "room_id required"})
+            return
+        rooms = _rooms_sorted_for_user(user_id)
+        if not any(r.id == room_id for r in rooms):
+            emit("error", {"message": "Room not found or access denied"})
+            return
+        existing = UserRoomNotificationMute.query.filter_by(user_id=user_id, room_id=room_id).first()
+        if existing:
+            db.session.delete(existing)
+            muted = False
+        else:
+            db.session.add(UserRoomNotificationMute(user_id=user_id, room_id=room_id))
+            muted = True
+        db.session.commit()
+        emit("room_notification_mute_updated", {"room_id": room_id, "muted": muted, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
+
     @socketio.on("search_messages")
     def on_search_messages(data):
         """Search messages in a room (or all rooms). Returns search_results with list of message dicts."""
@@ -1606,6 +1647,9 @@ def register_socket_handlers(socketio):
         is_owner = room.created_by_id == user_id
         if not _has_permission(user_id, "update_room") and not is_owner:
             emit("error", {"message": "Only Surfer Girls, room owners, or users with edit permission can edit channels"})
+            return
+        if getattr(room, "is_protected", False) and name and not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girl can rename protected channels"})
             return
         changed = False
         if name:
@@ -1723,7 +1767,7 @@ def register_socket_handlers(socketio):
         db.session.commit()
         rooms = _rooms_sorted_for_user(user_id)
         unread_counts = _get_unread_counts(user_id)
-        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts})
+        emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
 
     @socketio.on("get_user_profile")
     def on_get_user_profile(data):

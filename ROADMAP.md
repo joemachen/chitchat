@@ -21,7 +21,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Rooms & channels
 
-- **Rooms**: general, Stats (stats view, no send form), **Acrophobia** (game bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Default channel**: Surfer Girl can set which channel users see on login (Settings → Default channel).
+- **Rooms**: general, Stats (stats view, no send form), **Acrophobia** (game bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Protected channels**: Only Surfer Girl can rename protected channels. **Default channel**: Surfer Girl can set which channel users see on login (Settings → Default channel).
 - **Channel topic**: Any user can set with **/topic &lt;content&gt;**. Topic is pinned at top of channel with “Set by &lt;user&gt; on &lt;date/time&gt;”; toast notifies the room when topic is updated.
 
 ### Real-time & commands

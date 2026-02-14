@@ -141,7 +141,11 @@
         .msg-reaction.own { border-color: #6366f1; background: #1e1e24; }
         .msg-reaction-add { padding: 0.15rem 0.35rem; color: #71717a; }
         .msg-reaction-add:hover { color: #a1a1aa; }
-        .reaction-picker { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.25rem; max-height: 200px; overflow-y: auto; max-width: 280px; z-index: 2002; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .reaction-picker { position: fixed; background: #25262b; border: 1px solid #3f3f46; border-radius: 8px; padding: 0.35rem; display: flex; flex-direction: column; gap: 0.35rem; max-height: 260px; max-width: 280px; z-index: 2002; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .reaction-picker-search { padding: 0.35rem 0.5rem; border: 1px solid #3f3f46; border-radius: 6px; background: #0f0f12; color: #e4e4e7; font-size: 0.9rem; }
+        .reaction-picker-search:focus { outline: none; border-color: #6366f1; }
+        .reaction-picker-most-used { display: flex; flex-wrap: wrap; gap: 0.2rem; padding-bottom: 0.25rem; border-bottom: 1px solid #3f3f46; }
+        .reaction-picker-grid { display: flex; flex-wrap: wrap; gap: 0.25rem; max-height: 160px; overflow-y: auto; }
         .reaction-picker button { background: none; border: none; font-size: 1.25rem; cursor: pointer; padding: 0.2rem; border-radius: 4px; }
         .reaction-picker button:hover { background: #3f3f46; }
         @media (max-width: 768px) {
@@ -317,7 +321,8 @@
         body.theme-light .form-wrap input, body.theme-light .form-wrap textarea { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .acro-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
         body.theme-light .typing-indicator { color: #71717a; }
-        body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal, body.theme-light .room-switcher-modal { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal, body.theme-light .room-switcher-modal, body.theme-light .reaction-picker { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .reaction-picker-search { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .room-switcher-modal input { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .room-switcher-item:hover, body.theme-light .room-switcher-item.selected { background: #e4e4e7; }
         body.theme-light .context-menu button, body.theme-light .profile-modal p { color: #52525b; }
@@ -386,11 +391,16 @@
         <button type="button" data-action="set-status-invisible" id="contextMenuStatusInvisible" style="display:none;">Set status: Invisible</button>
     </div>
     <div id="roomContextMenu" class="context-menu" style="display: none;">
+        <button type="button" data-action="room-mute-notifications" id="roomMuteNotificationsBtn">Mute notifications</button>
         <button type="button" data-action="room-edit">Edit channel</button>
         <button type="button" data-action="room-toggle-protected" id="roomToggleProtectedBtn" style="display:none;">Mark as protected</button>
         <button type="button" data-action="room-delete" id="roomDeleteBtn" style="display:none;">Delete channel</button>
     </div>
+    <div id="selectionContextMenu" class="context-menu" style="display: none;">
+        <button type="button" data-action="copy-selection">Copy</button>
+    </div>
     <div id="messageContextMenu" class="context-menu" style="display: none;">
+        <button type="button" data-action="copy" id="messageContextCopy" style="display:none;">Copy</button>
         <button type="button" data-action="reply-to-message">Reply</button>
         <button type="button" data-action="add-reaction">Add reaction</button>
         <button type="button" data-action="edit-message">Edit</button>
@@ -598,6 +608,7 @@
     }
     function addUnreadForRoom(roomId) {
         if (currentRoom && currentRoom.id === roomId) return;
+        if (roomNotificationMuted[roomId]) return;
         unreadRooms[roomId] = true;
         updateUnreadBadge();
         var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
@@ -828,26 +839,82 @@
         '\ud83d\udd25','\ud83d\udd50','\ud83d\udd51','\ud83d\udd52','\ud83d\udd53','\ud83d\udd54','\ud83d\udd55','\ud83d\udd56','\ud83d\udd57','\ud83d\udd58','\ud83d\udd59','\ud83d\udd5a','\ud83d\udd5b','\ud83d\udd5c','\ud83d\udd5d',
         '\ud83d\ude80','\ud83d\ude83','\ud83d\ude84','\ud83d\ude85','\ud83d\ude87','\ud83d\ude89','\ud83d\ude8a','\u2708\ufe0f','\ud83d\udd1a','\ud83d\udd1b','\ud83d\udd1c','\ud83d\udd1d','\ud83d\udd1e','\ud83d\udd1f','\ud83d\udd20'
     ];
+    var EMOJI_SEARCH_TERMS = {'\ud83d\udc4d':'thumbs up like','\ud83d\udc4e':'thumbs down','\u2764\ufe0f':'heart love','\ud83d\ude02':'laugh','\ud83c\udf89':'party celebrate','\ud83d\ude2e':'surprise','\ud83d\udc40':'eyes','\ud83d\udd25':'fire hot','\ud83d\ude16':'robot','\ud83d\udc36':'dog','\ud83d\udc31':'cat','\ud83d\ude00':'smile','\ud83d\ude0d':'love','\u2705':'check yes','\u274c':'no','\u2728':'sparkle','\ud83d\udc4f':'clap','\ud83d\udc4c':'ok','\ud83d\udc4a':'fist','\ud83d\ude0a':'smile','\ud83d\ude14':'think','\ud83d\ude22':'cry','\ud83d\ude21':'angry','\u2615':'coffee','\ud83c\udf54':'hamburger','\ud83c\udf55':'pizza','\u26bd':'soccer','\ud83d\ude80':'rocket'};
+    function getEmojiUsage() {
+        try {
+            var s = localStorage.getItem('chitchat_emoji_usage');
+            return s ? JSON.parse(s) : {};
+        } catch (e) { return {}; }
+    }
+    function recordEmojiUsage(emoji) {
+        var u = getEmojiUsage();
+        u[emoji] = (u[emoji] || 0) + 1;
+        try { localStorage.setItem('chitchat_emoji_usage', JSON.stringify(u)); } catch (e) {}
+    }
+    function filterEmojisBySearch(emojis, q) {
+        if (!q || !q.trim()) return emojis;
+        var ql = q.trim().toLowerCase();
+        return emojis.filter(function(e) {
+            var terms = EMOJI_SEARCH_TERMS[e];
+            return (terms && terms.toLowerCase().indexOf(ql) !== -1) || e.indexOf(ql) !== -1;
+        });
+    }
     function showReactionPicker(msgId, anchorEl) {
         var existing = document.getElementById('reactionPicker');
         if (existing) existing.remove();
         var picker = document.createElement('div');
         picker.id = 'reactionPicker';
         picker.className = 'reaction-picker';
-        REACTION_EMOJIS.forEach(function(emoji) {
+        var searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search emoji…';
+        searchInput.className = 'reaction-picker-search';
+        var mostUsedWrap = document.createElement('div');
+        mostUsedWrap.className = 'reaction-picker-most-used';
+        var gridWrap = document.createElement('div');
+        gridWrap.className = 'reaction-picker-grid';
+        var usage = getEmojiUsage();
+        var mostUsed = Object.keys(usage).sort(function(a,b){return usage[b]-usage[a];}).slice(0,12);
+        var mostUsedSet = new Set(mostUsed);
+        var otherEmojis = REACTION_EMOJIS.filter(function(e){return !mostUsedSet.has(e);});
+        function makeEmojiBtn(emoji) {
             var btn = document.createElement('button');
             btn.textContent = emoji;
             btn.title = 'Add ' + emoji;
             btn.addEventListener('click', function() {
+                recordEmojiUsage(emoji);
                 socket.emit('add_reaction', { message_id: msgId, emoji: emoji });
                 picker.remove();
             });
-            picker.appendChild(btn);
+            return btn;
+        }
+        function renderGrid(emojis) {
+            gridWrap.innerHTML = '';
+            emojis.forEach(function(emoji) {
+                gridWrap.appendChild(makeEmojiBtn(emoji));
+            });
+        }
+        mostUsed.forEach(function(emoji) {
+            mostUsedWrap.appendChild(makeEmojiBtn(emoji));
+        });
+        if (mostUsed.length) picker.appendChild(mostUsedWrap);
+        picker.appendChild(searchInput);
+        picker.appendChild(gridWrap);
+        renderGrid(filterEmojisBySearch(otherEmojis, ''));
+        searchInput.addEventListener('input', function() {
+            var q = searchInput.value;
+            var filtered = filterEmojisBySearch(REACTION_EMOJIS, q);
+            var filteredMostUsed = filtered.filter(function(e){return mostUsedSet.has(e);});
+            var filteredOther = filtered.filter(function(e){return !mostUsedSet.has(e);});
+            mostUsedWrap.innerHTML = '';
+            filteredMostUsed.forEach(function(emoji) { mostUsedWrap.appendChild(makeEmojiBtn(emoji)); });
+            renderGrid(filteredOther);
         });
         document.body.appendChild(picker);
         var rect = anchorEl.getBoundingClientRect();
         picker.style.left = (rect.left) + 'px';
         picker.style.top = (rect.top - picker.offsetHeight - 4) + 'px';
+        setTimeout(function() { searchInput.focus(); }, 50);
         function closePicker(e) {
             if (picker && !picker.contains(e.target) && e.target !== anchorEl) {
                 picker.remove();
@@ -964,8 +1031,11 @@
     var muteMsgUserBtn = messageContextMenuEl.querySelector('[data-action="mute-message-user-in-room"]');
     var hideMsgBtn = messageContextMenuEl.querySelector('[data-action="hide-message"]');
     var unhideMsgBtn = messageContextMenuEl.querySelector('[data-action="unhide-message"]');
+    var messageContextCopyBtn = messageContextMenuEl.querySelector('[data-action="copy"]');
     function showMessageContextMenu(x, y, messageId, userId, content, displayName) {
         messageContextTarget = { messageId: messageId, userId: userId, content: content || '', displayName: displayName || '?' };
+        var sel = window.getSelection ? window.getSelection().toString() : '';
+        if (messageContextCopyBtn) messageContextCopyBtn.style.display = (sel || content) ? 'block' : 'none';
         var editBtn = messageContextMenuEl.querySelector('[data-action="edit-message"]');
         var delBtn = messageContextMenuEl.querySelector('[data-action="delete-message"]');
         if (editBtn) editBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
@@ -991,16 +1061,22 @@
     var roomContextTarget = null;
     var roomToggleProtectedBtn = document.getElementById('roomToggleProtectedBtn');
     var roomDeleteBtn = document.getElementById('roomDeleteBtn');
+    var roomMuteNotificationsBtn = document.getElementById('roomMuteNotificationsBtn');
+    var roomNotificationMuted = {};  // room_id -> true when muted
     function showRoomContextMenu(x, y, room) {
-        if (!room || room.is_dm) return;
+        if (!room) return;
         roomContextTarget = room;
         var editBtn = roomContextMenuEl.querySelector('[data-action="room-edit"]');
-        if (editBtn) editBtn.style.display = (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.update_room)) ? 'block' : 'none';
+        if (editBtn) editBtn.style.display = (!room.is_dm && (room.is_protected ? isSuperAdmin : (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.update_room)))) ? 'block' : 'none';
         if (roomToggleProtectedBtn) {
             roomToggleProtectedBtn.style.display = isSuperAdmin ? 'block' : 'none';
             roomToggleProtectedBtn.textContent = room.is_protected ? 'Unmark as protected' : 'Mark as protected';
         }
-        if (roomDeleteBtn) roomDeleteBtn.style.display = (room.name !== 'general' && !room.is_protected && (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.delete_room))) ? 'block' : 'none';
+        if (roomDeleteBtn) roomDeleteBtn.style.display = (!room.is_dm && room.name !== 'general' && !room.is_protected && (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.delete_room))) ? 'block' : 'none';
+        if (roomMuteNotificationsBtn) {
+            roomMuteNotificationsBtn.style.display = 'block';
+            roomMuteNotificationsBtn.textContent = roomNotificationMuted[room.id] ? 'Unmute notifications' : 'Mute notifications';
+        }
         roomContextMenuEl.style.left = x + 'px';
         roomContextMenuEl.style.top = y + 'px';
         roomContextMenuEl.style.display = 'block';
@@ -1011,7 +1087,7 @@
     }
 
     document.addEventListener('contextmenu', function(e) {
-        if (e.target.closest('#contextMenu') || e.target.closest('#messageContextMenu')) return;
+        if (e.target.closest('#contextMenu') || e.target.closest('#messageContextMenu') || e.target.closest('#selectionContextMenu') || e.target.closest('#roomContextMenu')) return;
         if (e.target.closest('.msg-username') || e.target.closest('.user-item[data-user-id]')) return;
         if (e.target.closest('.header-username')) {
             e.preventDefault();
@@ -1024,13 +1100,52 @@
         if (e.target.closest('.msg')) return;
         hideContextMenu();
         hideMessageContextMenu();
+        hideSelectionContextMenu();
     });
 
     document.addEventListener('click', function(e) {
         if (!e.target.closest('#messageContextMenu')) hideMessageContextMenu();
+        if (!e.target.closest('#selectionContextMenu')) hideSelectionContextMenu();
+        if (!e.target.closest('#roomContextMenu')) hideRoomContextMenu();
     });
 
+    var selectionContextMenuEl = document.getElementById('selectionContextMenu');
+    function showSelectionContextMenu(x, y) {
+        selectionContextMenuEl.style.left = x + 'px';
+        selectionContextMenuEl.style.top = y + 'px';
+        selectionContextMenuEl.style.display = 'block';
+    }
+    function hideSelectionContextMenu() {
+        if (selectionContextMenuEl) selectionContextMenuEl.style.display = 'none';
+    }
+    function copyToClipboard(text) {
+        if (!text) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(function() {
+                document.execCommand('copy', false, null);
+            });
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (err) {}
+            document.body.removeChild(ta);
+        }
+    }
+    messagesEl.addEventListener('click', function(e) {
+        if (e.button === 0) {
+            var a = e.target.closest('a[href]');
+            if (a && a.href && (a.target === '_blank' || a.getAttribute('target') === '_blank') && /^https?:\/\//i.test(a.href)) {
+                e.preventDefault();
+                window.open(a.href, '_blank', 'noopener,noreferrer');
+            }
+        }
+    });
     messagesEl.addEventListener('contextmenu', function(e) {
+        var sel = window.getSelection ? window.getSelection().toString().trim() : '';
         var userEl = e.target.closest('.msg-username');
         if (userEl) {
             e.preventDefault();
@@ -1043,6 +1158,7 @@
         if (msgEl) {
             e.preventDefault();
             hideContextMenu();
+            hideSelectionContextMenu();
             var mid = parseInt(msgEl.getAttribute('data-msg-id'), 10);
             var uid = parseInt(msgEl.getAttribute('data-user-id'), 10);
             var contentEl = msgEl.querySelector('.msg-content');
@@ -1050,6 +1166,13 @@
             var headerEl = msgEl.querySelector('.msg-username');
             var displayName = headerEl ? headerEl.textContent.trim() : '?';
             if (mid) showMessageContextMenu(e.clientX, e.clientY, mid, uid, content, displayName);
+            return;
+        }
+        if (sel && e.target.closest('.messages')) {
+            e.preventDefault();
+            hideContextMenu();
+            hideMessageContextMenu();
+            showSelectionContextMenu(e.clientX, e.clientY);
         }
     });
     document.getElementById('userList').addEventListener('contextmenu', function(e) {
@@ -1064,7 +1187,7 @@
     (function() {
         var rl = document.getElementById('roomList');
         if (rl) rl.addEventListener('contextmenu', function(e) {
-        var el = e.target.closest('.room-item[data-room-id]:not(.dm-item)');
+        var el = e.target.closest('.room-item[data-room-id]');
         if (el) {
             e.preventDefault();
             hideContextMenu();
@@ -1076,6 +1199,13 @@
     });
     })();
 
+    roomContextMenuEl.querySelector('[data-action="room-mute-notifications"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (roomContextTarget) {
+            socket.emit('toggle_room_notification_mute', { room_id: roomContextTarget.id });
+        }
+        hideRoomContextMenu();
+    });
     roomContextMenuEl.querySelector('[data-action="room-edit"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (roomContextTarget) { editRoom(roomContextTarget.id); }
@@ -1146,6 +1276,19 @@
         hideContextMenu();
     });
 
+    if (selectionContextMenuEl) selectionContextMenuEl.querySelector('[data-action="copy-selection"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        var sel = window.getSelection ? window.getSelection().toString() : '';
+        copyToClipboard(sel);
+        hideSelectionContextMenu();
+    });
+    if (messageContextCopyBtn) messageContextCopyBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var sel = window.getSelection ? window.getSelection().toString() : '';
+        var text = sel || (messageContextTarget ? messageContextTarget.content : '');
+        copyToClipboard(text);
+        hideMessageContextMenu();
+    });
     messageContextMenuEl.querySelector('[data-action="add-reaction"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (messageContextTarget && currentRoom) {
@@ -1164,7 +1307,9 @@
             replyToDisplayName = messageContextTarget.displayName;
             var quoted = (replyToContent || '').replace(/\n/g, '\n> ');
             inputEl.value = '> @' + (replyToDisplayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
-            inputEl.focus();
+            inputEl.style.height = 'auto';
+            inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
+            setTimeout(function() { inputEl.focus(); }, 50);
         }
         hideMessageContextMenu();
     });
@@ -1306,6 +1451,7 @@
         hideWhoisModal();
         hideSearchResultsModal();
         if (editMessageModal && editMessageModal.style.display === 'block') hideEditMessageModal();
+        if (selectionContextMenuEl && selectionContextMenuEl.style.display === 'block') hideSelectionContextMenu();
     }
     modalBackdrop.addEventListener('click', hideAllModals);
 
@@ -1885,7 +2031,7 @@
             var isProtected = r.is_protected === true;
             var canDelete = !isProtected && r.name !== 'general';
             var isOwner = r.created_by_id === currentUserId;
-            var canEdit = isSuperAdmin || isOwner || (userPermissions && userPermissions.update_room);
+            var canEdit = isProtected ? isSuperAdmin : (isSuperAdmin || isOwner || (userPermissions && userPermissions.update_room));
             var canDeleteRoom = (isSuperAdmin || isOwner || (userPermissions && userPermissions.delete_room)) && canDelete;
             var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
             return '<div class="room-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
@@ -2067,7 +2213,7 @@
             var label = escapeHtml(displayLabel) + (isMe ? ' (you)' : '');
             if (u.is_system_user) label = escapeHtml(u.username) + ' <span class="muted">(service)</span>';
             var presence = '';
-            if (u.online && u.current_room_name && !u.is_system_user) presence = '<span class="user-item-presence">in ' + escapeHtml(u.current_room_name) + '</span>';
+            if (u.online && u.current_room_name && !u.is_system_user && !isMe) presence = '<span class="user-item-presence">in ' + escapeHtml(u.current_room_name) + '</span>';
             return '<div class="' + cls + '" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username || '') + '"><span class="user-dot"></span><span class="user-item-name">' + label + '</span>' + presence + '</div>';
         }
         userListOnlineItems.innerHTML = online.length ? online.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>';
@@ -2102,6 +2248,10 @@
             Object.keys(data.unread_counts).forEach(function(rid) {
                 if (data.unread_counts[rid] > 0) unreadRooms[rid] = true;
             });
+        }
+        if (data.room_notification_muted) {
+            roomNotificationMuted = {};
+            data.room_notification_muted.forEach(function(rid) { roomNotificationMuted[rid] = true; });
         }
         if (data.users) allUsersWithStatus = data.users;
         if (data.rooms) renderRoomList(data.rooms, data.room);
@@ -2172,6 +2322,22 @@
                 Object.keys(data.unread_counts).forEach(function(rid) {
                     if (data.unread_counts[rid] > 0) unreadRooms[rid] = true;
                 });
+            }
+            if (data.room_notification_muted) {
+                roomNotificationMuted = {};
+                data.room_notification_muted.forEach(function(rid) { roomNotificationMuted[rid] = true; });
+            }
+            renderRoomList(null, currentRoom);
+        }
+    });
+
+    socket.on('room_notification_mute_updated', function(data) {
+        if (data && data.room_id !== undefined) {
+            if (data.muted) roomNotificationMuted[data.room_id] = true;
+            else delete roomNotificationMuted[data.room_id];
+            if (data.room_notification_muted) {
+                roomNotificationMuted = {};
+                data.room_notification_muted.forEach(function(rid) { roomNotificationMuted[rid] = true; });
             }
             renderRoomList(null, currentRoom);
         }

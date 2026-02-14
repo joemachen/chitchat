@@ -167,7 +167,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), room_muted_in_room, users, rooms. |
 | `send_message` | `on_send_message` | Yes | Slash-command handling and/or persist message; broadcast `new_message`. |
 | `create_room` | `on_create_room` | Surfer Girl or create_room | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
-| `update_room` | `on_update_room` | Surfer Girl or update_room | Rename room; emit `topic_updated`-style update. |
+| `update_room` | `on_update_room` | Surfer Girl or update_room | Rename room; emit `topic_updated`-style update. Protected channels: only Surfer Girl can rename. |
 | `delete_room` | `on_delete_room` | Surfer Girl or delete_room | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
 | `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
 | `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
@@ -225,7 +225,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **join_room** on load (no explicit room_id → server uses default channel from Settings; Surfer Girl configures this in Settings → Default channel).
   - **room_joined**: Renders room list, user list, and either message history or stats view; applies room-mute filter (messages from muted users get class `hidden`).
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
-  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`.
+  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`. Only Surfer Girl can rename protected channels.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
   - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
   - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Homer toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.

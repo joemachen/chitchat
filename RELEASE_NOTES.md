@@ -1,5 +1,18 @@
 # Release notes
 
+## v1.3.0 — Users panel, links & protected channels
+
+**Users panel**
+- **Current room hidden for you** — Your own entry no longer shows "in &lt;room&gt;" (e.g. "in Sports & Gambling Tips"); other users still see each other's current room.
+
+**Links & images**
+- **Mint Linux Firefox** — Link and image clicks now behave the same as on other systems (explicit `window.open` for consistent new-tab behavior).
+
+**Protected channels**
+- **Rename restricted** — Only Surfer Girl can rename protected channels. Room owners and users with edit permission can no longer rename protected channels.
+
+---
+
 ## v1.2.0 — Status, reactions & deploy notes
 
 **Status from right-click menu**
