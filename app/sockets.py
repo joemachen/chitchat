@@ -19,13 +19,15 @@ from app.acrophobia import (
     advance_submit_phase,
     advance_vote_phase,
     get_phase_info as acrophobia_get_phase_info,
+    get_submit_warning_message as acrophobia_get_submit_warning,
+    get_vote_countdown_message as acrophobia_get_vote_countdown,
     handle_message as acrophobia_handle_message,
     is_acrobot_active,
     set_acrobot_active as acrophobia_set_acrobot_active,
 )
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -218,6 +220,26 @@ def _acrophobia_emit_bot_messages(app, room_id, replies):
             socket_io.emit("new_message", msg.to_dict(), room=f"room_{room_id}")
 
 
+def _acrophobia_submit_warning_callback(app, room_id, seconds_left):
+    """Called at 30s and 15s remaining in submit phase."""
+    with app.app_context():
+        from app.acrophobia import get_phase_info
+        info = get_phase_info(room_id)
+        if info.get("phase") == "submitting":
+            msg = acrophobia_get_submit_warning(seconds_left)
+            _acrophobia_emit_bot_messages(app, room_id, [msg])
+
+
+def _acrophobia_vote_countdown_callback(app, room_id, seconds_left: int):
+    """Called at 10, 9, 8, … 1 seconds remaining in vote phase."""
+    with app.app_context():
+        from app.acrophobia import get_phase_info
+        info = get_phase_info(room_id)
+        if info.get("phase") == "voting":
+            msg = acrophobia_get_vote_countdown(seconds_left)
+            _acrophobia_emit_bot_messages(app, room_id, [msg])
+
+
 def _acrophobia_submit_timer_callback(app, room_id):
     """Called when submit phase ends. Advance to voting and send bot messages; then schedule vote timer."""
     with app.app_context():
@@ -227,23 +249,38 @@ def _acrophobia_submit_timer_callback(app, room_id):
         if socket_io:
             info = acrophobia_get_phase_info(room_id)
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
+        for s in range(10, 0, -1):
+            eventlet.spawn_after(VOTE_SECONDS - s, _acrophobia_vote_countdown_callback, app, room_id, s)
         eventlet.spawn_after(VOTE_SECONDS, _acrophobia_vote_timer_callback, app, room_id)
 
 
 def _acrophobia_vote_timer_callback(app, room_id):
-    """Called when vote phase ends. Reveal winner and send bot messages."""
+    """Called when vote phase ends. Reveal winner and send bot messages; start next round if rounds_remaining."""
     with app.app_context():
-        replies = advance_vote_phase(room_id)
+        replies, start_next = advance_vote_phase(room_id)
         _acrophobia_emit_bot_messages(app, room_id, replies)
         socket_io = getattr(app, "socketio", None)
         if socket_io:
             info = acrophobia_get_phase_info(room_id)
             socket_io.emit("acrophobia_phase", info, room=f"room_{room_id}")
+        if start_next:
+            from app.acrophobia import _game, _start_round
+            g = _game(room_id)
+            rounds_left = g.get("rounds_remaining", 0)
+            if rounds_left > 0:
+                next_replies = _start_round(room_id, rounds=rounds_left)
+                if next_replies:
+                    _acrophobia_emit_bot_messages(app, room_id, next_replies)
+                    _schedule_acrophobia_submit_timer(room_id)
+                    if socket_io:
+                        socket_io.emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
 
 
 def _schedule_acrophobia_submit_timer(room_id):
-    """Schedule advance from submit phase to voting after SUBMIT_SECONDS."""
+    """Schedule 30s/15s warnings and advance from submit phase to voting after SUBMIT_SECONDS."""
     app = current_app._get_current_object()
+    eventlet.spawn_after(30, _acrophobia_submit_warning_callback, app, room_id, 30)
+    eventlet.spawn_after(45, _acrophobia_submit_warning_callback, app, room_id, 15)
     eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id)
 
 
@@ -362,15 +399,26 @@ def register_socket_handlers(socketio):
                     result[role][p] = False
         return result
 
+    def _get_default_room_id():
+        """Return default room_id for login. Surfer Girl sets via Settings."""
+        row = AppSetting.query.filter_by(key="default_room_id").first()
+        if row and row.value:
+            try:
+                rid = int(row.value)
+                if Room.query.get(rid) and not Room.query.get(rid).dm_with_id:
+                    return rid
+            except (TypeError, ValueError):
+                pass
+        general = Room.query.filter_by(name="general").first()
+        if general:
+            return general.id
+        first = Room.query.filter(Room.dm_with_id.is_(None)).order_by(Room.id).first()
+        return first.id if first else None
+
     def _room_id_from_data(data):
         rid = (data or {}).get("room_id")
         if rid is None:
-            general = Room.query.filter_by(name="general").first()
-            if general:
-                return general.id
-            # Fallback if "general" was renamed: use first channel (non-DM) by id
-            first = Room.query.filter(Room.dm_with_id.is_(None)).order_by(Room.id).first()
-            return first.id if first else None
+            return _get_default_room_id()
         try:
             return int(rid)
         except (TypeError, ValueError):
@@ -529,7 +577,7 @@ def register_socket_handlers(socketio):
             if acrobot and other_id == acrobot.id:
                 acrophobia_room = Room.query.filter_by(name="Acrophobia").first()
                 if acrophobia_room:
-                    result = acrophobia_handle_message(acrophobia_room.id, user_id, user.username, content)
+                    result = acrophobia_handle_message(acrophobia_room.id, user_id, user.username, content, from_dm=True)
                     consumed = result[0]
                     bot_replies = result[1]
                     dm_replies = result[2] if len(result) > 2 else []
@@ -771,7 +819,7 @@ def register_socket_handlers(socketio):
         if room_obj.name == "Acrophobia":
             acrobot = User.query.filter_by(username="AcroBot").first()
             if acrobot:
-                result = acrophobia_handle_message(room_id, user_id, user.username, content)
+                result = acrophobia_handle_message(room_id, user_id, user.username, content, from_dm=False)
                 consumed = result[0]
                 bot_replies = result[1]
                 dm_replies = result[2] if len(result) > 2 else []
@@ -1559,12 +1607,42 @@ def register_socket_handlers(socketio):
         """Return role permissions for Settings. Surfer Girl only."""
         user_id = session.get("user_id")
         if not user_id:
-            emit("error", {"message": "Not authenticated"})
+            emit("role_permissions", {"permissions": {}, "default_room_id": None})
             return
         if not _is_super_admin(user_id):
-            emit("role_permissions", {"permissions": {}})
+            emit("role_permissions", {"permissions": {}, "default_room_id": None})
             return
-        emit("role_permissions", {"permissions": _get_role_permissions_dict()})
+        default_rid = _get_default_room_id()
+        emit("role_permissions", {"permissions": _get_role_permissions_dict(), "default_room_id": default_rid})
+
+    @socketio.on("set_default_room")
+    def on_set_default_room(data):
+        """Set default channel for login. Surfer Girl only."""
+        user_id = session.get("user_id")
+        if not user_id or not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girls can set the default channel"})
+            return
+        room_id = (data or {}).get("room_id")
+        if room_id is None:
+            emit("error", {"message": "room_id required"})
+            return
+        try:
+            room_id = int(room_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id"})
+            return
+        room = Room.query.get(room_id)
+        if not room or room.dm_with_id:
+            emit("error", {"message": "Room not found or cannot be default (DMs not allowed)"})
+            return
+        row = AppSetting.query.filter_by(key="default_room_id").first()
+        if row:
+            row.value = str(room_id)
+        else:
+            db.session.add(AppSetting(key="default_room_id", value=str(room_id)))
+        db.session.commit()
+        emit("default_room_updated", {"default_room_id": room_id})
+        logger.info("User %s set default room to %s", user_id, room_id)
 
     @socketio.on("set_role_permission")
     def on_set_role_permission(data):

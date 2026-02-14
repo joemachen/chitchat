@@ -873,7 +873,8 @@
             replyToMessageId = messageContextTarget.messageId;
             replyToContent = messageContextTarget.content;
             replyToDisplayName = messageContextTarget.displayName;
-            inputEl.value = '> @' + (replyToDisplayName || '?') + ':\n\n';
+            var quoted = (replyToContent || '').replace(/\n/g, '\n> ');
+            inputEl.value = '> @' + (replyToDisplayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
             inputEl.focus();
         }
         hideMessageContextMenu();
@@ -1325,6 +1326,13 @@
                 if (canDelete) html += '<button type="button" class="settings-delete-user" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>';
                 html += '</div>';
             });
+            html += '<h2>Default channel</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Channel users see when they first log in.</p>';
+            html += '<div id="defaultChannelSection" class="user-row"><select id="defaultChannelSelect" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">';
+            var channels = (allRooms || []).filter(function(r) { return !r.is_dm; });
+            channels.forEach(function(r) {
+                html += '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>';
+            });
+            html += '</select></div>';
             html += '<div id="rolePermissionsSection" style="margin-top:1rem;"><p style="color:#71717a;">Loading role permissions…</p></div>';
             html += '<div class="user-row" style="margin-top:1.5rem;"><button type="button" id="settingsSaveBtn" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>';
         } else {
@@ -1402,6 +1410,7 @@
                 var theme = this.getAttribute('data-theme') || 'dark';
                 settingsPendingSettings.theme = theme;
                 div.querySelectorAll('.theme-btn').forEach(function(b) { b.classList.remove('active'); if (b.getAttribute('data-theme') === theme) b.classList.add('active'); });
+                applyTheme(theme);
             });
         });
         var saveBtn = document.getElementById('settingsSaveBtn');
@@ -1858,6 +1867,17 @@
     });
 
     socket.on('role_permissions', function(data) {
+        var defaultSelect = document.getElementById('defaultChannelSelect');
+        if (defaultSelect && data.default_room_id != null) {
+            defaultSelect.value = String(data.default_room_id || '');
+            if (!defaultSelect.dataset.listenerAdded) {
+                defaultSelect.dataset.listenerAdded = '1';
+                defaultSelect.addEventListener('change', function() {
+                    var rid = parseInt(this.value, 10);
+                    if (rid) socket.emit('set_default_room', { room_id: rid });
+                });
+            }
+        }
         var section = document.getElementById('rolePermissionsSection');
         if (!section || !data.permissions || !isSuperAdmin) return;
         var perms = data.permissions;

@@ -7,9 +7,30 @@ from flask_socketio import SocketIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash
 
-from app.models import Room, User, db
+from app.models import Message, Room, User, db
+from app.version import VERSION
 
 logger = logging.getLogger("chitchat")
+
+
+def _post_deploy_announcement(app: Flask) -> None:
+    """Post server deploy announcement to System Events."""
+    with app.app_context():
+        try:
+            sys_room = Room.query.filter_by(name="System Events").first()
+            sys_user = User.query.filter_by(username="System").first()
+            if sys_room and sys_user:
+                msg = Message(
+                    room_id=sys_room.id,
+                    user_id=sys_user.id,
+                    content=f"Server redeployed (v{VERSION})",
+                    message_type="chat",
+                )
+                db.session.add(msg)
+                db.session.commit()
+                logger.info("Posted deploy announcement v%s", VERSION)
+        except Exception as e:
+            logger.warning("Deploy announcement skipped: %s", e)
 
 
 def _seed_default_data(app: Flask) -> None:
@@ -97,6 +118,7 @@ def create_app() -> Flask:
             from flask_migrate import upgrade
             upgrade()
             _seed_default_data(app)
+            _post_deploy_announcement(app)
         except Exception as e:
             logger.exception("Migrations/seed on startup failed: %s", e)
             raise RuntimeError(

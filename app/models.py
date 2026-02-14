@@ -190,6 +190,14 @@ class AcroScore(db.Model):
     __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_acro_score"),)
 
 
+class AppSetting(db.Model):
+    """Key-value app config (e.g. default_room_id for login)."""
+    __tablename__ = "app_settings"
+
+    key = db.Column(db.String(80), primary_key=True)
+    value = db.Column(db.Text, nullable=True)
+
+
 class RolePermission(db.Model):
     """Configurable permissions per role (rookie, bro, fam). Surfer Girl has all; others use this."""
     __tablename__ = "role_permissions"

@@ -20,7 +20,7 @@ def _random_acronym(length: int | None = None) -> str:
         length = random.choice((4, 5))
     return "".join(random.choices(string.ascii_uppercase, k=length))
 
-# Game state per room_id: phase, acronym, submissions, votes, end_time
+# Game state per room_id: phase, acronym, submissions, votes, end_time, rounds_remaining
 _games = {}
 
 # Super Admins can activate/deactivate the bot in Settings
@@ -47,6 +47,7 @@ def _game(room_id):
             "submissions": [],  # [{"user_id", "username", "phrase"}]
             "votes": {},  # user_id -> index (0-based)
             "end_time": None,
+            "rounds_remaining": 1,  # for /start X
         }
     return _games[room_id]
 
@@ -58,11 +59,11 @@ def _get_help_replies() -> list[str]:
         "",
         "**How to interact** — In this channel you can:",
         "  • Type **/help** or **/msg acrobot help** anytime for this message.",
-        "  • Type **/start** to start a new round (when no round is running).",
+        "  • Type **/start** or **/start X** (X=1–7) to start a new round or X consecutive rounds.",
         "  • During a round: reply with **one message** as your phrase for the acronym.",
         "  • During voting: type **/vote N** (e.g. /vote 1) to vote for submission N.",
         "",
-        "**How to start a game** — Any user can type **/start** in this channel. The bot will post a 4- or 5-letter acronym; everyone has a short time to submit a phrase that fits (e.g. ABC → \"A Big Cat\"). Then everyone votes for their favorite; the winner is announced.",
+        "**How to start a game** — Any user can type **/start** (single round) or **/start X** (X=1–7 consecutive rounds) in this channel. The bot will post a 4- or 5-letter acronym; everyone has a short time to submit a phrase that fits (e.g. ABC → \"A Big Cat\"). Then everyone votes for their favorite; the winner is announced.",
         "",
         "**Rules** — (1) One phrase per person per round. (2) No editing after submit. (3) Vote once during the vote phase. (4) Have fun. Type **/score** for the leaderboard.",
     ]
@@ -78,7 +79,7 @@ def _phrase_matches_acronym(phrase: str, acronym: str) -> bool:
     return letters == acronym.upper()
 
 
-def handle_message(room_id: int, user_id: int, username: str, content: str) -> tuple[bool, list[str], list[tuple[int, str]]]:
+def handle_message(room_id: int, user_id: int, username: str, content: str, from_dm: bool = False) -> tuple[bool, list[str], list[tuple[int, str]]]:
     """
     Handle a user message in the Acrophobia room. Returns (consumed, bot_replies, dm_replies).
     bot_replies are messages for the Acrophobia channel; dm_replies is a list of (user_id, text) to send in DM.
@@ -138,10 +139,17 @@ def handle_message(room_id: int, user_id: int, username: str, content: str) -> t
         return False, [], []
 
     # Commands
-    if low == "/start":
+    if low == "/start" or (low.startswith("/start ") and low[7:].strip().isdigit()):
         if g["phase"] != "idle":
             return True, ["A round is already in progress. Wait for it to finish."], []
-        return True, _start_round(room_id), []
+        rounds = 1
+        if low.startswith("/start "):
+            try:
+                r = int(low[7:].strip())
+                rounds = max(1, min(7, r))
+            except ValueError:
+                pass
+        return True, _start_round(room_id, rounds=rounds), []
     if low == "/score":
         return True, _get_score_replies(room_id), []
 
@@ -167,7 +175,8 @@ def handle_message(room_id: int, user_id: int, username: str, content: str) -> t
             if n < 1 or n > len(g["submissions"]):
                 return True, [f"Vote 1–{len(g['submissions'])} only."], []
             g["votes"][user_id] = n - 1
-            return True, [], []
+            dm_ack = [(user_id, "Got it! Your vote has been received.")] if from_dm else []
+            return True, [], dm_ack
         return True, [], []  # Ignore non-commands during voting
     # idle: allow normal chat or /start
     return False, [], []
@@ -205,14 +214,16 @@ def _get_score_replies(room_id: int) -> list[str]:
         return ["**Acrophobia scores** — Unable to load. Play a round with /start!"]
 
 
-def _start_round(room_id: int) -> list[str]:
+def _start_round(room_id: int, rounds: int = 1) -> list[str]:
     g = _game(room_id)
     g["phase"] = "submitting"
     g["acronym"] = _random_acronym()
     g["submissions"] = []
     g["votes"] = {}
     g["end_time"] = time.time() + SUBMIT_SECONDS
-    return [f"Round started! **Acronym: {g['acronym']}** – Reply with your phrase (one message) in {SUBMIT_SECONDS} seconds. Go!"]
+    g["rounds_remaining"] = max(1, min(7, rounds))
+    rounds_msg = f" ({g['rounds_remaining']} round{'s' if g['rounds_remaining'] > 1 else ''})" if g["rounds_remaining"] > 1 else ""
+    return [f"Round started!{rounds_msg} **Acronym: {g['acronym']}** – Reply with your phrase (one message) in {SUBMIT_SECONDS} seconds. Go!"]
 
 
 def advance_submit_phase(room_id: int) -> list[str]:
@@ -232,24 +243,28 @@ def advance_submit_phase(room_id: int) -> list[str]:
     return ["\n".join(lines)]
 
 
-def advance_vote_phase(room_id: int) -> list[str]:
-    """Call when vote timer expires. Returns bot messages to send."""
+def advance_vote_phase(room_id: int) -> tuple[list[str], bool]:
+    """Call when vote timer expires. Returns (bot messages, start_next_round)."""
     g = _game(room_id)
     if g["phase"] != "voting":
-        return []
+        return [], False
     g["phase"] = "idle"
     if not g["votes"]:
-        return ["No votes. Round over. Type /start to play again."]
-    # Tally votes (by submission index)
+        return ["No votes. Round over. Type /start to play again."], False
     counts = {}
     for idx in g["votes"].values():
         counts[idx] = counts.get(idx, 0) + 1
     if not counts:
-        return ["No valid votes. Type /start to play again."]
+        return ["No valid votes. Type /start to play again."], False
     winner_idx = max(counts, key=counts.get)
     winner = g["submissions"][winner_idx]
     _record_win(room_id, winner["user_id"], winner["username"])
-    return [f"**Winner:** \"{winner['phrase']}\" by **{winner['username']}**! Congrats. Type /start for another round."]
+    rounds_left = g.get("rounds_remaining", 1) - 1
+    g["rounds_remaining"] = rounds_left
+    msg = f"**Winner:** \"{winner['phrase']}\" by **{winner['username']}**! Congrats."
+    if rounds_left > 0:
+        return [msg + f" {rounds_left} round(s) left. Next round starting…"], True
+    return [msg + " Type /start for another round."], False
 
 
 def get_submit_end_time(room_id: int) -> float | None:
@@ -265,6 +280,16 @@ def get_vote_end_time(room_id: int) -> float | None:
     if g["phase"] != "voting":
         return None
     return g["end_time"]
+
+
+def get_submit_warning_message(seconds_left: int) -> str:
+    """Return warning message for submit phase (30 or 15 seconds left)."""
+    return f"**{seconds_left} seconds** left to submit your phrase!"
+
+
+def get_vote_countdown_message(seconds_left: int) -> str:
+    """Return countdown message for vote phase (10 seconds left)."""
+    return f"**{seconds_left} seconds** left to vote!"
 
 
 def get_phase_info(room_id: int) -> dict:
