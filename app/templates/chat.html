@@ -599,6 +599,15 @@
         return div;
     }
 
+    function showUploadToast(msg, isError) {
+        var el = document.createElement('div');
+        el.className = 'ping-toast';
+        el.style.background = isError ? '#7f1d1d' : '#166534';
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 4000);
+    }
+
     function showPingToast(fromUsername) {
         var el = document.createElement('div');
         el.className = 'ping-toast';
@@ -1113,7 +1122,7 @@
         var maxTypers = Math.max(1, Math.max.apply(null, topTypers.map(function(t) { return t.count; })));
         var activeHours = stats.active_hours || [];
         var maxHours = Math.max(1, Math.max.apply(null, activeHours.map(function(h) { return h.count; })));
-        var html = '<h2>Top 10 typers</h2><ul>';
+        var html = '<h2>Top 10 typers</h2><p style="color:#71717a;font-size:0.85rem;margin:0 0 0.5rem;">By username (login); nick changes do not split counts.</p><ul>';
         topTypers.forEach(function(t) {
             var pct = maxTypers ? (100 * t.count / maxTypers) : 0;
             html += '<li class="stat-row"><span>' + escapeHtml(t.username) + '</span><span>' + t.count + ' msgs</span><span class="stat-bar-wrap"><span class="stat-bar" style="width:' + pct + '%"></span></span></li>';
@@ -1178,10 +1187,12 @@
             html += '<h2>Channels</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels (Stats, Acrophobia, System Events) can only be removed here.</p>';
             (allRooms || []).forEach(function(r) {
                 var isProtected = ['general', 'Stats', 'Acrophobia', 'System Events'].indexOf(r.name) !== -1;
-                html += '<div class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">' +
+                html += '<div class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">' +
                     '<span>' + escapeHtml(r.name) + (isProtected ? ' <span style="color:#71717a;">(protected)</span>' : '') + '</span>' +
+                    '<span style="display:flex;gap:0.35rem;">' +
                     (r.name !== 'general' ? '<button type="button" class="settings-delete-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>' : '') +
-                    '</div>';
+                    '<button type="button" class="settings-wipe-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>' +
+                    '</span></div>';
             });
         }
         if (isSuperAdmin) {
@@ -1248,6 +1259,14 @@
             btn.addEventListener('click', function() {
                 if (!confirm('Delete channel "' + rname + '" and all its messages?')) return;
                 socket.emit('delete_room', { room_id: rid, from_settings: true });
+            });
+        });
+        div.querySelectorAll('button.settings-wipe-room').forEach(function(btn) {
+            var rid = parseInt(btn.getAttribute('data-room-id'), 10);
+            var rname = btn.getAttribute('data-room-name') || '';
+            btn.addEventListener('click', function() {
+                if (!confirm('Wipe all chat history from "' + rname + '"? This cannot be undone.')) return;
+                socket.emit('wipe_room_history', { room_id: rid });
             });
         });
         div.querySelectorAll('button.settings-delete-user').forEach(function(btn) {
@@ -1519,7 +1538,8 @@
             const isMe = u.id === currentUserId;
             var statusCls = u.online ? (u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : 'online') : 'offline';
             const cls = 'user-item ' + statusCls + (isMe ? ' me' : '');
-            var label = escapeHtml(u.username) + (isMe ? ' (you)' : '');
+            var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
+            var label = escapeHtml(displayLabel) + (isMe ? ' (you)' : '');
             if (u.is_system_user) label = escapeHtml(u.username) + ' <span class="muted">(service)</span>';
             var presence = '';
             if (u.online && u.current_room_name && !u.is_system_user) presence = '<span class="user-item-presence">in ' + escapeHtml(u.current_room_name) + '</span>';
@@ -1692,6 +1712,18 @@
         }
         renderRoomList(null, currentRoom);
         switchRoom(data.room.id);
+    });
+
+    socket.on('room_history_wiped', function(data) {
+        if (data.room_id && currentRoom && currentRoom.id === data.room_id) {
+            messagesEl.innerHTML = '';
+            var toast = document.createElement('div');
+            toast.className = 'ping-toast';
+            toast.style.background = '#166534';
+            toast.textContent = 'Room history wiped. ' + (data.deleted || 0) + ' message(s) removed.';
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 3000);
+        }
     });
 
     socket.on('room_deleted', function(data) {
@@ -1942,21 +1974,32 @@
         fileInput.addEventListener('change', function() {
             var file = fileInput.files && fileInput.files[0];
             if (!file) return;
+            var maxMb = 5;
+            if (file.size > maxMb * 1024 * 1024) {
+                showUploadToast('File too large (max ' + maxMb + ' MB). Your file: ' + (file.size / 1024 / 1024).toFixed(1) + ' MB.', true);
+                fileInput.value = '';
+                return;
+            }
             var fd = new FormData();
             fd.append('file', file);
             attachBtn.disabled = true;
             attachBtn.title = 'Uploading…';
             fetch('/upload', { method: 'POST', body: fd, credentials: 'same-origin' })
-                .then(function(r) { return r.json(); })
+                .then(function(r) {
+                    if (!r.ok) throw new Error(r.status === 413 ? 'File too large (max 5 MB)' : 'Upload failed (' + r.status + ')');
+                    return r.json().catch(function() { throw new Error('Invalid server response'); });
+                })
                 .then(function(data) {
-                    if (data.error) throw new Error(data.error);
+                    if (data && data.error) throw new Error(data.error);
+                    if (!data || !data.url) throw new Error('No file URL returned');
                     pendingAttachment = { url: data.url, filename: data.filename };
                     attachBtn.title = 'Attached: ' + data.filename + ' — send to post';
                     sendMessageWithAttachment();
                 })
                 .catch(function(err) {
-                    attachBtn.title = 'Upload failed: ' + (err.message || 'Unknown error');
-                    setTimeout(function() { attachBtn.title = 'Attach file or image'; }, 3000);
+                    var msg = err && err.message ? err.message : 'Upload failed';
+                    attachBtn.title = 'Attach file or image';
+                    showUploadToast(msg, true);
                 })
                 .finally(function() {
                     attachBtn.disabled = false;

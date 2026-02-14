@@ -54,6 +54,7 @@ def _get_users_with_online_status():
             result.append({
                 "id": u.id,
                 "username": u.username,
+                "display_name": None,
                 "online": is_acrobot_active(),
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
@@ -65,6 +66,7 @@ def _get_users_with_online_status():
             result.append({
                 "id": u.id,
                 "username": u.username,
+                "display_name": None,
                 "online": False,
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
@@ -77,6 +79,7 @@ def _get_users_with_online_status():
             result.append({
                 "id": u.id,
                 "username": u.username,
+                "display_name": getattr(u, "display_name", None) or None,
                 "online": u.id in online,
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
@@ -662,6 +665,7 @@ def register_socket_handlers(socketio):
         # /nick <name> — Set or clear display name (shown in chat). Any user.
         if content.lower().startswith("/nick "):
             nick = content[6:].strip()
+            old_display = getattr(user, "display_name", None) or None
             if hasattr(user, "display_name"):
                 user.display_name = nick[:80] if nick else None
                 db.session.commit()
@@ -670,6 +674,8 @@ def register_socket_handlers(socketio):
             db.session.add(msg)
             db.session.commit()
             emit("new_message", msg.to_dict(), room=f"room_{room_id}")
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            _post_system_event(f"{user.username} changed nick to " + (nick or "(cleared)"))
             return
 
         # /status <text> — Set or clear status line (shown in whois). Any user.
@@ -1214,6 +1220,34 @@ def register_socket_handlers(socketio):
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_deleted", {"room_id": room_id})
         logger.info("Room deleted: %s", room_id)
+
+    @socketio.on("wipe_room_history")
+    def on_wipe_room_history(data):
+        """Delete all messages in a room. Super Admin only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girls can wipe room history"})
+            return
+        room_id = (data or {}).get("room_id")
+        if not room_id:
+            emit("error", {"message": "room_id required"})
+            return
+        try:
+            room_id = int(room_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id"})
+            return
+        room = Room.query.get(room_id)
+        if not room:
+            emit("error", {"message": "Room not found"})
+            return
+        deleted = Message.query.filter_by(room_id=room_id).delete()
+        db.session.commit()
+        emit("room_history_wiped", {"room_id": room_id, "deleted": deleted})
+        logger.info("Room %s history wiped: %s messages deleted by user %s", room_id, deleted, user_id)
 
     @socketio.on("save_room_order")
     def on_save_room_order(data):

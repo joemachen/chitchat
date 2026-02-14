@@ -18,10 +18,10 @@ def _seed_default_data(app: Flask) -> None:
     """
     with app.app_context():
         try:
-            general = Room.query.filter_by(name="general").first()
-            if not general:
-                general = Room(name="general")
-                db.session.add(general)
+            # Only create "general" if there are no channels at all (user may have renamed it)
+            has_any_channel = Room.query.filter(Room.dm_with_id.is_(None)).first()
+            if not has_any_channel:
+                db.session.add(Room(name="general"))
                 db.session.commit()
             stats_room = Room.query.filter_by(name="Stats").first()
             if not stats_room:
