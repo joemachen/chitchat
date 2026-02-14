@@ -154,6 +154,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Connect**: On `connect`, user is added to these structures and a system event “{username} came online” is posted to the **System Events** room; `user_list_updated` is broadcast.
 - **Disconnect**: On `disconnect`, user is removed and “{username} went offline” is posted to System Events; `user_list_updated` is broadcast again.
 - **AcroBot**: Treated as “online” when the Settings toggle is on (`is_acrobot_active()`), independent of socket presence.
+- **System (service)**: A service account that posts system events (e.g. "came online", "went offline", nick changes) to the System Events room. It has no socket connection and is always offline. The UI hides it from the user list. It cannot be removed without breaking system event posting.
 
 ### 6.2 Socket events (server-side)
 

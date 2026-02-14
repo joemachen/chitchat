@@ -99,8 +99,20 @@ def _get_room_mutes_for_user(user_id, room_id):
 
 
 def _rooms_sorted_for_user(user_id):
-    """Return all rooms in this user's preferred order (room_order_ids), then by name for any new rooms."""
-    all_rooms = {r.id: r for r in Room.query.all()}
+    """Return rooms in user's preferred order. Channels: all. DMs: only those user participates in, deduplicated per pair."""
+    all_rooms = list(Room.query.all())
+    channels = [r for r in all_rooms if r.dm_with_id is None]
+    dm_rooms = [r for r in all_rooms if r.dm_with_id is not None
+                and (r.created_by_id == user_id or r.dm_with_id == user_id)]
+    # Deduplicate DMs: same user pair may have multiple room records (legacy); keep oldest per pair
+    seen_pairs = set()
+    deduped_dms = []
+    for r in sorted(dm_rooms, key=lambda x: x.id):
+        pair = (min(r.created_by_id, r.dm_with_id), max(r.created_by_id, r.dm_with_id))
+        if pair not in seen_pairs:
+            seen_pairs.add(pair)
+            deduped_dms.append(r)
+    all_rooms = {r.id: r for r in channels + deduped_dms}
     user = User.query.get(user_id)
     order_ids = []
     if user and user.room_order_ids:
@@ -716,7 +728,7 @@ def register_socket_handlers(socketio):
                 "",
                 "**In Acrophobia channel**",
                 "• /help or /msg acrobot help — AcroBot help & rules",
-                "• /start — start a round (4–5 letter acronym)",
+                "• /start or /start N — start a round (N=1–7 consecutive rounds, 4–5 letter acronym)",
                 "• /vote N — vote for submission N during voting",
                 "• /score — leaderboard",
             ]

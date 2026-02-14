@@ -1799,6 +1799,7 @@
 
     function renderUserList(users) {
         if (!users || !users.length) return;
+        users = users.filter(function(u) { return !u.is_system_user; });  // Hide System (service account)
         const online = users.filter(function(u) { return u.online; });
         const offline = users.filter(function(u) { return !u.online; });
         function itemHtml(u) {
