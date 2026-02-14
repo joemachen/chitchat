@@ -511,6 +511,7 @@
     let allUsersWithStatus = [];
     let showingSettings = false;
     let acrobotActive = true;
+    let homerActive = true;
     var settingsPendingSettings = null;
     const messagesEl = document.getElementById('messages');
     const statusEl = document.getElementById('status');
@@ -1376,7 +1377,8 @@
                 acroTimerEl.textContent = label + ': ' + sec + 's';
                 var formWrap = document.querySelector('.form-wrap');
                 if (formWrap && currentRoom && currentRoom.name === 'Acrophobia') {
-                    if (acroPhase === 'submitting' && sec <= 10) formWrap.classList.add('acro-urgency');
+                    var urgent = (acroPhase === 'submitting' && sec <= 10) || (acroPhase === 'voting' && sec <= 15);
+                    if (urgent) formWrap.classList.add('acro-urgency');
                     else formWrap.classList.remove('acro-urgency');
                 }
             }
@@ -1470,6 +1472,7 @@
         if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         socket.emit('get_acrobot_status');
+        socket.emit('get_homer_status');
         if (isSuperAdmin) { socket.emit('get_role_permissions'); socket.emit('get_audit_log', { limit: 50 }); }
         var div = document.createElement('div');
         div.className = 'settings-view';
@@ -1490,6 +1493,8 @@
         if (isSuperAdmin) {
             html += '<h2>AcroBot</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia channel. When offline, the bot will not start rounds or accept votes.</p>';
             html += '<div class="user-row"><label><input type="checkbox" id="acrobotActiveToggle" ' + (acrobotActive ? 'checked' : '') + '> <span>AcroBot is online</span></label></div>';
+            html += '<h2>Homer</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Type !Simpsons in any room to get a random Simpsons quote. When offline, Homer will not respond.</p>';
+            html += '<div class="user-row"><label><input type="checkbox" id="homerActiveToggle" ' + (homerActive ? 'checked' : '') + '> <span>Homer is online</span></label></div>';
         }
         if (isSuperAdmin) {
             html += '<h2>Stats</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>';
@@ -1548,11 +1553,17 @@
         }
         div.innerHTML = html;
         messagesEl.appendChild(div);
-        settingsPendingSettings = { acrobot: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
+        settingsPendingSettings = { acrobot: null, homer: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
         var acrobotToggle = document.getElementById('acrobotActiveToggle');
         if (acrobotToggle) {
             acrobotToggle.addEventListener('change', function() {
                 settingsPendingSettings.acrobot = acrobotToggle.checked;
+            });
+        }
+        var homerToggle = document.getElementById('homerActiveToggle');
+        if (homerToggle) {
+            homerToggle.addEventListener('change', function() {
+                settingsPendingSettings.homer = homerToggle.checked;
             });
         }
         div.querySelectorAll('select.user-rank-select').forEach(function(sel) {
@@ -1634,6 +1645,10 @@
                     acrobotActive = settingsPendingSettings.acrobot;
                     socket.emit('set_acrobot_active', { active: acrobotActive });
                 }
+                if (settingsPendingSettings.homer != null && isSuperAdmin) {
+                    homerActive = settingsPendingSettings.homer;
+                    socket.emit('set_homer_active', { active: homerActive });
+                }
                 Object.keys(settingsPendingSettings.ranks || {}).forEach(function(uid) {
                     var rank = settingsPendingSettings.ranks[uid];
                     if (rank) socket.emit('set_user_rank', { target_user_id: parseInt(uid, 10), rank: rank });
@@ -1644,7 +1659,7 @@
                         socket.emit('set_role_permission', { role: role, permission: perm, allowed: rp[role][perm] });
                     });
                 });
-                settingsPendingSettings = { acrobot: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
+                settingsPendingSettings = { acrobot: null, homer: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
                 var toast = document.createElement('div');
                 toast.className = 'ping-toast';
                 toast.style.background = '#166534';
@@ -2123,6 +2138,11 @@
         var toggle = document.getElementById('acrobotActiveToggle');
         if (toggle) toggle.checked = acrobotActive;
     });
+    socket.on('homer_status', function(data) {
+        homerActive = data.active !== false;
+        var toggle = document.getElementById('homerActiveToggle');
+        if (toggle) toggle.checked = homerActive;
+    });
 
     socket.on('role_permissions', function(data) {
         var defaultSelect = document.getElementById('defaultChannelSelect');
@@ -2146,6 +2166,7 @@
             kick_user: 'Kick users',
             set_user_rank: 'Set user rankings',
             acrobot_control: 'AcroBot on/off',
+            homer_control: 'Homer on/off',
             reset_stats: 'Reset Stats data',
             export_all: 'Export all rooms'
         };

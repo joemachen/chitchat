@@ -39,7 +39,7 @@ def _can_export_all(user):
 
 def _user_permissions(user):
     """Return dict of permission -> bool for user. Surfer Girl has all True."""
-    perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "reset_stats", "export_all")
+    perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "reset_stats", "export_all")
     if getattr(user, "is_super_admin", False):
         return {p: True for p in perms}
     rank = (getattr(user, "rank", None) or "rookie").lower()

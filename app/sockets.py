@@ -27,6 +27,7 @@ from app.acrophobia import (
     is_acrobot_active,
     set_acrobot_active as acrophobia_set_acrobot_active,
 )
+from app.homer import get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
 from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, _isoformat_utc, db
@@ -78,6 +79,18 @@ def _get_users_with_online_status():
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": True,
+                "user_status": "online",
+                "current_room_name": None,
+            })
+        elif u.username == "Homer":
+            result.append({
+                "id": u.id,
+                "username": u.username,
+                "display_name": None,
+                "online": is_homer_active(),
+                "is_super_admin": getattr(u, "is_super_admin", False),
+                "rank": rank,
+                "is_system_user": False,
                 "user_status": "online",
                 "current_room_name": None,
             })
@@ -318,7 +331,7 @@ def _acrophobia_submit_timer_callback(app, room_id, sudden_death: bool = False):
         if info.get("phase") != "voting":
             return  # No submissions; phase went to idle
         vote_sec = SUDDEN_DEATH_VOTE if is_sudden else VOTE_SECONDS
-        for s in range(min(10, vote_sec), 0, -1):
+        for s in range(min(15, vote_sec), 0, -1):
             eventlet.spawn_after(vote_sec - s, _acrophobia_vote_countdown_callback, app, room_id, s)
         eventlet.spawn_after(vote_sec, _acrophobia_vote_timer_callback, app, room_id)
 
@@ -513,7 +526,7 @@ def register_socket_handlers(socketio):
         for rp in RolePermission.query.all():
             if rp.role in result:
                 result[rp.role][rp.permission] = rp.allowed
-        perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "reset_stats", "export_all")
+        perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "reset_stats", "export_all")
         for role in result:
             for p in perms:
                 if p not in result[role]:
@@ -725,6 +738,24 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "User not found"})
             return
 
+        # !Simpsons — Homer says a random Simpsons quote (when Homer is active)
+        low_content = content.strip().lower()
+        if low_content in ("!simpsons", "! simpsons"):
+            if is_homer_active():
+                homer_user = User.query.filter_by(username="Homer").first()
+                if homer_user:
+                    quote = get_random_simpsons_quote()
+                    msg = Message(
+                        room_id=room_id,
+                        user_id=homer_user.id,
+                        content=quote,
+                        message_type="chat",
+                    )
+                    db.session.add(msg)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg.to_dict())
+            return
+
         # /netsplit — Easter egg: fake netsplit message
         if content.strip().lower() == "/netsplit":
             import random
@@ -733,7 +764,7 @@ def register_socket_handlers(socketio):
                 victims = list(
                     User.query.filter(
                         User.id != user_id,
-                        User.username.notin_(["AcroBot", "System"]),
+                        User.username.notin_(["AcroBot", "System", "Homer"]),
                     ).limit(5).all()
                 )
                 if victims:
@@ -864,6 +895,7 @@ def register_socket_handlers(socketio):
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
                 "• Right-click message → Reply (quote), Edit, Delete, Mark unread",
+                "• !Simpsons — Homer says a random Simpsons quote (when Homer is online)",
                 "",
                 "**In Acrophobia channel**",
                 "• /help or /msg acrobot help — AcroBot help & rules",
@@ -1831,7 +1863,7 @@ def register_socket_handlers(socketio):
         if not target:
             emit("error", {"message": "User not found"})
             return
-        if target.username in ("AcroBot", "System"):
+        if target.username in ("AcroBot", "System", "Homer"):
             emit("error", {"message": "Cannot delete system users"})
             return
         target_username = target.username
@@ -1937,7 +1969,7 @@ def register_socket_handlers(socketio):
         if role not in ("rookie", "bro", "fam"):
             emit("error", {"message": "role must be rookie, bro, or fam"})
             return
-        valid_perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "reset_stats", "export_all")
+        valid_perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "reset_stats", "export_all")
         if permission not in valid_perms:
             emit("error", {"message": f"permission must be one of: {', '.join(valid_perms)}"})
             return
@@ -1975,6 +2007,31 @@ def register_socket_handlers(socketio):
         emit("acrobot_status", {"active": is_acrobot_active()}, broadcast=True)
         emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set AcroBot active=%s", user_id, is_acrobot_active())
+
+    @socketio.on("get_homer_status")
+    def on_get_homer_status(data=None):
+        """Return whether Homer is active (online). Any user can request."""
+        emit("homer_status", {"active": is_homer_active()})
+
+    @socketio.on("set_homer_active")
+    def on_set_homer_active(data):
+        """Activate or deactivate Homer. Surfer Girl or homer_control permission."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _has_permission(user_id, "homer_control"):
+            emit("error", {"message": "Only Surfer Girls can activate or deactivate Homer (or your role needs homer_control permission)"})
+            return
+        active = (data or {}).get("active")
+        if active is None:
+            emit("error", {"message": "active (true/false) required"})
+            return
+        homer_set_active(bool(active))
+        _audit_log(user_id, "set_homer_active", None, None, {"active": is_homer_active()})
+        emit("homer_status", {"active": is_homer_active()}, broadcast=True)
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        logger.info("User %s set Homer active=%s", user_id, is_homer_active())
 
     @socketio.on("reset_stats_data")
     def on_reset_stats_data(data):

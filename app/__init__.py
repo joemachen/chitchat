@@ -67,6 +67,14 @@ def _seed_default_data(app: Flask) -> None:
                 )
                 db.session.add(system_user)
                 db.session.commit()
+            homer = User.query.filter_by(username="Homer").first()
+            if not homer:
+                homer = User(
+                    username="Homer",
+                    password_hash=generate_password_hash("system-bot-no-login"),
+                )
+                db.session.add(homer)
+                db.session.commit()
 
             # Promote user "Joe" to Super Admin if present
             joe = User.query.filter_by(username="Joe").first()

@@ -75,6 +75,11 @@ def _get_help_replies() -> list[str]:
     return ["\n".join(lines)]
 
 
+def _acrobot_nickname() -> str:
+    """Return a random nickname AcroBot uses for users (L'il Bro, L'il Homey, etc.)."""
+    return random.choice(["L'il Bro", "L'il Homey"])
+
+
 def _phrase_matches_acronym(phrase: str, acronym: str) -> bool:
     """True if the phrase's first letter of each word (case-insensitive) spells the acronym."""
     if not phrase or not acronym:
@@ -128,7 +133,8 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
             dm = f"Your phrase doesn't match the acronym **{acronym}**. Use a phrase whose first letter of each word spells that acronym."
             return True, [], [(user_id, dm)]
         g["submissions"].append({"user_id": user_id, "username": username, "phrase": phrase})
-        return True, ["A submission has been received."], [(user_id, f"Got it! Your phrase for **{acronym}** has been received.")]
+        nick = _acrobot_nickname()
+        return True, ["A submission has been received."], [(user_id, f"Got it! Your phrase for **{acronym}** has been received, {nick}.")]
 
     # /m, /msg, /message acrobot <anything> or !acrobot <anything> — generic reply when not a submission
     if _acrobot_prefix:
@@ -174,7 +180,8 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
             dm = f"Your phrase doesn't match the acronym **{acronym}**. Use a phrase whose first letter of each word spells that acronym."
             return True, [], [(user_id, dm)]
         g["submissions"].append({"user_id": user_id, "username": username, "phrase": content})
-        return True, ["A submission has been received."], [(user_id, f"Got it! Your phrase for **{acronym}** has been received.")]
+        nick = _acrobot_nickname()
+        return True, ["A submission has been received."], [(user_id, f"Got it! Your phrase for **{acronym}** has been received, {nick}.")]
     if g["phase"] == "voting":
         if low.startswith("/vote "):
             rest = content[6:].strip()
@@ -185,7 +192,8 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
             if n < 1 or n > len(g["submissions"]):
                 return True, [f"Vote 1–{len(g['submissions'])} only."], []
             g["votes"][user_id] = n - 1
-            dm_ack = [(user_id, "Got it! Your vote has been received.")] if from_dm else []
+            nick = _acrobot_nickname()
+            dm_ack = [(user_id, f"Thanks. I got your vote for this round, {nick}.")] if from_dm else []
             return True, [], dm_ack
         return True, [], []  # Ignore non-commands during voting
     # idle: allow normal chat or /start
@@ -320,7 +328,9 @@ def get_submit_warning_message(seconds_left: int) -> str:
 
 
 def get_vote_countdown_message(seconds_left: int) -> str:
-    """Return countdown message for vote phase (10 seconds left)."""
+    """Return countdown message for vote phase. Adds urgency when <= 15 seconds."""
+    if seconds_left <= 15:
+        return f"**{seconds_left} seconds** left to vote! Hurry!"
     return f"**{seconds_left} seconds** left to vote!"
 
 
