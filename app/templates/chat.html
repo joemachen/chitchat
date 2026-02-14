@@ -235,11 +235,11 @@
             flex-direction: column;
             overflow: hidden;
         }
-        .room-list-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+        .room-list-scroll { flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; width: 100%; }
         .room-list-footer-sticky { flex-shrink: 0; margin-top: auto; border-top: 1px solid #27272a; }
-        .room-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; }
-        .room-list-items { flex: 1 1 0; min-height: 0; max-height: 45%; overflow-y: auto; padding: 0.5rem 0; }
-        .room-item { padding: 0.5rem 1rem; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; cursor: pointer; border-radius: 4px; margin: 0 4px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .room-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; flex-shrink: 0; }
+        .room-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 0.5rem 4px; width: 100%; min-width: 0; }
+        .room-item { padding: 0.5rem 0.75rem; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; cursor: pointer; border-radius: 4px; margin: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent; width: 100%; min-width: 0; box-sizing: border-box; }
         .room-item:hover { background: #27272a; }
         .room-item.active .room-item-name { color: #4ade80; font-weight: 600; }
         .room-item.dragging { opacity: 0.5; }
@@ -290,8 +290,8 @@
         .topic-toast { position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%); background: #22c55e; color: #fff; padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.95rem; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: ping-fade 4s ease-out forwards; pointer-events: none; }
         .panel-resizer { height: 6px; min-height: 6px; flex-shrink: 0; background: #27272a; cursor: ns-resize; border-top: 1px solid #3f3f46; border-bottom: 1px solid #3f3f46; }
         .panel-resizer:hover { background: #3f3f46; }
-        .message-list-title { padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; }
-        .message-list-items { flex: 0 0 80px; min-height: 40px; max-height: 50%; overflow-y: auto; }
+        .message-list-title { padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; flex-shrink: 0; }
+        .message-list-items { flex: 0 0 80px; min-height: 40px; overflow-y: auto; width: 100%; min-width: 0; }
         .msg-quote { margin-bottom: 0.35rem; padding: 0.35rem 0.5rem; background: #1e1e24; border-left: 3px solid #6366f1; border-radius: 4px; font-size: 0.85rem; color: #a1a1aa; cursor: pointer; }
         .msg-quote:hover { background: #27272a; }
         .msg-quote strong { color: #818cf8; }
@@ -423,11 +423,11 @@
             body.theme-light .mobile-bottom-nav .nav-item.active { color: #6366f1; }
             .main .chat-area { padding-bottom: 72px; }
         }
-        .mobile-tab-panel { display: flex; flex-direction: column; }
+        .mobile-tab-panel { display: flex; flex-direction: column; width: 100%; min-width: 0; }
         .mobile-tab-panel.mobile-tab-rooms { flex: 1 1 0; min-height: 0; overflow: hidden; }
-        .mobile-tab-panel.mobile-tab-rooms .room-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; max-height: none; }
+        .mobile-tab-panel.mobile-tab-rooms .room-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; width: 100%; min-width: 0; }
         .mobile-tab-panel.mobile-tab-dms { flex: 0 0 auto; min-height: 0; overflow: hidden; }
-        .mobile-tab-panel.mobile-tab-dms .message-list-items { flex: 0 0 auto; min-height: 0; overflow-y: auto; }
+        .mobile-tab-panel.mobile-tab-dms .message-list-items { flex: 0 0 auto; min-height: 0; overflow-y: auto; width: 100%; min-width: 0; }
         @media (max-width: 768px) {
             .mobile-tab-panel { max-height: none; }
             .room-list.open .mobile-tab-panel { display: none; }
