@@ -42,3 +42,5 @@ class Config:
     UPLOAD_FOLDER = BASE_DIR / "instance" / "uploads"
     MAX_CONTENT_LENGTH = int(os.environ.get("CHITCHAT_MAX_UPLOAD_MB", "5")) * 1024 * 1024  # 5 MB default
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "txt", "zip"}
+    # Koyeb: set CHITCHAT_SOCKET_POLLING_ONLY=1 if WebSocket fails (HTTP/2 compatibility)
+    SOCKET_POLLING_ONLY = os.environ.get("CHITCHAT_SOCKET_POLLING_ONLY", "").strip().lower() in ("1", "true", "yes")

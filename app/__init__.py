@@ -4,6 +4,7 @@ from pathlib import Path
 
 from flask import Flask
 from flask_socketio import SocketIO
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash
 
 from app.models import Room, User, db
@@ -76,6 +77,9 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.from_object("app.config.Config")
 
+    # Trust X-Forwarded-* headers when behind Koyeb/nginx reverse proxy (required for WebSocket + cookies)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     instance_path = Path(app.instance_path)
     instance_path.mkdir(parents=True, exist_ok=True)
 
@@ -115,6 +119,7 @@ def create_app() -> Flask:
         cors_allowed_origins=[],
         logger=False,
         engineio_logger=False,
+        allow_upgrade=not app.config.get("SOCKET_POLLING_ONLY", False),
     )
     from app.sockets import register_socket_handlers
     register_socket_handlers(socketio)

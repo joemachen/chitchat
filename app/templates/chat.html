@@ -1550,7 +1550,9 @@
     });
 
     socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); socketWasDisconnected = true; });
-    socket.on('connect_error', function() { setStatus('Connection failed'); });
+    socket.on('connect_error', function(err) {
+        setStatus('Connection failed' + (err && err.message ? ': ' + err.message : ''));
+    });
 
     socket.on('room_joined', function(data) {
         showingSettings = false;

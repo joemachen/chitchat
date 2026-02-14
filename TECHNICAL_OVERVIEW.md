@@ -243,6 +243,8 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 - **Stats reset**: Deleting all messages is irreversible and affects all channels.
 - **Phase 3 (online deployment)**: Done (Koyeb + Neon Postgres). **Sound** remains optional.
 
+**Koyeb WebSocket troubleshooting**: If users see "Connecting..." and never connect, the app uses ProxyFix for reverse-proxy headers. If WebSocket upgrade fails (e.g. HTTP/2 on Koyeb), set `CHITCHAT_SOCKET_POLLING_ONLY=1` in Koyeb environment to force HTTP long-polling. Ensure the service runs a single instance (`-w 1` in Procfile) or add Redis for multi-instance Socket.IO.
+
 ---
 
 ## 10. File-by-file summary (for quick reference)
