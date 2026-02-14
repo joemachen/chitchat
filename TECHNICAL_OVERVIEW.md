@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
@@ -52,7 +52,7 @@ chitchat/
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–014
+├── migrations/            # Flask-Migrate (Alembic) versions 001–015
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -64,6 +64,7 @@ chitchat/
 │   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
 │   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
+│   ├── homer.py           # Homer bot (!Simpsons trigger, random quotes, online/offline toggle)
 │   ├── version.py         # VERSION from CHITCHAT_VERSION env (deploy announcements)
 │   ├── templates/         # login, register, reset_password, chat.html
 │   └── static/            # auth.css, etc.
@@ -79,13 +80,13 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–014), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts "Server redeployed (v{VERSION})" to System Events).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–015), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts "Server redeployed (v{VERSION})" to System Events).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="eventlet"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**; users **AcroBot** and **System**; and optionally promotes user “Joe” to Surfer Girl.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**; users **AcroBot**, **System**, and **Homer**; and optionally promotes user “Joe” to Surfer Girl.
 
 ### 3.3 Design principles
 
@@ -198,9 +199,9 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ### 6.4 Acrophobia integration
 
 - **Module**: `app/acrophobia.py`. State is **in-memory**: `_games` (per room: phase, acronym, submissions, votes, end_time, rounds_remaining), `_acrobot_active` (toggle from Settings). **Scores** are persisted in `acro_scores` (AcroScore model).
-- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **eventlet.spawn_after** in `sockets.py`. **Submit phase**: warnings at 30s and 15s remaining; **vote phase**: countdown from 10s down to 1s. Callbacks call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
+- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **eventlet.spawn_after** in `sockets.py`. **Submit phase**: warnings at 30s and 15s remaining; **vote phase**: countdown from 15s down to 1s (urgency when ≤15s). Callbacks call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
 - **Acronyms**: Random **4- or 5-letter** uppercase string (`random.choices(string.ascii_uppercase, k=4 or 5)`), not a fixed list.
-- **Commands**: `/start` or `/start X` (X=1–7 consecutive rounds), `/vote N`, `/score`, `/help`, `/msg acrobot help` (and variants). User submissions during submit phase are not stored as messages; only bot messages are persisted. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt ("Got it! Your vote has been received.") same as submission acknowledgment.
+- **Commands**: `/start` or `/start X` (X=1–7 consecutive rounds), `/vote N`, `/score`, `/help`, `/msg acrobot help` (and variants). User submissions during submit phase are not stored as messages; only bot messages are persisted. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt (e.g. "Thanks. I got your vote for this round, L'il Bro."). AcroBot often addresses users as "L'il Bro" or "L'il Homey".
 
 ### 6.5 Stats
 
@@ -227,7 +228,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
   - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
-  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
+  - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Homer toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
 ---
@@ -235,7 +236,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ## 8. Security and permissions
 
 - **Authentication**: All socket handlers that need a user check `session.get("user_id")`; unauthenticated connect is rejected.
-- **Surfer Girl** (top role, `rank='super_admin'`): Checked via `_is_super_admin(user_id)` (User.is_super_admin). Full access; only Surfer Girl can assign Surfer Girl (`set_super_admin`) and configure role permissions. Other actions use `_has_permission()`: Surfer Girl always allowed; else checks `role_permissions` table (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, reset_stats, export_all).
+- **Surfer Girl** (top role, `rank='super_admin'`): Checked via `_is_super_admin(user_id)` (User.is_super_admin). Full access; only Surfer Girl can assign Surfer Girl (`set_super_admin`) and configure role permissions. Other actions use `_has_permission()`: Surfer Girl always allowed; else checks `role_permissions` table (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all).
 - **Room membership**: No per-room membership table; any authenticated user can join any room and send messages. Kick only notifies the target client (`kicked_from_room`) and does not remove from DB “membership” (there is none).
 - **Input**: Slash commands are parsed server-side; message content is stored as-is (no rich HTML from client). Frontend escapes/links content (e.g. linkify) when rendering.
 - **CORS**: `cors_allowed_origins=[]` (same-origin only by default).
@@ -271,7 +272,8 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat; before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
-| `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
+| `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting, L'il Bro/Homey nicknames), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
+| `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote; !Simpsons trigger in any room. |
 | `app/templates/chat.html` | Full chat UI: room list, messages, user list, context menu, Settings view, socket listeners, renderRoomList, switchRoom, etc. |
 
 ---

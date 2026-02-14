@@ -11,13 +11,13 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 - **Stack**: Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vanilla JS; optional pywebview standalone.
 - **Run**: `run.py` (browser), `run_standalone.py` (native window). Port fallback: if 5000 is in use, tries 5001–5019 automatically.
 - **Production**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with eventlet worker.
-- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–013), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
+- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–015), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
 
 ### Auth & users
 
 - **Auth**: Invite-code registration, login, logout, password reset, “remember me” (cookie + server token for standalone).
 - **Surfer Girl** (top role, formerly “Super Admin”): Full access; configures role permissions for Rookie, Bro, Fam. Surfer Girl only: access Settings, assign Surfer Girl to others.
-- **Role permissions**: Surfer Girl can grant/revoke per-role permissions (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, reset_stats, export_all). Bro/Fam with permissions can perform those actions without being Surfer Girl.
+- **Role permissions**: Surfer Girl can grant/revoke per-role permissions (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all). Bro/Fam with permissions can perform those actions without being Surfer Girl.
 
 ### Rooms & channels
 
@@ -32,9 +32,9 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Acrophobia (AcroBot)
 
-- **AcroBot** in room **Acrophobia**: hosts rounds (acronym → submit phrase → vote → winner). Commands: **/start** or **/start X** (X=1–7 consecutive rounds), **/vote N**, **/help**, **/msg acrobot help** (full help and rules); **/msg acrobot &lt;anything&gt;** gets a short reply when bot is active. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt same as submission.
+- **AcroBot** in room **Acrophobia**: hosts rounds (acronym → submit phrase → vote → winner). Commands: **/start** or **/start X** (X=1–7 consecutive rounds), **/vote N**, **/help**, **/msg acrobot help** (full help and rules); **/msg acrobot &lt;anything&gt;** gets a short reply when bot is active. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt (e.g. “Thanks. I got your vote for this round, L'il Bro”). AcroBot often addresses users as “L'il Bro” or “L'il Homey”.
 - **Activate/deactivate**: In Settings (Surfer Girl only), “AcroBot is online” toggle. When off, bot does not start rounds or accept votes; user list shows AcroBot as offline. When on, AcroBot appears online in user list.
-- **Timers**: Submit phase (60s) with warnings at 30s and 15s remaining; vote phase (45s) with countdown from 10s to 1s; bot messages persisted and broadcast like normal chat.
+- **Timers**: Submit phase (60s) with warnings at 30s and 15s remaining; vote phase (45s) with countdown from 15s to 1s (urgency styling when ≤15s); bot messages persisted and broadcast like normal chat.
 
 ### UX
 
@@ -43,6 +43,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 - **Context menu**: Right-click on a username (in messages or user list) shows View profile and Kick (if Surfer Girl or kick_user permission); menu stays open until click outside or an action is chosen.
 - **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); collapsible info drawer for topic/connection; search in hamburger menu; fixed header; chat fills space.
 - **DMs**: Consolidated per user pair (deduplicated); only DMs you participate in are shown.
+- **Homer**: System user; type **!Simpsons** in any room to trigger a random Simpsons quote (when Homer is online). Online/offline toggle in Settings (Surfer Girl only); homer_control permission. Homer’s status: “It says no HomerS. We're allowed to have one.”
 
 ---
 

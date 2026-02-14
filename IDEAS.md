@@ -11,7 +11,7 @@ Quick list of features and polish that could make the app even better. Pick and 
 - **Unread indicators** — Badge or bold room name when there are new messages since last view. *(done)* “mark as read”.
 - **Sound** — Optional ping sound when mentioned or DM’d (excluded for now per your request).
 - **Theme** — Light/dark toggle or accent color in Settings. *(done)*
-- **Keyboard shortcuts** — e.g. Ctrl+K to focus search/room switcher, Esc to close modals.
+- **Keyboard shortcuts** — e.g. Ctrl+K to focus search/room switcher, Esc to close modals. *(done)*
 
 ---
 
@@ -43,8 +43,8 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Moderation & admin
 
-- **Audit log** — Super Admin view: who created/deleted rooms, kicked users, reset stats (store in DB or log file).
-- **Rate limits** — Throttle messages per user per minute to avoid spam.
+- **Audit log** — Super Admin view: who created/deleted rooms, kicked users, reset stats (store in DB or log file). *(done)*
+- **Rate limits** — Throttle messages per user per minute to avoid spam. *(done)*
 - **Mute** — Mute a user in a channel for X minutes (vs full kick).
 
 ---
@@ -63,5 +63,6 @@ Quick list of features and polish that could make the app even better. Pick and 
 - **Link previews** — OG image + title/description for URLs in messages; minimize per preview. **Global** (all rooms, DMs, Acrophobia).
 - **/help** — Lists all slash commands in channel.
 - **Stats reset** — Super Admin can reset all message data (Stats) from Settings (type RESET).
-- **Acrophobia** — 4–5 letter random acronyms (huge combo space).
+- **Acrophobia** — 4–5 letter random acronyms (huge combo space); L'il Bro/Homey nicknames; vote ack; 15s countdown urgency.
+- **Homer** — Type !Simpsons in any room for a random Simpsons quote; online/offline toggle in Settings.
 - **DMs** — In channel list only (no right-side drawer); Message opens DM from context menu.

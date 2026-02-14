@@ -894,13 +894,15 @@ def register_socket_handlers(socketio):
                 "• /m, /msg, /message <username> <text> — send a direct message to that user",
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
-                "• Right-click message → Reply (quote), Edit, Delete, Mark unread",
-                "• !Simpsons — Homer says a random Simpsons quote (when Homer is online)",
+                "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
+                "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, View profile, Whois",
+                "• Right-click user → View profile, Message, Kick (if permitted)",
+                "• Ctrl+K — room switcher; Esc — close modals",
                 "",
                 "**In Acrophobia channel**",
                 "• /help or /msg acrobot help — AcroBot help & rules",
                 "• /start or /start N — start a round (N=1–7 consecutive rounds, 4–5 letter acronym)",
-                "• /vote N — vote for submission N during voting",
+                "• /vote N — vote for submission N during voting (or /vote N in DM with AcroBot)",
                 "• /score — leaderboard",
             ]
             help_content = "\n".join(help_lines)

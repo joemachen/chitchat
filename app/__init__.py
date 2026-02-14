@@ -68,12 +68,17 @@ def _seed_default_data(app: Flask) -> None:
                 db.session.add(system_user)
                 db.session.commit()
             homer = User.query.filter_by(username="Homer").first()
+            homer_status = "It says no HomerS. We're allowed to have one."
             if not homer:
                 homer = User(
                     username="Homer",
                     password_hash=generate_password_hash("system-bot-no-login"),
+                    status_line=homer_status,
                 )
                 db.session.add(homer)
+                db.session.commit()
+            elif getattr(homer, "status_line", None) != homer_status:
+                homer.status_line = homer_status
                 db.session.commit()
 
             # Promote user "Joe" to Super Admin if present

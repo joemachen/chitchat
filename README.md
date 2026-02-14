@@ -1,6 +1,6 @@
 # ChitChat
 
-A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persistent, local-first: run it on your machine and open it in a browser or in a standalone window. Invite-only sign-up, rooms, real-time messages, and an Acrophobia game bot.
+A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persistent, local-first: run it on your machine and open it in a browser or in a standalone window. Invite-only sign-up, rooms, real-time messages, an Acrophobia game bot, and a Homer bot (!Simpsons).
 
 ## Run
 
@@ -14,9 +14,11 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 
 | Command | Description |
 |--------|-------------|
+| **/help** | Show all commands (slash commands, !Simpsons, context menus, shortcuts). |
 | **/topic** &lt;text&gt; | Set the channel topic (pinned at top; shows who set it and when). |
 | **/whois** &lt;username&gt; | IRC-style whois: account created, online/offline, IP, time connected (modal to you only). Username case-insensitive. |
 | **/ping** &lt;username&gt; | Notify that user (they see a “pinged you!” toast). Username case-insensitive. |
+| **!Simpsons** | Homer replies with a random Simpsons quote (when Homer is online). |
 | **/em** &lt;text&gt; or **/me** &lt;text&gt; | Send an emote: “* username text” in italics. |
 
 ### In the Acrophobia channel
@@ -31,7 +33,7 @@ Type **/help** or **/msg acrobot help** in that room for full instructions and r
 | **/vote** &lt;N&gt; | During voting, vote for submission N (e.g. /vote 1). |
 | **/score** | Show the in-channel leaderboard (wins). Scores are persisted in the database. |
 
-Surfer Girl (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle).
+Surfer Girl (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Surfer Girl (or homer_control permission) can turn Homer on/off ("Homer is online" toggle).
 
 ## Docs
 
