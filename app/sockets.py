@@ -336,7 +336,11 @@ def register_socket_handlers(socketio):
         rid = (data or {}).get("room_id")
         if rid is None:
             general = Room.query.filter_by(name="general").first()
-            return general.id if general else None
+            if general:
+                return general.id
+            # Fallback if "general" was renamed: use first channel (non-DM) by id
+            first = Room.query.filter(Room.dm_with_id.is_(None)).order_by(Room.id).first()
+            return first.id if first else None
         try:
             return int(rid)
         except (TypeError, ValueError):
@@ -1165,6 +1169,7 @@ def register_socket_handlers(socketio):
         db.session.commit()
         rooms = Room.query.order_by(Room.name).all()
         emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        emit("room_renamed", {"room_id": room_id, "room": room.to_dict()})
         logger.info("Room updated: %s -> %s", room_id, name)
 
     @socketio.on("delete_room")

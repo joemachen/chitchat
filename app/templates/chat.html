@@ -1647,8 +1647,25 @@
     socket.on('rooms_updated', function(data) {
         if (data.rooms) {
             allRooms = data.rooms;
-            renderRoomList(data.rooms, currentRoom);
+            if (roomOrderIds.length === 0) roomOrderIds = data.rooms.map(function(r) { return r.id; });
+            else {
+                var existingIds = {};
+                data.rooms.forEach(function(r) { existingIds[r.id] = true; });
+                roomOrderIds = roomOrderIds.filter(function(rid) { return existingIds[rid]; });
+                data.rooms.forEach(function(r) {
+                    if (roomOrderIds.indexOf(r.id) === -1) roomOrderIds.push(r.id);
+                });
+            }
+            if (currentRoom) {
+                var refreshed = data.rooms.find(function(r) { return r.id === currentRoom.id; });
+                if (refreshed) currentRoom = refreshed;
+            }
+            renderRoomList(null, currentRoom);
         }
+    });
+
+    socket.on('room_renamed', function(data) {
+        if (data.room && currentRoom && currentRoom.id === data.room_id) currentRoom = data.room;
     });
 
     socket.on('room_created', function(data) {
