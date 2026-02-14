@@ -1895,6 +1895,9 @@ def register_socket_handlers(socketio):
         if target_id == user_id:
             emit("error", {"message": "Cannot kick yourself"})
             return
+        if target_user.username in ("AcroBot", "Homer") and not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girl can kick AcroBot or Homer"})
+            return
         room = Room.query.get(room_id)
         if not room:
             return

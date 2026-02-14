@@ -12,6 +12,7 @@
     <style>
         /* Mobile-first: base styles for all devices; min-width media queries for larger screens */
         * { box-sizing: border-box; }
+        button, input, textarea, select { -webkit-appearance: none; appearance: none; font-family: inherit; }
         html, body { height: 100%; }
         body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f0f12; color: #e4e4e7; min-height: 100%; min-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         .header {
@@ -89,6 +90,8 @@
         .edit-message-modal h3 { margin: 0 0 0.75rem; font-size: 1rem; color: #e4e4e7; }
         .edit-message-modal textarea { width: 100%; min-height: 120px; max-height: 280px; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; resize: vertical; box-sizing: border-box; }
         .edit-message-modal textarea:focus { outline: none; border-color: #6366f1; }
+        .edit-message-modal .edit-room-input { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; box-sizing: border-box; margin-bottom: 0.75rem; }
+        .edit-message-modal .edit-room-input:focus { outline: none; border-color: #6366f1; }
         .edit-message-hint { margin: 0.35rem 0 0.75rem; font-size: 0.75rem; color: #71717a; }
         .edit-message-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
         .edit-message-ok { padding: 0.5rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
@@ -98,6 +101,7 @@
         body.theme-light .edit-message-modal { background: #fafafa; border-color: #d4d4d8; }
         body.theme-light .edit-message-modal h3 { color: #18181b; }
         body.theme-light .edit-message-modal textarea { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        body.theme-light .edit-message-modal .edit-room-input { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .edit-message-cancel { background: #e4e4e7; color: #52525b; }
         body.theme-light .edit-message-cancel:hover { background: #d4d4d8; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; }
@@ -380,7 +384,7 @@
 </head>
 <body>
     <div id="contextMenu" class="context-menu" style="display: none;">
-        <button type="button" data-action="view-profile">View profile</button>
+        <button type="button" data-action="whois">Whois</button>
         <button type="button" data-action="message-user">Message</button>
         <button type="button" data-action="mute-in-room">Mute in this room</button>
         <button type="button" data-action="kick-user">Kick user</button>
@@ -410,7 +414,6 @@
         <button type="button" data-action="mute-message-user-in-room">Mute in this room</button>
         <button type="button" data-action="report-message">Report message</button>
         <button type="button" data-action="mark-unread">Mark unread</button>
-        <button type="button" data-action="message-view-profile">View profile</button>
         <button type="button" data-action="message-whois">Whois</button>
     </div>
     <div id="profileModal" class="profile-modal" style="display: none;">
@@ -443,6 +446,14 @@
         <div class="edit-message-actions">
             <button type="button" id="editMessageOk" class="edit-message-ok">OK</button>
             <button type="button" id="editMessageCancel" class="edit-message-cancel">Cancel</button>
+        </div>
+    </div>
+    <div id="editRoomModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit channel" aria-modal="true">
+        <h3 id="editRoomTitle">Edit channel</h3>
+        <input type="text" id="editRoomInput" placeholder="Room name…" class="edit-room-input" aria-label="Room name">
+        <div class="edit-message-actions">
+            <button type="button" id="editRoomOk" class="edit-message-ok">OK</button>
+            <button type="button" id="editRoomCancel" class="edit-message-cancel">Cancel</button>
         </div>
     </div>
     <div id="roomSwitcherModal" class="room-switcher-modal" style="display: none;" role="dialog" aria-label="Switch room">
@@ -983,7 +994,7 @@
     var contextMenuTarget = null;
     var kickBtn = contextMenuEl.querySelector('[data-action="kick-user"]');
     var muteInRoomBtn = contextMenuEl.querySelector('[data-action="mute-in-room"]');
-    var viewProfileBtn = contextMenuEl.querySelector('[data-action="view-profile"]');
+    var whoisBtn = contextMenuEl.querySelector('[data-action="whois"]');
     var messageUserBtn = contextMenuEl.querySelector('[data-action="message-user"]');
     var statusDivider = document.getElementById('contextMenuStatusDivider');
     var statusOnlineBtn = document.getElementById('contextMenuStatusOnline');
@@ -994,9 +1005,11 @@
     function showContextMenu(x, y, userId, username) {
         contextMenuTarget = { user_id: userId, username: username };
         var isSelf = userId === currentUserId;
-        if (viewProfileBtn) viewProfileBtn.style.display = isSelf ? 'none' : 'block';
+        if (whoisBtn) whoisBtn.style.display = isSelf ? 'none' : 'block';
         if (messageUserBtn) messageUserBtn.style.display = isSelf ? 'none' : 'block';
-        kickBtn.style.display = (!isSelf && (isSuperAdmin || (userPermissions && userPermissions.kick_user))) ? 'block' : 'none';
+        var canKick = !isSelf && (isSuperAdmin || (userPermissions && userPermissions.kick_user));
+        if (canKick && (username === 'AcroBot' || username === 'Homer') && !isSuperAdmin) canKick = false;
+        kickBtn.style.display = canKick ? 'block' : 'none';
         var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
         if (muteInRoomBtn) {
             muteInRoomBtn.style.display = inRoom ? 'block' : 'none';
@@ -1032,6 +1045,7 @@
     var hideMsgBtn = messageContextMenuEl.querySelector('[data-action="hide-message"]');
     var unhideMsgBtn = messageContextMenuEl.querySelector('[data-action="unhide-message"]');
     var messageContextCopyBtn = messageContextMenuEl.querySelector('[data-action="copy"]');
+    var messageWhoisBtn = messageContextMenuEl.querySelector('[data-action="message-whois"]');
     function showMessageContextMenu(x, y, messageId, userId, content, displayName) {
         messageContextTarget = { messageId: messageId, userId: userId, content: content || '', displayName: displayName || '?' };
         var sel = window.getSelection ? window.getSelection().toString() : '';
@@ -1040,6 +1054,7 @@
         var delBtn = messageContextMenuEl.querySelector('[data-action="delete-message"]');
         if (editBtn) editBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
         if (delBtn) delBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
+        if (messageWhoisBtn) messageWhoisBtn.style.display = (userId !== currentUserId) ? 'block' : 'none';
         var msgUserHidden = isMessageUserHidden(messageId);
         if (hideMsgBtn) hideMsgBtn.style.display = msgUserHidden ? 'none' : 'block';
         if (unhideMsgBtn) unhideMsgBtn.style.display = msgUserHidden ? 'block' : 'none';
@@ -1226,10 +1241,10 @@
         hideRoomContextMenu();
     });
 
-    contextMenuEl.querySelector('[data-action="view-profile"]').addEventListener('click', function(e) {
+    contextMenuEl.querySelector('[data-action="whois"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (contextMenuTarget) {
-            socket.emit('get_user_profile', { user_id: contextMenuTarget.user_id });
+            socket.emit('get_whois', { user_id: contextMenuTarget.user_id });
         }
         hideContextMenu();
     });
@@ -1377,13 +1392,6 @@
         }
         hideMessageContextMenu();
     });
-    messageContextMenuEl.querySelector('[data-action="message-view-profile"]').addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (messageContextTarget && messageContextTarget.userId) {
-            socket.emit('get_user_profile', { user_id: messageContextTarget.userId });
-        }
-        hideMessageContextMenu();
-    });
     messageContextMenuEl.querySelector('[data-action="message-whois"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (messageContextTarget && messageContextTarget.userId) {
@@ -1451,6 +1459,7 @@
         hideWhoisModal();
         hideSearchResultsModal();
         if (editMessageModal && editMessageModal.style.display === 'block') hideEditMessageModal();
+        if (editRoomModal && editRoomModal.style.display === 'block') hideEditRoomModal();
         if (selectionContextMenuEl && selectionContextMenuEl.style.display === 'block') hideSelectionContextMenu();
     }
     modalBackdrop.addEventListener('click', hideAllModals);
@@ -2179,12 +2188,45 @@
         if (ov) ov.classList.remove('visible');
     }
 
+    var editRoomModal = document.getElementById('editRoomModal');
+    var editRoomInput = document.getElementById('editRoomInput');
+    var editRoomOk = document.getElementById('editRoomOk');
+    var editRoomCancel = document.getElementById('editRoomCancel');
+    var editRoomTargetId = null;
+    function showEditRoomModal(roomId) {
+        var room = allRooms.find(function(r) { return r.id === roomId; });
+        if (!room) return;
+        editRoomTargetId = roomId;
+        if (editRoomInput) editRoomInput.value = room.name || '';
+        if (editRoomModal) editRoomModal.style.display = 'block';
+        if (modalBackdrop) modalBackdrop.style.display = 'block';
+        setTimeout(function() { if (editRoomInput) editRoomInput.focus(); }, 50);
+    }
+    function hideEditRoomModal() {
+        if (editRoomModal) editRoomModal.style.display = 'none';
+        editRoomTargetId = null;
+        if (modalBackdrop) modalBackdrop.style.display = 'none';
+    }
     function editRoom(roomId) {
         var room = allRooms.find(function(r) { return r.id === roomId; });
         if (!room) return;
-        var name = prompt('Room name:', room.name);
-        if (name === null || !name.trim()) return;
-        socket.emit('update_room', { room_id: roomId, name: name.trim() });
+        showEditRoomModal(roomId);
+    }
+    if (editRoomOk) editRoomOk.addEventListener('click', function() {
+        var name = editRoomInput ? editRoomInput.value.trim() : '';
+        if (name && editRoomTargetId) {
+            socket.emit('update_room', { room_id: editRoomTargetId, name: name });
+        }
+        hideEditRoomModal();
+    });
+    if (editRoomCancel) editRoomCancel.addEventListener('click', hideEditRoomModal);
+    if (editRoomInput) {
+        editRoomInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (editRoomOk) editRoomOk.click();
+            }
+        });
     }
 
     function deleteRoom(roomId) {

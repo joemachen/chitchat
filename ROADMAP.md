@@ -27,7 +27,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 ### Real-time & commands
 
 - **Presence**: Online/offline in user list; connect/disconnect broadcasts.
-- **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); room mute; right-click user → View profile, Kick (Surfer Girl or kick_user permission).
+- **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); room mute; right-click user → Whois, Kick (Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only).
 - **IRC-style**: **/whois &lt;username&gt;** — shows account created, online/offline, IP, time connected (modal to requester only). **/topic &lt;content&gt;** for channel topic. **Username lookup**: /whois, /ping, /msg, and @mentions are case-insensitive (e.g. /whois joe finds "Joe").
 
 ### Acrophobia (AcroBot)
@@ -40,7 +40,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 - **Global features** (all rooms, DMs, Acrophobia): @mention highlights (message pulse, room badge), tab flashing when mentioned and tab is hidden, link previews (OG metadata for URLs; minimize per preview). These apply app-wide, not just in Acrophobia.
 - **Copy/paste**: Message text, channel topic, room names, and stats area are explicitly selectable (user-select: text). Paste in the message input works as usual. **Multi-line input**: Shift+Enter for new line; Enter to send. Edit message uses a styled modal with full message visibility.
-- **Context menu**: Right-click on a username (in messages or user list) shows View profile and Kick (if Surfer Girl or kick_user permission). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible).
+- **Context menu**: Right-click on a username (in messages or user list) shows Whois and Kick (if Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible).
 - **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); collapsible info drawer for topic/connection; search in hamburger menu; fixed header; chat fills space.
 - **DMs**: Consolidated per user pair (deduplicated); only DMs you participate in are shown.
 - **Homer**: System user; type **!Simpsons** in any room to trigger a random Simpsons quote (when Homer is online). Online/offline toggle in Settings (Surfer Girl only); homer_control permission. Homer’s status: “It says no HomerS. We're allowed to have one.”

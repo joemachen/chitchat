@@ -1,5 +1,21 @@
 # Release notes
 
+## v1.4.0 — Modals, Whois & bot kick
+
+**Edit channel modal**
+- **Styled modal** — Edit channel name now uses an app-themed modal (like edit message) instead of the native browser prompt. Dark/light theme support, Enter to submit, Esc to close.
+
+**Context menus**
+- **Whois replaces View profile** — Right-click on a username (in messages or user list) now shows Whois instead of View profile. Whois shows account info, online status, IP, connected time, shared rooms.
+
+**AcroBot & Homer**
+- **Kick restricted** — Only Surfer Girl can kick AcroBot or Homer. Users with kick_user permission can kick other users but not system bots.
+
+**Cross-browser**
+- **Form controls** — Consistent appearance for buttons, inputs, and textareas across browsers and devices.
+
+---
+
 ## v1.3.0 — Users panel, links & protected channels
 
 **Users panel**

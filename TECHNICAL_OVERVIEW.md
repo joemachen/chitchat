@@ -172,7 +172,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
 | `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
 | `get_or_create_dm` | `on_get_or_create_dm` | Yes | Find or create DM room between current user and `other_user_id`; emit `dm_room`; if created, broadcast `rooms_updated`. |
-| `kick_user` | `on_kick_user` | Surfer Girl or kick_user | Emit `kicked_from_room` to target’s socket(s). |
+| `kick_user` | `on_kick_user` | Surfer Girl or kick_user | Emit `kicked_from_room` to target’s socket(s). AcroBot and Homer: Surfer Girl only. |
 | `set_super_admin` | `on_set_super_admin` | Surfer Girl only | Set/unset `is_super_admin`; broadcast `user_list_updated`. |
 | `get_acrobot_status` | `on_get_acrobot_status` | Any | Emit `acrobot_status` (active flag). |
 | `set_acrobot_active` | `on_set_acrobot_active` | Surfer Girl or acrobot_control | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
@@ -227,7 +227,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`. Only Surfer Girl can rename protected channels.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
-  - **Context menu**: Right-click on username (in messages or user list) → View profile, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
+  - **Context menu**: Right-click on username (in messages or user list) → Whois, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
   - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Homer toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
