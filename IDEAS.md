@@ -4,6 +4,17 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ---
 
+## Next up (immediate)
+
+**Message reactions — enhancements:**
+
+1. **Full emoji library** — Add the full library of emojis to message reactions (presently only 7).
+2. **Reaction tooltip** — When hovering over an emoji reaction, show a tooltip listing the users who reacted with that emoji.
+3. **Mobile: long-press for reactions** — On mobile, hide the reaction icon until the user long-presses on the message; then show the emoji picker.
+4. **User chat history control** — Allow users to delete their individual chat history whenever they want, or set it to auto-delete after X days or weeks.
+
+---
+
 ## Polish & UX
 
 - **Message reactions** — One-tap emoji reactions on messages (e.g. 👍 😂). *(done)*
