@@ -584,8 +584,7 @@
             '<div class="msg-content">' + contentHtml + '</div>' +
             (attachmentHtml || '') +
             (editedHtml || '') +
-            (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '') +
-            '');
+            (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '');
         div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
             btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
         });
