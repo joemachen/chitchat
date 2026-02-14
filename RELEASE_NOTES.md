@@ -1,5 +1,18 @@
 # Release notes
 
+## v1.7.0 — Message hover overlay & sidebar layout
+
+**Message hover bar (desktop)**
+- **No height change** — The reaction/edit/reply menu now overlays the top of each message instead of appearing below it. Messages no longer shift or resize on hover.
+- **Transparent overlay** — The bar sits at the top of the message with a semi-transparent gradient and backdrop blur, so content remains visible underneath.
+- **Smooth fade-in** — Opacity transition for a subtle appearance.
+
+**Sidebar layout**
+- **Rooms & Messages sections** — Both sections now fill the full horizontal and vertical space in the sidebar. List items span the full width; no more empty gaps.
+- **Desktop and mobile** — Layout fixes apply to both the desktop sidebar and the mobile drawer when opened via the bottom nav.
+
+---
+
 ## v1.6.0 — Mobile bottom navigation
 
 **Mobile navigation**
