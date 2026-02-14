@@ -23,6 +23,25 @@
         }
         .header-logo { height: 2rem; width: auto; margin-right: 0.5rem; flex-shrink: 0; }
         .header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; flex: 1; min-width: 0; }
+        .header-brand { display: flex; align-items: center; flex: 1; min-width: 0; gap: 0.5rem; }
+        .header-title-desktop { margin: 0; font-size: 1.1rem; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .header-title-mobile { display: none; font-size: 0.95rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .header-info-btn { display: none; background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 0.9rem; padding: 0.25rem 0.35rem; flex-shrink: 0; }
+        .header-info-btn:hover { color: #e4e4e7; }
+        .mobile-info-drawer { max-height: 0; overflow: hidden; transition: max-height 0.2s ease-out; background: #1c1c1f; border-bottom: 1px solid #27272a; }
+        .mobile-info-drawer.open { max-height: 200px; overflow-y: auto; }
+        .mobile-info-status, .mobile-info-topic { padding: 0.5rem 1rem; font-size: 0.85rem; color: #a1a1aa; }
+        .mobile-info-topic strong { color: #e4e4e7; }
+        .mobile-search-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1001; align-items: flex-start; justify-content: center; padding-top: 4rem; }
+        @media (max-width: 768px) {
+            .mobile-search-overlay.visible { display: flex; }
+        }
+        .mobile-search-overlay .mobile-search-panel { background: #18181c; border: 1px solid #27272a; border-radius: 8px; padding: 1rem; width: calc(100% - 2rem); max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .mobile-search-overlay .search-form { display: flex; gap: 0.5rem; }
+        .mobile-search-overlay .search-form input { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 6px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
+        .mobile-search-overlay .search-form button { padding: 0.6rem 1rem; background: #6366f1; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+        body.theme-light .mobile-search-overlay .mobile-search-panel { background: #e4e4e7; border-color: #d4d4d8; }
+        body.theme-light .mobile-search-overlay .search-form input { background: #fff; border-color: #d4d4d8; color: #18181b; }
         .header-actions { display: flex; align-items: center; gap: 0.75rem; }
         .header-actions a, .header-actions button { color: #a1a1aa; text-decoration: none; font-size: 0.9rem; background: none; border: none; cursor: pointer; padding: 0.25rem 0; }
         .header-actions a:hover, .header-actions button:hover { color: #e4e4e7; }
@@ -239,6 +258,11 @@
         body.theme-light .room-item.active .room-item-name { color: #15803d; }
         body.theme-light .room-list-footer { border-color: #d4d4d8; }
         body.theme-light .channel-topic { background: #fafafa; border-color: #d4d4d8; color: #52525b; }
+        body.theme-light .header-info-btn { color: #52525b; }
+        body.theme-light .header-info-btn:hover { color: #18181b; }
+        body.theme-light .mobile-info-drawer { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .mobile-info-status, body.theme-light .mobile-info-topic { color: #52525b; }
+        body.theme-light .mobile-info-topic strong { color: #18181b; }
         body.theme-light .search-bar-wrap { background: #e4e4e7; border-color: #d4d4d8; }
         body.theme-light .search-form input { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .messages { background: #fafafa; }
@@ -275,6 +299,7 @@
         body.theme-light .room-list-footer-mobile button, body.theme-light .room-list-footer-mobile form button { color: #52525b; }
         body.theme-light .room-list-footer-mobile button:hover, body.theme-light .room-list-footer-mobile form button:hover { color: #18181b; }
         @media (max-width: 768px) {
+            .header { flex-wrap: nowrap; min-height: 48px; height: 48px; padding: 0 0.5rem; }
             .header-settings-logout { display: none !important; }
             .room-list-footer-mobile { display: block !important; }
             .mobile-menu-btn { display: inline-flex !important; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
@@ -283,14 +308,19 @@
             .user-list { left: auto; right: 0; transform: translateX(100%); border-left: none; border-right: 1px solid #27272a; }
             .room-list.open { transform: translateX(0); box-shadow: 4px 0 12px rgba(0,0,0,0.3); }
             .user-list.open { transform: translateX(0); box-shadow: -4px 0 12px rgba(0,0,0,0.3); }
-            .main { flex: 1; min-width: 0; }
-            .chat-area { min-width: 0; }
+            .main { flex: 1; min-width: 0; min-height: 0; }
+            .chat-area { min-width: 0; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
             .msg { max-width: 95%; }
-            .header h1 { font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%; }
+            .header-title-desktop { display: none !important; }
+            .header-title-mobile { display: block !important; font-size: 0.9rem; max-width: 100%; }
+            .header-info-btn { display: inline-flex !important; align-items: center; justify-content: center; }
+            .status-desktop { display: none !important; }
+            .channel-topic { display: none !important; }
+            .search-bar-wrap { display: none !important; }
+            .mobile-room-name { display: none !important; }
             .form-wrap input[type="text"], .form-wrap button { min-height: 44px; }
             .form-wrap { position: sticky; bottom: 0; z-index: 100; }
             .room-list-footer button, .room-item, .user-item { min-height: 44px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
-            .mobile-room-name { display: block !important; }
             .msg-link-preview { max-width: 100% !important; }
             .msg-link-preview:not(.minimized) .link-preview-body { display: block !important; }
             .msg-link-preview .link-preview-img { max-height: 160px; }
@@ -348,10 +378,14 @@
         <div class="search-results-list" id="searchResultsList"></div>
         <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
     </div>
-    <div class="header">
+    <div class="header" id="header">
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo" aria-hidden="true">
-        <h1>{{ server_name|default('No Homers Club') }} — {{ user.username }}</h1>
+        <div class="header-brand">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo" aria-hidden="true">
+            <h1 class="header-title-desktop">{{ server_name|default('No Homers Club') }} — {{ user.username }}</h1>
+            <span class="header-title-mobile" id="headerChannelName" aria-hidden="true"></span>
+        </div>
+        <button type="button" id="headerInfoBtn" class="header-info-btn" aria-label="Toggle topic and connection info" title="Topic & connection">▾</button>
         <div class="header-actions">
             <button type="button" id="usersToggleBtn" class="mobile-menu-btn" aria-label="Toggle users">👥</button>
             <span class="header-settings-logout">
@@ -362,8 +396,20 @@
             </span>
         </div>
     </div>
-    <div class="status" id="status">Connecting…</div>
+    <div class="status status-desktop" id="status">Connecting…</div>
+    <div class="mobile-info-drawer" id="mobileInfoDrawer" aria-hidden="true">
+        <div class="mobile-info-status" id="mobileInfoStatus">Connecting…</div>
+        <div class="mobile-info-topic" id="mobileInfoTopic"></div>
+    </div>
     <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+    <div class="mobile-search-overlay" id="mobileSearchOverlay" aria-hidden="true">
+        <div class="mobile-search-panel">
+            <form id="mobileSearchForm" class="search-form">
+                <input type="text" id="mobileSearchInput" placeholder="Search in this room…" autocomplete="off">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+    </div>
     <div class="main">
         <aside class="room-list" id="roomList">
             <div class="room-list-title">ROOMS</div>
@@ -377,6 +423,7 @@
                 {% endif %}
             </div>
             <div class="room-list-footer-mobile">
+                <button type="button" id="searchBtnMobile">Search</button>
                 <button type="button" id="settingsBtnMobile">Settings</button>
                 <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
                     <button type="submit">Log out</button>
@@ -438,6 +485,7 @@
     var settingsPendingSettings = null;
     const messagesEl = document.getElementById('messages');
     const statusEl = document.getElementById('status');
+    const mobileInfoStatusEl = document.getElementById('mobileInfoStatus');
     const sendForm = document.getElementById('sendForm');
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
@@ -529,7 +577,10 @@
         }
     }
 
-    function setStatus(text) { statusEl.textContent = text; }
+    function setStatus(text) {
+        statusEl.textContent = text;
+        if (mobileInfoStatusEl) mobileInfoStatusEl.textContent = text;
+    }
     function setConnected(ok) { sendBtn.disabled = !ok; setStatus(ok ? 'Connected' : statusEl.textContent); }
 
     function isHidden(msg) {
@@ -723,27 +774,33 @@
     }
 
     function updateMobileRoomName(room) {
-        var el = document.getElementById('mobileRoomName');
-        if (!el) return;
-        if (!room) {
-            el.textContent = showingSettings ? 'Settings' : '';
-            return;
-        }
-        el.textContent = room.is_dm ? ('DM: ' + (dmOtherUsername(room) || '?')) : room.name;
+        var text = !room ? (showingSettings ? 'Settings' : '') : (room.is_dm ? ('DM: ' + (dmOtherUsername(room) || '?')) : '#' + room.name);
+        var mobileEl = document.getElementById('mobileRoomName');
+        var headerEl = document.getElementById('headerChannelName');
+        if (mobileEl) mobileEl.textContent = text;
+        if (headerEl) headerEl.textContent = text;
     }
 
+    var mobileInfoTopicEl = document.getElementById('mobileInfoTopic');
     function renderChannelTopic(room) {
         updateMobileRoomName(room);
-        if (!channelTopicEl) return;
-        if (!room || !room.topic) {
-            channelTopicEl.classList.add('empty');
-            channelTopicEl.innerHTML = '';
-            return;
+        if (!channelTopicEl && !mobileInfoTopicEl) return;
+        var topicHtml = '';
+        if (room && room.topic) {
+            var setBy = room.topic_set_by_username || 'Someone';
+            var setAt = room.topic_set_at ? new Date(room.topic_set_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '';
+            topicHtml = '<strong>Topic:</strong> ' + escapeHtml(room.topic) + (setBy || setAt ? ' <span style="color:#71717a;">— Set by ' + escapeHtml(setBy) + (setAt ? ' on ' + setAt : '') + '</span>' : '');
         }
-        channelTopicEl.classList.remove('empty');
-        var setBy = room.topic_set_by_username || 'Someone';
-        var setAt = room.topic_set_at ? new Date(room.topic_set_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '';
-        channelTopicEl.innerHTML = '<strong>Topic:</strong> ' + escapeHtml(room.topic) + (setBy || setAt ? ' <span style="color:#71717a;">— Set by ' + escapeHtml(setBy) + (setAt ? ' on ' + setAt : '') + '</span>' : '');
+        if (channelTopicEl) {
+            if (!room || !room.topic) {
+                channelTopicEl.classList.add('empty');
+                channelTopicEl.innerHTML = '';
+            } else {
+                channelTopicEl.classList.remove('empty');
+                channelTopicEl.innerHTML = topicHtml;
+            }
+        }
+        if (mobileInfoTopicEl) mobileInfoTopicEl.innerHTML = topicHtml;
     }
 
     var contextMenuEl = document.getElementById('contextMenu');
@@ -2368,6 +2425,50 @@
             closeSidebars();
             showSettings();
         });
+        var searchBtnMobile = document.getElementById('searchBtnMobile');
+        var mobileSearchOverlay = document.getElementById('mobileSearchOverlay');
+        var mobileSearchForm = document.getElementById('mobileSearchForm');
+        var mobileSearchInput = document.getElementById('mobileSearchInput');
+        if (searchBtnMobile && mobileSearchOverlay) {
+            searchBtnMobile.addEventListener('click', function() {
+                closeSidebars();
+                mobileSearchOverlay.classList.add('visible');
+                mobileSearchOverlay.setAttribute('aria-hidden', 'false');
+                if (mobileSearchInput) {
+                    requestAnimationFrame(function() { mobileSearchInput.focus(); });
+                }
+            });
+            mobileSearchOverlay.addEventListener('click', function(e) {
+                if (e.target === mobileSearchOverlay) {
+                    mobileSearchOverlay.classList.remove('visible');
+                    mobileSearchOverlay.setAttribute('aria-hidden', 'true');
+                }
+            });
+        }
+        if (mobileSearchForm && mobileSearchInput) {
+            mobileSearchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var query = mobileSearchInput.value.trim();
+                if (!query) return;
+                var payload = { query: query };
+                if (currentRoom) payload.room_id = currentRoom.id;
+                socket.emit('search_messages', payload);
+                if (mobileSearchOverlay) {
+                    mobileSearchOverlay.classList.remove('visible');
+                    mobileSearchOverlay.setAttribute('aria-hidden', 'true');
+                }
+            });
+        }
+        var headerInfoBtn = document.getElementById('headerInfoBtn');
+        var mobileInfoDrawer = document.getElementById('mobileInfoDrawer');
+        if (headerInfoBtn && mobileInfoDrawer) {
+            headerInfoBtn.addEventListener('click', function() {
+                var open = mobileInfoDrawer.classList.toggle('open');
+                headerInfoBtn.textContent = open ? '▴' : '▾';
+                headerInfoBtn.setAttribute('aria-expanded', open);
+                mobileInfoDrawer.setAttribute('aria-hidden', !open);
+            });
+        }
     })();
 
     (function setupPanelResizer() {
