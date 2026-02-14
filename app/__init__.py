@@ -79,7 +79,17 @@ def create_app() -> Flask:
     instance_path = Path(app.instance_path)
     instance_path.mkdir(parents=True, exist_ok=True)
 
-    db.init_app(app)
+    try:
+        db.init_app(app)
+    except Exception as e:
+        if "Could not parse SQLAlchemy URL" in str(e):
+            raise RuntimeError(
+                "Invalid database URL. Set DATABASE_URL or CHITCHAT_DATABASE_URI in Koyeb → "
+                "Service → Environment variables to your Neon connection string "
+                "(e.g. postgresql://user:password@host/dbname). "
+                "Get the string from Neon Console → Connection details."
+            ) from e
+        raise
 
     from flask_migrate import Migrate
     Migrate(app, db)
@@ -91,7 +101,10 @@ def create_app() -> Flask:
             upgrade()
             _seed_default_data(app)
         except Exception as e:
-            logger.warning("Migrations/seed on startup skipped or failed: %s", e)
+            logger.exception("Migrations/seed on startup failed: %s", e)
+            raise RuntimeError(
+                f"Database migrations failed: {e}. Run 'flask db upgrade' manually, or fix the error above."
+            ) from e
 
     from app.routes import register_routes
     register_routes(app)
