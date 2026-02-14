@@ -40,7 +40,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 - **Global features** (all rooms, DMs, Acrophobia): @mention highlights (message pulse, room badge), tab flashing when mentioned and tab is hidden, link previews (OG metadata for URLs; minimize per preview). These apply app-wide, not just in Acrophobia.
 - **Copy/paste**: Message text, channel topic, room names, and stats area are explicitly selectable (user-select: text). Paste in the message input works as usual. **Multi-line input**: Shift+Enter for new line; Enter to send. Edit message uses a styled modal with full message visibility.
-- **Context menu**: Right-click on a username (in messages or user list) shows View profile and Kick (if Surfer Girl or kick_user permission); menu stays open until click outside or an action is chosen.
+- **Context menu**: Right-click on a username (in messages or user list) shows View profile and Kick (if Surfer Girl or kick_user permission). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible).
 - **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); collapsible info drawer for topic/connection; search in hamburger menu; fixed header; chat fills space.
 - **DMs**: Consolidated per user pair (deduplicated); only DMs you participate in are shown.
 - **Homer**: System user; type **!Simpsons** in any room to trigger a random Simpsons quote (when Homer is online). Online/offline toggle in Settings (Surfer Girl only); homer_control permission. Homer’s status: “It says no HomerS. We're allowed to have one.”
@@ -82,7 +82,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 4 — Polish & “best of” features
 
-- **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; status (online/away/dnd); rich presence (“in Acrophobia”, “in general”).
+- **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; **status (online/away/dnd/invisible)** done — right-click own name; rich presence (“in Acrophobia”, “in general”).
 - **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room; more bot channels (trivia, word games) using same pattern.
 - **Reliability**: Optional reconnection with history re-fetch; “last N messages” cache; optional read receipts or “last seen”.
 

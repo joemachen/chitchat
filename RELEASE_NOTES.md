@@ -1,5 +1,21 @@
 # Release notes
 
+## v1.2.0 — Status, reactions & deploy notes
+
+**Status from right-click menu**
+- **Set status** — Right-click your name (header, user list, or your messages) to set Online, Away, Do Not Disturb, or Invisible.
+- **Invisible** — Appear offline to others while still using the app.
+
+**Reactions & fixes**
+- **Robot emoji** — 🤖 added to the reaction picker.
+- **Unread dot fix** — No longer shows unread for a room you just left after sending a message.
+- **Firefox/Linux** — Edit message modal focus fixed for Firefox on Linux (e.g. Mint).
+
+**Deploy announcements**
+- System Events now includes release notes when a new version is deployed.
+
+---
+
 ## v1.1.0 — Message input & edit UX
 
 **Message input**

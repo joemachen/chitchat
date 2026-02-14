@@ -79,6 +79,7 @@
         .context-menu button:hover { background: #3f3f46; }
         .context-menu button:first-child { border-radius: 6px 6px 0 0; }
         .context-menu button:last-child { border-radius: 0 0 6px 6px; }
+        .context-menu-divider { height: 1px; background: #3f3f46; margin: 0.25rem 0; }
         .profile-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.5rem; min-width: 240px; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
         .profile-modal h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
         .profile-modal p { margin: 0; color: #a1a1aa; font-size: 0.9rem; }
@@ -253,6 +254,7 @@
         .user-item.online .user-dot { background: #4ade80; }
         .user-item.away .user-dot { background: #eab308; }
         .user-item.dnd .user-dot { background: #ef4444; }
+        .user-item.invisible .user-dot { background: #71717a; }
         .user-item.offline .user-dot { background: #52525b; }
         .user-item-presence { font-size: 0.75rem; color: #71717a; margin-left: 0.25rem; }
         .user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -377,6 +379,11 @@
         <button type="button" data-action="message-user">Message</button>
         <button type="button" data-action="mute-in-room">Mute in this room</button>
         <button type="button" data-action="kick-user">Kick user</button>
+        <div class="context-menu-divider" style="display:none;" id="contextMenuStatusDivider"></div>
+        <button type="button" data-action="set-status-online" id="contextMenuStatusOnline" style="display:none;">Set status: Online</button>
+        <button type="button" data-action="set-status-away" id="contextMenuStatusAway" style="display:none;">Set status: Away</button>
+        <button type="button" data-action="set-status-dnd" id="contextMenuStatusDnd" style="display:none;">Set status: Do Not Disturb</button>
+        <button type="button" data-action="set-status-invisible" id="contextMenuStatusInvisible" style="display:none;">Set status: Invisible</button>
     </div>
     <div id="roomContextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="room-edit">Edit channel</button>
@@ -419,7 +426,7 @@
         <div class="search-results-list" id="searchResultsList"></div>
         <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
     </div>
-    <div id="editMessageModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit message">
+    <div id="editMessageModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit message" aria-modal="true">
         <h3 id="editMessageTitle">Edit message</h3>
         <textarea id="editMessageInput" placeholder="Edit your message…" rows="6"></textarea>
         <p class="edit-message-hint">Shift+Enter for new line</p>
@@ -437,7 +444,7 @@
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <div class="header-brand">
             <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo" aria-hidden="true">
-            <h1 class="header-title-desktop">{{ server_name|default('No Homers Club') }} — {{ user.username }}</h1>
+            <h1 class="header-title-desktop">{{ server_name|default('No Homers Club') }} — <span class="header-username" data-user-id="{{ user.id }}" data-username="{{ user.username }}" title="Right-click to set status">{{ user.username }}</span></h1>
             <span class="header-title-mobile" id="headerChannelName" aria-hidden="true"></span>
         </div>
         <button type="button" id="headerInfoBtn" class="header-info-btn" aria-label="Toggle topic and connection info" title="Topic & connection">▾</button>
@@ -809,7 +816,7 @@
         '\ud83d\ude00','\ud83d\ude01','\ud83d\ude02','\ud83d\ude03','\ud83d\ude04','\ud83d\ude05','\ud83d\ude06','\ud83d\ude09','\ud83d\ude0a','\ud83d\ude0b','\ud83d\ude0e','\ud83d\ude0d','\ud83d\ude18','\ud83d\ude17','\ud83d\ude19',
         '\ud83d\ude1a','\ud83d\ude1b','\ud83d\ude1c','\ud83d\ude1d','\ud83d\ude12','\ud83d\ude13','\ud83d\ude14','\ud83d\ude15','\ud83d\ude16','\ud83d\ude21','\ud83d\ude22','\ud83d\ude2d','\ud83d\ude2e','\ud83d\ude2f','\ud83d\ude30',
         '\ud83d\ude31','\ud83d\ude32','\ud83d\ude33','\ud83d\ude34','\ud83d\ude35','\ud83d\ude36','\ud83d\ude37','\ud83d\ude08','\ud83d\udc7f','\ud83d\ude3a','\ud83d\ude3b','\ud83d\ude3c','\ud83d\ude3d','\ud83d\ude40','\ud83d\ude3f',
-        '\ud83d\udc36','\ud83d\udc37','\ud83d\udc31','\ud83d\udc2e','\ud83d\udc39','\ud83d\udc30','\ud83d\udc38','\ud83d\udc35','\ud83d\udc12','\ud83d\udc34','\ud83d\udc0d','\ud83d\udc22','\ud83d\udc0b','\ud83d\udc1b','\ud83d\udc1c',
+        '\ud83d\ude16','\ud83d\udc36','\ud83d\udc37','\ud83d\udc31','\ud83d\udc2e','\ud83d\udc39','\ud83d\udc30','\ud83d\udc38','\ud83d\udc35','\ud83d\udc12','\ud83d\udc34','\ud83d\udc0d','\ud83d\udc22','\ud83d\udc0b','\ud83d\udc1b','\ud83d\udc1c',
         '\ud83d\udc1d','\ud83d\udc1e','\ud83d\udc20','\ud83d\udc1f','\ud83d\udc2c','\ud83d\udc33','\ud83d\udc0c','\ud83d\udc0f','\ud83d\udc26','\ud83d\udc24','\ud83d\udc25','\ud83d\udc23','\ud83d\udc27','\ud83d\udc28','\ud83d\udc2a',
         '\ud83c\udf52','\ud83c\udf54','\ud83c\udf55','\ud83c\udf56','\ud83c\udf57','\ud83c\udf5e','\ud83c\udf5f','\ud83c\udf60','\ud83c\udf61','\ud83c\udf62','\ud83c\udf63','\ud83c\udf64','\ud83c\udf65','\ud83c\udf66','\ud83c\udf67',
         '\u2615','\ud83c\udf75','\ud83c\udf76','\ud83c\udf7a','\ud83c\udf7b','\ud83c\udf78','\ud83c\udf79','\ud83c\udf77','\ud83c\udf7e','\ud83c\udf82','\ud83c\udf89','\ud83c\udf8a','\ud83c\udf8b','\ud83c\udf8e','\ud83c\udf8d',
@@ -909,14 +916,34 @@
     var contextMenuTarget = null;
     var kickBtn = contextMenuEl.querySelector('[data-action="kick-user"]');
     var muteInRoomBtn = contextMenuEl.querySelector('[data-action="mute-in-room"]');
+    var viewProfileBtn = contextMenuEl.querySelector('[data-action="view-profile"]');
+    var messageUserBtn = contextMenuEl.querySelector('[data-action="message-user"]');
+    var statusDivider = document.getElementById('contextMenuStatusDivider');
+    var statusOnlineBtn = document.getElementById('contextMenuStatusOnline');
+    var statusAwayBtn = document.getElementById('contextMenuStatusAway');
+    var statusDndBtn = document.getElementById('contextMenuStatusDnd');
+    var statusInvisibleBtn = document.getElementById('contextMenuStatusInvisible');
+    var currentUserStatus = 'online';
     function showContextMenu(x, y, userId, username) {
         contextMenuTarget = { user_id: userId, username: username };
-        kickBtn.style.display = (userId !== currentUserId && (isSuperAdmin || (userPermissions && userPermissions.kick_user))) ? 'block' : 'none';
+        var isSelf = userId === currentUserId;
+        if (viewProfileBtn) viewProfileBtn.style.display = isSelf ? 'none' : 'block';
+        if (messageUserBtn) messageUserBtn.style.display = isSelf ? 'none' : 'block';
+        kickBtn.style.display = (!isSelf && (isSuperAdmin || (userPermissions && userPermissions.kick_user))) ? 'block' : 'none';
         var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
         if (muteInRoomBtn) {
             muteInRoomBtn.style.display = inRoom ? 'block' : 'none';
             var muted = inRoom && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(userId);
             muteInRoomBtn.textContent = muted ? 'Unmute in this room' : 'Mute in this room';
+        }
+        if (statusDivider) statusDivider.style.display = isSelf ? 'block' : 'none';
+        if (statusOnlineBtn) statusOnlineBtn.style.display = isSelf ? 'block' : 'none';
+        if (statusAwayBtn) statusAwayBtn.style.display = isSelf ? 'block' : 'none';
+        if (statusDndBtn) statusDndBtn.style.display = isSelf ? 'block' : 'none';
+        if (statusInvisibleBtn) statusInvisibleBtn.style.display = isSelf ? 'block' : 'none';
+        if (isSelf) {
+            var me = allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
+            currentUserStatus = (me && me.user_status) ? me.user_status : 'online';
         }
         contextMenuEl.style.left = x + 'px';
         contextMenuEl.style.top = y + 'px';
@@ -986,6 +1013,14 @@
     document.addEventListener('contextmenu', function(e) {
         if (e.target.closest('#contextMenu') || e.target.closest('#messageContextMenu')) return;
         if (e.target.closest('.msg-username') || e.target.closest('.user-item[data-user-id]')) return;
+        if (e.target.closest('.header-username')) {
+            e.preventDefault();
+            var el = e.target.closest('.header-username');
+            var uid = parseInt(el.getAttribute('data-user-id'), 10);
+            var uname = el.getAttribute('data-username') || '';
+            if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
+            return;
+        }
         if (e.target.closest('.msg')) return;
         hideContextMenu();
         hideMessageContextMenu();
@@ -1019,7 +1054,7 @@
     });
     document.getElementById('userList').addEventListener('contextmenu', function(e) {
         var el = e.target.closest('.user-item[data-user-id]');
-        if (el && parseInt(el.getAttribute('data-user-id'), 10) !== currentUserId) {
+        if (el) {
             e.preventDefault();
             var uid = parseInt(el.getAttribute('data-user-id'), 10);
             var uname = el.getAttribute('data-username') || '';
@@ -1088,6 +1123,26 @@
         if (contextMenuTarget && currentRoom) {
             socket.emit('kick_user', { room_id: currentRoom.id, target_user_id: contextMenuTarget.user_id });
         }
+        hideContextMenu();
+    });
+    if (statusOnlineBtn) statusOnlineBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        socket.emit('set_user_status', { status: 'online' });
+        hideContextMenu();
+    });
+    if (statusAwayBtn) statusAwayBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        socket.emit('set_user_status', { status: 'away' });
+        hideContextMenu();
+    });
+    if (statusDndBtn) statusDndBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        socket.emit('set_user_status', { status: 'dnd' });
+        hideContextMenu();
+    });
+    if (statusInvisibleBtn) statusInvisibleBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        socket.emit('set_user_status', { status: 'invisible' });
         hideContextMenu();
     });
 
@@ -1220,7 +1275,9 @@
         editMessageInput.style.height = Math.min(editMessageInput.scrollHeight, 280) + 'px';
         editMessageModal.style.display = 'block';
         modalBackdrop.style.display = 'block';
-        editMessageInput.focus();
+        setTimeout(function() {
+            editMessageInput.focus();
+        }, 50);
     }
     function hideEditMessageModal() {
         editMessageModal.style.display = 'none';
@@ -2004,7 +2061,7 @@
         const offline = users.filter(function(u) { return !u.online; });
         function itemHtml(u) {
             const isMe = u.id === currentUserId;
-            var statusCls = u.online ? (u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : 'online') : 'offline';
+            var statusCls = u.online ? (u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : u.user_status === 'invisible' ? 'invisible' : 'online') : (u.user_status === 'invisible' && isMe ? 'invisible' : 'offline');
             const cls = 'user-item ' + statusCls + (isMe ? ' me' : '');
             var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
             var label = escapeHtml(displayLabel) + (isMe ? ' (you)' : '');

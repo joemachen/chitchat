@@ -14,17 +14,51 @@ from app.version import VERSION
 logger = logging.getLogger("chitchat")
 
 
+def _get_release_notes_for_version(version: str) -> str | None:
+    """Load release notes for the given version from RELEASE_NOTES.md. Returns None if not found."""
+    try:
+        root = Path(__file__).resolve().parent.parent
+        notes_path = root / "RELEASE_NOTES.md"
+        if not notes_path.exists():
+            return None
+        text = notes_path.read_text(encoding="utf-8")
+        ver = version.lstrip("v")  # "1.1.0"
+        target = f"v{ver}"  # "v1.1.0"
+        lines = text.splitlines()
+        in_section = False
+        collected = []
+        for line in lines:
+            if line.strip().startswith("## "):
+                parts = line.split()
+                if len(parts) >= 2 and (parts[1] == target or parts[1].lstrip("v") == ver):
+                    in_section = True
+                    continue
+                if in_section:
+                    break
+            if in_section:
+                if line.strip() == "---":
+                    break
+                collected.append(line)
+        return "\n".join(collected).strip() if collected else None
+    except Exception as e:
+        logger.debug("Could not load release notes: %s", e)
+        return None
+
+
 def _post_deploy_announcement(app: Flask) -> None:
-    """Post server deploy announcement to System Events."""
+    """Post server deploy announcement to System Events, including release notes for this version."""
     with app.app_context():
         try:
             sys_room = Room.query.filter_by(name="System Events").first()
             sys_user = User.query.filter_by(username="System").first()
             if sys_room and sys_user:
+                header = f"Server redeployed (v{VERSION})"
+                notes = _get_release_notes_for_version(VERSION)
+                content = f"{header}\n\n{notes}" if notes else header
                 msg = Message(
                     room_id=sys_room.id,
                     user_id=sys_user.id,
-                    content=f"Server redeployed (v{VERSION})",
+                    content=content,
                     message_type="chat",
                 )
                 db.session.add(msg)

@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/offline), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, an in-channel stats view, system events (join/leave/online/offline; deploy announcements include release notes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 

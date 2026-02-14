@@ -96,17 +96,32 @@ def _get_users_with_online_status():
             })
         else:
             r = _user_id_to_room.get(u.id)
-            result.append({
-                "id": u.id,
-                "username": u.username,
-                "display_name": getattr(u, "display_name", None) or None,
-                "online": u.id in online,
-                "is_super_admin": getattr(u, "is_super_admin", False),
-                "rank": rank,
-                "is_system_user": False,
-                "user_status": getattr(u, "user_status", None) or "online",
-                "current_room_name": r[1] if r else None,
-            })
+            st = getattr(u, "user_status", None) or "online"
+            actually_online = u.id in online
+            if st == "invisible":
+                result.append({
+                    "id": u.id,
+                    "username": u.username,
+                    "display_name": getattr(u, "display_name", None) or None,
+                    "online": False,
+                    "is_super_admin": getattr(u, "is_super_admin", False),
+                    "rank": rank,
+                    "is_system_user": False,
+                    "user_status": "invisible",
+                    "current_room_name": None,
+                })
+            else:
+                result.append({
+                    "id": u.id,
+                    "username": u.username,
+                    "display_name": getattr(u, "display_name", None) or None,
+                    "online": actually_online,
+                    "is_super_admin": getattr(u, "is_super_admin", False),
+                    "rank": rank,
+                    "is_system_user": False,
+                    "user_status": st,
+                    "current_room_name": r[1] if r else None,
+                })
     return result
 
 
@@ -271,7 +286,10 @@ def _broadcast_new_message_impl(socket_io, room_id, msg_dict):
     if socket_io:
         socket_io.emit("new_message", msg_dict, room=f"room_{room_id}")
         current_viewing = {uid: rid for uid, (rid, _) in _user_id_to_room.items()}
+        sender_id = msg_dict.get("user_id")
         for uid in set(_sid_to_user_id.values()):
+            if uid == sender_id:
+                continue
             if current_viewing.get(uid) == room_id:
                 continue
             rooms = _rooms_sorted_for_user(uid)
@@ -1391,6 +1409,27 @@ def register_socket_handlers(socketio):
                 return
         db.session.commit()
         emit("message_retention_updated", {"days": user.message_retention_days})
+
+    @socketio.on("set_user_status")
+    def on_set_user_status(data):
+        """Set own status: online, away, or invisible. Invisible = appear offline to others."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        status = ((data or {}).get("status") or "").strip().lower()
+        if status not in ("online", "away", "dnd", "invisible"):
+            emit("error", {"message": "Status must be online, away, dnd, or invisible"})
+            return
+        user = User.query.get(user_id)
+        if not user:
+            emit("error", {"message": "User not found"})
+            return
+        user.user_status = status
+        if status == "online":
+            user.away_message = None
+        db.session.commit()
+        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
     @socketio.on("report_message")
     def on_report_message(data):
