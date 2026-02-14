@@ -204,6 +204,18 @@ class RoomMute(db.Model):
     __table_args__ = (UniqueConstraint("room_id", "muted_user_id", "muted_by_id", name="uq_room_mute"),)
 
 
+class UserRoomNotificationMute(db.Model):
+    """User mutes notifications (unread dot) for a room."""
+    __tablename__ = "user_room_notification_mute"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "room_id", name="uq_user_room_notification_mute"),)
+
+
 class AcroScore(db.Model):
     """Persistent Acrophobia wins per room per user."""
     __tablename__ = "acro_scores"
