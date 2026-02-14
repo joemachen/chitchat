@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
     <title>No Homers Club — {{ user.username }}</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>if (typeof marked !== 'undefined') { marked.setOptions({ gfm: true, breaks: true }); }</script>
     <style>
+        /* Mobile-first: base styles for all devices; min-width media queries for larger screens */
         * { box-sizing: border-box; }
-        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f0f12; color: #e4e4e7; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        html, body { height: 100%; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f0f12; color: #e4e4e7; min-height: 100%; min-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
         .header {
             padding: 0.75rem 1rem;
             background: #18181c;
@@ -79,7 +81,7 @@
         @keyframes ping-fade { 0%, 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
         .msg-actions button { background: none; border: none; color: #71717a; cursor: pointer; font-size: 0.75rem; padding: 0; }
         .msg-actions button:hover { color: #f87171; }
-        .form-wrap { padding: 1rem; background: #18181c; border-top: 1px solid #27272a; }
+        .form-wrap { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); background: #18181c; border-top: 1px solid #27272a; flex-shrink: 0; }
         .form-wrap form { display: flex; gap: 0.5rem; align-items: center; }
         .form-wrap input[type="text"] { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; }
         .form-wrap input[type="file"] { display: none; }
@@ -87,6 +89,7 @@
         .attach-btn:hover { background: #3f3f46; color: #e4e4e7; }
         .msg-attachment { margin-top: 0.35rem; }
         .msg-attachment img { max-width: 280px; max-height: 200px; width: auto; height: auto; object-fit: contain; border-radius: 6px; display: block; cursor: pointer; }
+        .msg-inline-gif { max-width: 280px; max-height: 200px; width: auto; height: auto; object-fit: contain; border-radius: 6px; display: block; cursor: pointer; }
         .msg-attachment a.attachment-file { color: #818cf8; text-decoration: none; font-size: 0.9rem; }
         .msg-attachment a.attachment-file:hover { text-decoration: underline; }
         .form-wrap input:focus { outline: none; border-color: #6366f1; }
@@ -531,6 +534,9 @@
                 var offset = arguments[arguments.length - 2];
                 var fullStr = arguments[arguments.length - 1];
                 if (offset > 0 && fullStr[offset - 1] === '"') return match;
+                var url = match.replace(/[.,;:)]+$/, '');
+                var isGif = /\.gif(\?|$)/i.test(url) || /giphy\.com.*\.gif/i.test(url);
+                if (isGif) return '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escapeAttr(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
                 return '<a href="' + escapeAttr(match) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(match) + '</a>';
             });
         }

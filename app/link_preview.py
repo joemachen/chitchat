@@ -1,8 +1,9 @@
 """
 Fetch Open Graph metadata from a URL for link previews. Used when messages contain URLs.
+Supports YouTube via oEmbed when OG fetch fails.
 """
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,6 +12,44 @@ from bs4 import BeautifulSoup
 FETCH_TIMEOUT = 3
 MAX_BODY_SIZE = 500_000
 USER_AGENT = "NoHomersClub-LinkPreview/1.0"
+
+# YouTube oEmbed endpoint
+YOUTUBE_OEMBED = "https://www.youtube.com/oembed?url={url}&format=json"
+
+
+def _is_youtube_url(url: str) -> bool:
+    """Return True if URL is youtube.com or youtu.be."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        netloc = (parsed.netloc or "").lower()
+        return "youtube.com" in netloc or "youtu.be" in netloc
+    except Exception:
+        return False
+
+
+def _fetch_youtube_preview(url: str) -> dict | None:
+    """Fetch YouTube video metadata via oEmbed. Returns preview dict or None."""
+    if not _is_youtube_url(url):
+        return None
+    try:
+        oembed_url = YOUTUBE_OEMBED.format(url=quote(url, safe=""))
+        resp = requests.get(oembed_url, timeout=FETCH_TIMEOUT, headers={"User-Agent": USER_AGENT})
+        resp.raise_for_status()
+        data = resp.json()
+        title = (data.get("title") or "").strip()[:300]
+        thumb = data.get("thumbnail_url")
+        if not title and not thumb:
+            return None
+        result = {"url": url}
+        if title:
+            result["title"] = title
+        if thumb:
+            result["image"] = thumb
+        return result
+    except Exception:
+        return None
 
 
 def _extract_first_url(text: str) -> str | None:
@@ -104,11 +143,14 @@ def get_preview_for_message_content(content: str) -> dict | None:
 
 
 def get_previews_for_message_content(content: str, max_previews: int = 3) -> list[dict]:
-    """Extract all URLs from content and return OG preview dicts (up to max_previews)."""
+    """Extract all URLs from content and return OG preview dicts (up to max_previews).
+    Uses oEmbed for YouTube when OG fetch fails."""
     urls = _extract_all_urls(content or "", max_urls=max_previews)
     previews = []
     for url in urls:
         p = fetch_og_preview(url)
+        if not p and _is_youtube_url(url):
+            p = _fetch_youtube_preview(url)
         if p:
             previews.append(p)
     return previews
