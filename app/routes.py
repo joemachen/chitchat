@@ -75,13 +75,18 @@ def _schema_error_response():
 def register_routes(app):
     """Register auth and page routes on the Flask app."""
 
+    def _is_localhost_request():
+        """True if request is to localhost (local dev or standalone). Disk token is only safe for single-user localhost."""
+        host = (request.host or "").split(":")[0].lower()
+        return host in ("127.0.0.1", "localhost", "")
+
     @app.before_request
     def restore_session_from_remember():
-        """If session is empty, restore from remember-me cookie or disk (standalone window often loses cookies)."""
+        """If session is empty, restore from remember-me cookie or disk (standalone only; disk is localhost-only for security)."""
         if session.get("user_id"):
             return
         token = request.cookies.get(_REMEMBER_COOKIE_NAME)
-        if not token:
+        if not token and _is_localhost_request():
             token = load_remember_token_from_disk()
         if not token:
             return
@@ -111,8 +116,10 @@ def register_routes(app):
                 httponly=True,
                 samesite="Lax",
                 path="/",
+                secure=not _is_localhost_request(),
             )
-            save_remember_token_to_disk(token)
+            if _is_localhost_request():
+                save_remember_token_to_disk(token)
         return resp
 
     @app.route("/")
