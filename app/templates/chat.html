@@ -2589,7 +2589,14 @@
     socket = io({ withCredentials: true{% if socket_polling_only %}, transports: ['polling']{% endif %} });
 
     var socketWasDisconnected = false;
+    var connectTimeout = setTimeout(function() {
+        if (statusEl && statusEl.textContent === 'Connecting…') {
+            setStatus('Connection taking too long. If on Koyeb or behind a proxy, set CHITCHAT_SOCKET_POLLING_ONLY=1 on the server and reload.');
+        }
+    }, 12000);
+
     socket.on('connect', function() {
+        clearTimeout(connectTimeout);
         setConnected(true);
         if (socketWasDisconnected) {
             showPingToast('Reconnected');
@@ -2602,6 +2609,7 @@
 
     socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); socketWasDisconnected = true; });
     socket.on('connect_error', function(err) {
+        clearTimeout(connectTimeout);
         setStatus('Connection failed' + (err && err.message ? ': ' + err.message : ''));
     });
 
