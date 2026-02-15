@@ -733,11 +733,117 @@
                             </ul>
                         </template>
                     </div>
+                    <div v-else-if="showSettingsView" class="settings-view" id="settingsViewContainer">
+                        <div class="settings-tabs" style="display:flex;gap:0.5rem;margin-bottom:1rem;border-bottom:1px solid #27272a;padding-bottom:0.5rem;">
+                            <button type="button" :class="['theme-btn', { active: state.activeSettingsTab === 'general' }]" @click="state.activeSettingsTab = 'general'" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">General</button>
+                            <button type="button" :class="['theme-btn', { active: state.activeSettingsTab === 'appearance' }]" @click="state.activeSettingsTab = 'appearance'" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Appearance</button>
+                            <button type="button" :class="['theme-btn', { active: state.activeSettingsTab === 'notifications' }]" @click="state.activeSettingsTab = 'notifications'" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Notifications</button>
+                        </div>
+                        <template v-if="state.activeSettingsTab === 'general'">
+                            <h2>Account</h2>
+                            <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>
+                            <div class="user-row"><a href="/delete-account" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>
+                            <h2>Chat history</h2>
+                            <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Delete your messages or set auto-delete after a period.</p>
+                            <div class="user-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">
+                                <button type="button" @click="window.chitchat && window.chitchat.settingsDeleteMyMessages && window.chitchat.settingsDeleteMyMessages()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Delete all my messages now</button>
+                                <div style="display:flex;align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Auto-delete my messages after:</span>
+                                    <select :value="state.messageRetentionDays == null ? '' : state.messageRetentionDays" @change="window.chitchat && window.chitchat.settingsSetMessageRetention && window.chitchat.settingsSetMessageRetention($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
+                                        <option value="">Never</option>
+                                        <option value="7">7 days</option>
+                                        <option value="30">30 days</option>
+                                        <option value="90">90 days</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <h2>Export</h2>
+                            <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Download messages as JSON or HTML.</p>
+                            <div v-if="state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats'" class="user-row" style="gap:0.5rem;">
+                                <a :href="'/export?room_id=' + state.currentRoom.id + '&format=json'" style="font-size:0.9rem;color:#818cf8;">Export this room (JSON)</a>
+                                <a :href="'/export?room_id=' + state.currentRoom.id + '&format=html'" style="font-size:0.9rem;color:#818cf8;">Export this room (HTML)</a>
+                            </div>
+                            <div v-if="isSuperAdmin" class="user-row" style="gap:0.5rem;">
+                                <a href="/export?format=json" style="font-size:0.9rem;color:#818cf8;">Export all (JSON)</a>
+                                <a href="/export?format=html" style="font-size:0.9rem;color:#818cf8;">Export all (HTML)</a>
+                            </div>
+                            <template v-if="isSuperAdmin">
+                                <h2>AcroBot</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia channel. When offline, the bot will not start rounds or accept votes.</p>
+                                <div class="user-row"><label><input type="checkbox" :checked="state.acrobotActive" @change="window.chitchat && window.chitchat.settingsSetAcrobot && window.chitchat.settingsSetAcrobot($event.target.checked)"> <span>AcroBot is online</span></label></div>
+                                <h2>Homer</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Type !Simpsons in any room to get a random Simpsons quote. When offline, Homer will not respond.</p>
+                                <div class="user-row"><label><input type="checkbox" :checked="state.homerActive" @change="window.chitchat && window.chitchat.settingsSetHomer && window.chitchat.settingsSetHomer($event.target.checked)"> <span>Homer is online</span></label></div>
+                                <h2>Stats</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>
+                                <div class="user-row"><button type="button" @click="window.chitchat && window.chitchat.settingsResetStats && window.chitchat.settingsResetStats()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>
+                                <h2>Channels</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Surfer Girl can mark any channel protected.</p>
+                                <div v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+                                    <span>{{ r.name }}<span v-if="r.is_protected" style="color:#71717a;"> (protected)</span></span>
+                                    <span style="display:flex;gap:0.35rem;align-items:center;">
+                                        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a1a1aa;"><input type="checkbox" :checked="r.is_protected" @change="window.chitchat && window.chitchat.settingsSetRoomProtected && window.chitchat.settingsSetRoomProtected(r.id, r.name, $event.target.checked)"> Protect</label>
+                                        <button v-if="r.name !== 'general'" type="button" @click="window.chitchat && window.chitchat.settingsDeleteRoom && window.chitchat.settingsDeleteRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>
+                                        <button type="button" @click="window.chitchat && window.chitchat.settingsWipeRoom && window.chitchat.settingsWipeRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>
+                                    </span>
+                                </div>
+                                <h2>Users — Rankings</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>
+                                <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                                    <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
+                                    <select :disabled="u.id === currentUserId" :value="(u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRank && window.chitchat.settingsSetUserRank(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
+                                        <option value="rookie">Rookie</option>
+                                        <option value="bro">Bro</option>
+                                        <option value="fam">Fam</option>
+                                        <option value="super_admin">Surfer Girl</option>
+                                    </select>
+                                    <button v-if="u.id !== currentUserId" type="button" @click="window.chitchat && window.chitchat.settingsDeleteUser && window.chitchat.settingsDeleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
+                                </div>
+                                <h2>Audit log</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>
+                                <div id="auditLogSection" class="audit-log-wrap" style="max-height:200px;overflow-y:auto;background:#0f0f12;border:1px solid #27272a;border-radius:8px;padding:0.5rem;font-size:0.85rem;">
+                                    <p v-if="state.auditLogEntries.length === 0" style="color:#71717a;margin:0;">No audit entries yet.</p>
+                                    <div v-for="e in state.auditLogEntries" :key="e.id" style="padding:0.25rem 0;border-bottom:1px solid #27272a;color:#a1a1aa;">{{ e.username }} {{ e.action }} {{ e.target_type }}#{{ e.target_id }} <span style="font-size:0.75rem;color:#52525b;">{{ e.created_at }}</span></div>
+                                </div>
+                                <h2>Default channel</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Channel users see when they first log in.</p>
+                                <div class="user-row">
+                                    <select :value="state.defaultChannelId || ''" @change="window.chitchat && window.chitchat.settingsSetDefaultChannel && window.chitchat.settingsSetDefaultChannel($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
+                                        <option v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" :value="String(r.id)">{{ r.name }}</option>
+                                    </select>
+                                </div>
+                                <h2>Role Permissions</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Surfer Girl can grant these permissions to Rookie, Bro, or Fam. Surfer Girl always has full access.</p>
+                                <table style="font-size:0.85rem;border-collapse:collapse;">
+                                    <tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th><th style="padding:0.35rem 0.5rem;">Rookie</th><th style="padding:0.35rem 0.5rem;">Bro</th><th style="padding:0.35rem 0.5rem;">Fam</th></tr>
+                                    <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','reset_stats','export_all']" :key="perm">
+                                        <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create channels', update_room: 'Edit channel names', delete_room: 'Delete channels', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
+                                        <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></td>
+                                    </tr>
+                                </table>
+                            </template>
+                            <div class="user-row" style="margin-top:1.5rem;"><button type="button" @click="window.chitchat && window.chitchat.settingsSave && window.chitchat.settingsSave()" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>
+                        </template>
+                        <template v-else-if="state.activeSettingsTab === 'appearance'">
+                            <h2>Appearance</h2>
+                            <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Theme and chat background (saved in this browser).</p>
+                            <div class="user-row" style="align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Theme:</span>
+                                <button type="button" :class="['theme-btn', { active: state.theme === 'dark' }]" @click="window.chitchat && window.chitchat.setTheme && window.chitchat.setTheme('dark')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button>
+                                <button type="button" :class="['theme-btn', { active: state.theme === 'light' }]" @click="window.chitchat && window.chitchat.setTheme && window.chitchat.setTheme('light')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button>
+                                <button type="button" :class="['theme-btn', { active: state.theme === 'high-contrast' }]" @click="window.chitchat && window.chitchat.setTheme && window.chitchat.setTheme('high-contrast')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">High contrast</button>
+                            </div>
+                            <div class="user-row" style="align-items:center;gap:0.5rem;"><label style="display:flex;align-items:center;gap:0.5rem;">Chat background: <input type="color" :value="state.bgColor || '#0f0f12'" @input="window.chitchat && window.chitchat.setBgColor && window.chitchat.setBgColor($event.target.value)" style="width:2.5rem;height:1.5rem;padding:0;border:none;border-radius:4px;cursor:pointer;"></label></div>
+                        </template>
+                        <template v-else-if="state.activeSettingsTab === 'notifications'">
+                            <h2>Notifications</h2>
+                            <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Mute notifications for specific rooms.</p>
+                            <div v-for="r in channelsInOrder" :key="r.id" class="user-row"><label><input type="checkbox" :checked="state.roomNotificationMuted[r.id]" @change="window.chitchat && window.chitchat.settingsToggleRoomMute && window.chitchat.settingsToggleRoomMute(r.id, $event.target.checked)"> <span>Mute {{ r.name }}</span></label></div>
+                        </template>
+                    </div>
                 </div>
             </div>
             <div class="typing-indicator" :class="{ empty: !typingText }">{{ typingText }}</div>
             <div class="acro-timer" :class="{ hidden: !state.acroTimerSeconds || state.acroTimerSeconds <= 0 }" id="acroTimer">{{ state.acroPhase === 'submitting' ? 'Submit' : 'Vote' }}: {{ state.acroTimerSeconds || 0 }}s</div>
-            <div class="form-wrap" :class="{ 'acro-urgency': state.acroFormUrgent }">
+            <div class="form-wrap" :class="{ 'acro-urgency': state.acroFormUrgent }" v-show="!showSettingsView">
                 <form id="sendForm">
                     <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
                     <button type="button" id="attachBtn" class="attach-btn" title="Attach file or image">📎</button>
@@ -821,7 +927,16 @@ const state = reactive({
     acroAcronym: null,
     acroTimerSeconds: null,
     acroFormUrgent: false,
-    hiddenMessageIds: []  // Synced from localStorage for reactive hide/unhide
+    hiddenMessageIds: [],  // Synced from localStorage for reactive hide/unhide
+    activeSettingsTab: 'general',
+    acrobotActive: true,
+    homerActive: true,
+    messageRetentionDays: {{ (message_retention_days|default(none))|tojson }},
+    auditLogEntries: [],
+    rolePermissions: {},
+    defaultChannelId: null,
+    theme: (typeof localStorage !== 'undefined' ? localStorage.getItem('chitchatTheme') : null) || 'dark',
+    bgColor: (typeof localStorage !== 'undefined' ? localStorage.getItem('chatBgColor') : null) || '#0f0f12'
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -943,6 +1058,7 @@ const chitchatApp = createApp({
         const displayMessages = computed(() => state.messages || []);
         const showMessagesView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
         const showStatsView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats');
+        const showSettingsView = computed(() => !!state.showingSettings);
         const statsTopTypers = computed(() => (state.stats && state.stats.top_typers) || []);
         const statsMaxTypers = computed(() => Math.max(1, Math.max.apply(null, statsTopTypers.value.map(function(t) { return t.count; })) || 0));
         const statsActiveHours = computed(() => (state.stats && state.stats.active_hours_by_day) || []);
@@ -1004,7 +1120,7 @@ const chitchatApp = createApp({
         function onEditMessage(msgId, content) { if (window.chitchat && window.chitchat.showEditMessageModal) window.chitchat.showEditMessageModal(msgId, content); }
         function onReplyToMessage(msg) { if (window.chitchat && window.chitchat.replyToMessage) window.chitchat.replyToMessage(msg); }
         function onLinkPreviewMinimize(ev) { var el = ev.target.closest('.msg-link-preview'); if (el) el.classList.add('minimized'); }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize };
     }
 });
 
@@ -1159,168 +1275,6 @@ const chitchatApp = createApp({
         }
         updateUnreadBadge();
     }
-    function renderMessage(msg, isOwn) {
-        const isEmote = msg.message_type === 'emote';
-        const isSystem = (msg.username || '') === 'System';
-        const userHidden = isMessageUserHidden(msg.id);
-        const mentionsMe = messageMentionsMe(msg.content || '');
-        const div = document.createElement('div');
-        div.className = 'msg' + (isOwn ? ' own' : '') + (isEmote ? ' emote' : '') + (isSystem ? ' msg-system' : '') + (mentionsMe ? ' msg-mention-pulse' : '') + (isHidden(msg) ? ' hidden' : '') + (userHidden ? ' msg-user-hidden' : '');
-        div.dataset.msgId = msg.id;
-        div.dataset.userId = msg.user_id;
-        if (msg.room_id != null && isMessageUnread(msg.room_id, msg.id)) div.classList.add('mentioned');
-        var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
-        var uname = escapeHtml(displayName);
-        var contentHtml;
-        if (isEmote) {
-            contentHtml = '<em>* ' + escapeHtml(msg.username || '?') + ' ' + linkify(msg.content) + '</em>';
-        } else {
-            var raw = msg.content || '';
-            contentHtml = typeof marked !== 'undefined' ? marked.parse(raw) : escapeHtml(raw);
-            contentHtml = contentHtml.replace(/(https?:\/\/[^\s<>"']+)/g, function(match) {
-                var offset = arguments[arguments.length - 2];
-                var fullStr = arguments[arguments.length - 1];
-                if (offset > 0 && fullStr[offset - 1] === '"') return match;
-                var url = match.replace(/[.,;:)]+$/, '');
-                var isGif = /\.gif(\?|$)/i.test(url) || /giphy\.com.*\.gif/i.test(url);
-                if (isGif) return '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escapeAttr(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
-                return '<a href="' + escapeAttr(match) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(match) + '</a>';
-            });
-        }
-        var quoteHtml = '';
-        if (msg.parent_id && (msg.parent_content != null || msg.parent_username != null)) {
-            var pName = (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?');
-            quoteHtml = '<div class="msg-quote" data-parent-id="' + escapeAttr(String(msg.parent_id)) + '" title="Jump to original message"><strong>' + escapeHtml(pName) + '</strong>: ' + escapeHtml((msg.parent_content || '').slice(0, 200)) + ((msg.parent_content || '').length > 200 ? '…' : '') + '</div>';
-        }
-        var editedHtml = '';
-        if (msg.edited_at) {
-            editedHtml = '<div class="msg-edited">edited ' + formatTime(msg.edited_at) + '</div>';
-        }
-        var attachmentHtml = '';
-        if (msg.attachment_url) {
-            var ext = (msg.attachment_filename || '').split('.').pop().toLowerCase();
-            var isImg = ['png','jpg','jpeg','gif','webp','svg'].indexOf(ext) !== -1;
-            if (isImg) {
-                attachmentHtml = '<div class="msg-attachment"><a href="' + escapeAttr(msg.attachment_url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escapeAttr(msg.attachment_url) + '" alt="' + escapeAttr(msg.attachment_filename || '') + '"></a></div>';
-            } else {
-                attachmentHtml = '<div class="msg-attachment"><a class="attachment-file" href="' + escapeAttr(msg.attachment_url) + '" target="_blank" rel="noopener noreferrer">📎 ' + escapeHtml(msg.attachment_filename || 'Attachment') + '</a></div>';
-            }
-        }
-        var linkPreviewsHtml = '';
-        if (msg.link_previews && msg.link_previews.length) {
-            msg.link_previews.forEach(function(p) {
-                var title = (p.title && p.title.trim()) ? escapeHtml(p.title) : '';
-                var desc = (p.description && p.description.trim()) ? escapeHtml(p.description) : '';
-                var img = (p.image && p.image.trim()) ? '<img class="link-preview-img" src="' + escapeAttr(p.image) + '" alt="">' : '';
-                linkPreviewsHtml += '<div class="msg-link-preview" data-url="' + escapeAttr(p.url || '') + '"><div class="link-preview-header"><a href="' + escapeAttr(p.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml((p.url || '').replace(/^https?:\/\//, '')) + '</a><button type="button" class="link-preview-minimize" title="Minimize">−</button></div><div class="link-preview-body">' + (title ? '<div class="link-preview-title">' + title + '</div>' : '') + (desc ? '<div class="link-preview-desc">' + desc + '</div>' : '') + img + '</div></div>';
-            });
-        }
-        div.innerHTML =
-            '<div class="msg-collapsed-bar" title="Click to unhide">' +
-            '<span aria-hidden="true">👁️‍🗨️</span> Hidden message — click or right-click to unhide</div>' +
-            '<div class="msg-header"><span class="msg-username" data-user-id="' + msg.user_id + '" data-username="' + escapeAttr(msg.username || '') + '">' + uname + '</span> <span class="msg-time">' + formatTime(msg.created_at) + '</span></div>' +
-            (quoteHtml || '') +
-            '<div class="msg-content">' + contentHtml + '</div>' +
-            (attachmentHtml || '') +
-            (editedHtml || '') +
-            (linkPreviewsHtml ? '<div class="msg-link-previews">' + linkPreviewsHtml + '</div>' : '') +
-            (function() {
-                var rx = msg.reactions || [];
-                var h = '<div class="msg-reactions" data-msg-id="' + msg.id + '">';
-                rx.forEach(function(r) {
-                    var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
-                    var tip = (r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')');
-                    h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(tip) + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
-                });
-                h += '</div>';
-                var top3 = (rx || []).slice().sort(function(a,b){ return (b.count||0) - (a.count||0); }).slice(0, 3);
-                var bar = '<div class="msg-hover-bar" data-msg-id="' + msg.id + '">';
-                top3.forEach(function(r) {
-                    var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
-                    bar += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji) + '">' + escapeHtml(r.emoji) + '</span>';
-                });
-                bar += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
-                if (isOwn) bar += '<button type="button" class="msg-hover-btn msg-hover-edit" title="Edit">✎</button>';
-                bar += '<button type="button" class="msg-hover-btn msg-hover-reply" title="Reply">↩</button>';
-                bar += '</div>';
-                return h + bar;
-            })();
-        div.querySelectorAll('.msg-link-preview .link-preview-minimize').forEach(function(btn) {
-            btn.addEventListener('click', function() { this.closest('.msg-link-preview').classList.add('minimized'); });
-        });
-        var collapsedBar = div.querySelector('.msg-collapsed-bar');
-        if (collapsedBar && userHidden) {
-            collapsedBar.addEventListener('click', function(e) {
-                e.stopPropagation();
-                setMessageHidden(msg.id, false);
-                div.classList.remove('msg-user-hidden');
-            });
-        }
-        div.querySelectorAll('.msg-quote[data-parent-id]').forEach(function(el) {
-            el.addEventListener('click', function() {
-                var pid = el.getAttribute('data-parent-id');
-                var parentEl = messagesEl.querySelector('.msg[data-msg-id="' + pid + '"]');
-                if (parentEl) { parentEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); parentEl.classList.add('highlight-reply-target'); setTimeout(function() { parentEl.classList.remove('highlight-reply-target'); }, 1500); }
-            });
-        });
-        div.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
-            el.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var emoji = el.getAttribute('data-emoji');
-                var isOwn = el.classList.contains('own');
-                if (isOwn) socket.emit('remove_reaction', { message_id: msg.id, emoji: emoji });
-                else socket.emit('add_reaction', { message_id: msg.id, emoji: emoji });
-            });
-        });
-        div.querySelectorAll('.msg-reaction-add').forEach(function(el) {
-            el.addEventListener('click', function(e) {
-                e.stopPropagation();
-                showReactionPicker(msg.id, el);
-            });
-        });
-        div.querySelectorAll('.msg-hover-edit').forEach(function(el) {
-            el.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (msg.user_id === currentUserId) showEditMessageModal(msg.id, msg.content);
-            });
-        });
-        div.querySelectorAll('.msg-hover-reply').forEach(function(el) {
-            el.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (state.currentRoom) {
-                    var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
-                    replyToMessageId = msg.id;
-                    replyToContent = msg.content;
-                    replyToDisplayName = displayName;
-                    var quoted = (replyToContent || '').replace(/\n/g, '\n> ');
-                    inputEl.value = '> @' + (displayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
-                    inputEl.style.height = 'auto';
-                    inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
-                    setTimeout(function() { inputEl.focus(); }, 50);
-                }
-            });
-        });
-        var longPressTimer = null;
-        div.addEventListener('touchstart', function(e) {
-            if (e.target.closest('a') || e.target.closest('button')) return;
-            longPressTimer = setTimeout(function() {
-                longPressTimer = null;
-                div.classList.add('hover-bar-visible');
-                document.addEventListener('touchend', function hideBar() {
-                    document.removeEventListener('touchend', hideBar);
-                    setTimeout(function() { div.classList.remove('hover-bar-visible'); }, 2000);
-                }, { once: true });
-            }, 500);
-        }, { passive: true });
-        div.addEventListener('touchend', function() {
-            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-        }, { passive: true });
-        div.addEventListener('touchmove', function() {
-            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-        }, { passive: true });
-        return div;
-    }
-
     var REACTION_EMOJIS = [
         '\ud83d\udc4d','\ud83d\udc4e','\ud83d\udc4c','\ud83d\udc4a','\u270a','\ud83d\ude4c','\ud83d\udc4f','\ud83d\udc4b','\ud83d\ude4f','\ud83d\udc46','\ud83d\udc47','\u261d\ufe0f','\u270b','\ud83e\udd1a','\ud83e\udd1d',
         '\u2764\ufe0f','\ud83d\udc9b','\ud83d\udc9a','\ud83d\udc99','\ud83d\udc9c','\ud83d\udda4','\ud83d\udc94','\u2763\ufe0f','\ud83d\udc96','\ud83d\udc95','\ud83d\udc97','\ud83d\udc93','\ud83d\udc9e','\ud83d\udc9f',
@@ -2156,32 +2110,6 @@ const chitchatApp = createApp({
         return out.join('');
     }
 
-    function renderAllMessages(history) {
-        messagesEl.innerHTML = '';
-        messagesEl.classList.toggle('is-dm', !!(state.currentRoom && state.currentRoom.is_dm));
-        sendForm.style.display = '';
-        (history || []).forEach(function(msg) {
-            const el = renderMessage(msg, msg.user_id === currentUserId);
-            messagesEl.appendChild(el);
-        });
-        if (loadMoreWrap) loadMoreWrap.style.display = state.hasMoreMessages ? 'block' : 'none';
-        if (searchBarWrapEl) searchBarWrapEl.style.display = (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
-        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
-        requestAnimationFrame(function() {
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-        });
-    }
-
-    function prependOlderMessages(older) {
-        if (!messagesEl || !older || !older.length) return;
-        var frag = document.createDocumentFragment();
-        older.forEach(function(msg) {
-            var el = renderMessage(msg, msg.user_id === currentUserId);
-            frag.appendChild(el);
-        });
-        messagesEl.insertBefore(frag, messagesEl.firstChild);
-    }
-
     function setAcroPhase(phase, endTime, acronym) {
         state.acroPhase = phase;
         state.acroEndTime = endTime;
@@ -2221,240 +2149,9 @@ const chitchatApp = createApp({
         }
     }
 
-    function renderSettingsView() {
-        messagesEl.innerHTML = '';
-        messagesEl.classList.remove('is-dm');
-        sendForm.style.display = 'none';
-        if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
-        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
-        socket.emit('get_acrobot_status');
-        socket.emit('get_homer_status');
-        if (isSuperAdmin) { socket.emit('get_role_permissions'); socket.emit('get_audit_log', { limit: 50 }); }
-        var div = document.createElement('div');
-        div.className = 'settings-view';
-        var html = '<h2>Account</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>';
-        html += '<div class="user-row"><a href="/delete-account" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>';
-        html += '<h2>Chat history</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Delete your messages or set auto-delete after a period.</p>';
-        html += '<div class="user-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">';
-        html += '<button type="button" id="deleteMyMessagesBtn" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Delete all my messages now</button>';
-        html += '<div style="display:flex;align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Auto-delete my messages after:</span> <select id="messageRetentionSelect" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">';
-        html += '<option value=""' + (messageRetentionDays === null ? ' selected' : '') + '>Never</option>';
-        html += '<option value="7"' + (messageRetentionDays === 7 ? ' selected' : '') + '>7 days</option>';
-        html += '<option value="30"' + (messageRetentionDays === 30 ? ' selected' : '') + '>30 days</option>';
-        html += '<option value="90"' + (messageRetentionDays === 90 ? ' selected' : '') + '>90 days</option>';
-        html += '</select></div></div>';
-        html += '<h2>Export</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Download messages as JSON or HTML.</p>';
-        if (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats') {
-            html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?room_id=' + state.currentRoom.id + '&format=json" style="font-size:0.9rem;color:#818cf8;">Export this room (JSON)</a><a href="/export?room_id=' + state.currentRoom.id + '&format=html" style="font-size:0.9rem;color:#818cf8;">Export this room (HTML)</a></div>';
-        }
-        if (isSuperAdmin) {
-            html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?format=json" style="font-size:0.9rem;color:#818cf8;">Export all (JSON)</a><a href="/export?format=html" style="font-size:0.9rem;color:#818cf8;">Export all (HTML)</a></div>';
-        }
-        html += '<h2>Appearance</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Theme and chat background (saved in this browser).</p>';
-        var savedTheme = localStorage.getItem('chitchatTheme') || 'dark';
-        html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Theme:</span> <button type="button" class="theme-btn' + (savedTheme === 'dark' ? ' active' : '') + '" data-theme="dark" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button> <button type="button" class="theme-btn' + (savedTheme === 'light' ? ' active' : '') + '" data-theme="light" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button> <button type="button" class="theme-btn' + (savedTheme === 'high-contrast' ? ' active' : '') + '" data-theme="high-contrast" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">High contrast</button></div>';
-        var savedBg = localStorage.getItem('chatBgColor') || '#0f0f12';
-        html += '<div class="user-row" style="align-items:center;gap:0.5rem;"><label style="display:flex;align-items:center;gap:0.5rem;">Chat background: <input type="color" id="chatBgColor" value="' + escapeAttr(savedBg) + '" style="width:2.5rem;height:1.5rem;padding:0;border:none;border-radius:4px;cursor:pointer;"></label></div>';
-        if (isSuperAdmin) {
-            html += '<h2>AcroBot</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia channel. When offline, the bot will not start rounds or accept votes.</p>';
-            html += '<div class="user-row"><label><input type="checkbox" id="acrobotActiveToggle" ' + (acrobotActive ? 'checked' : '') + '> <span>AcroBot is online</span></label></div>';
-            html += '<h2>Homer</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Type !Simpsons in any room to get a random Simpsons quote. When offline, Homer will not respond.</p>';
-            html += '<div class="user-row"><label><input type="checkbox" id="homerActiveToggle" ' + (homerActive ? 'checked' : '') + '> <span>Homer is online</span></label></div>';
-        }
-        if (isSuperAdmin) {
-            html += '<h2>Stats</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>';
-            html += '<div class="user-row"><button type="button" id="resetStatsDataBtn" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>';
-            html += '<h2>Channels</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Surfer Girl can mark any channel protected.</p>';
-            (state.allRooms || []).forEach(function(r) {
-                var isProtected = r.is_protected === true;
-                var isGeneral = r.name === 'general';
-                html += '<div class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">' +
-                    '<span>' + escapeHtml(r.name) + (isProtected ? ' <span style="color:#71717a;">(protected)</span>' : '') + '</span>' +
-                    '<span style="display:flex;gap:0.35rem;align-items:center;">' +
-                    (!r.is_dm ? '<label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a1a1aa;"><input type="checkbox" class="settings-protect-room" data-room-id="' + r.id + '" ' + (isProtected ? 'checked' : '') + '> Protect</label>' : '') +
-                    (!isGeneral ? '<button type="button" class="settings-delete-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>' : '') +
-                    '<button type="button" class="settings-wipe-room" data-room-id="' + r.id + '" data-room-name="' + escapeAttr(r.name) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>' +
-                    '</span></div>';
-            });
-        }
-        if (isSuperAdmin) {
-            var ranks = [
-                { value: 'rookie', label: 'Rookie' },
-                { value: 'bro', label: 'Bro' },
-                { value: 'fam', label: 'Fam' },
-                { value: 'super_admin', label: 'Surfer Girl' }
-            ];
-            html += '<h2>Users — Rankings</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>';
-            (state.allUsersWithStatus || []).forEach(function(u) {
-                var me = u.id === currentUserId;
-                var isSystem = u.username === 'AcroBot' || u.username === 'System' || u.username === 'Homer';
-                var canDelete = !me && !isSystem;
-                var currentRank = (u.rank || 'rookie').toLowerCase();
-                if (['rookie', 'bro', 'fam', 'super_admin'].indexOf(currentRank) === -1) currentRank = 'rookie';
-                var label = escapeHtml(u.username) + (u.online ? ' <span style="color:#4ade80;">●</span>' : '') + (me ? ' (you)' : '');
-                html += '<div class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">';
-                html += '<span style="min-width:120px;">' + label + '</span>';
-                html += '<select data-user-id="' + u.id + '" class="user-rank-select" ' + (me ? 'disabled title="You cannot change your own rank" ' : '') + ' style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">';
-                ranks.forEach(function(r) {
-                    html += '<option value="' + escapeAttr(r.value) + '"' + (currentRank === r.value ? ' selected' : '') + '>' + escapeHtml(r.label) + '</option>';
-                });
-                html += '</select>';
-                if (canDelete) html += '<button type="button" class="settings-delete-user" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username) + '" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>';
-                html += '</div>';
-            });
-            html += '<h2>Audit log</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>';
-            html += '<div id="auditLogSection" class="audit-log-wrap" style="max-height:200px;overflow-y:auto;background:#0f0f12;border:1px solid #27272a;border-radius:8px;padding:0.5rem;font-size:0.85rem;"><p style="color:#71717a;margin:0;">Loading…</p></div>';
-            html += '<h2>Default channel</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Channel users see when they first log in.</p>';
-            html += '<div id="defaultChannelSection" class="user-row"><select id="defaultChannelSelect" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">';
-            var channels = (state.allRooms || []).filter(function(r) { return !r.is_dm; });
-            channels.forEach(function(r) {
-                html += '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>';
-            });
-            html += '</select></div>';
-            html += '<div id="rolePermissionsSection" style="margin-top:1rem;"><p style="color:#71717a;">Loading role permissions…</p></div>';
-            html += '<div class="user-row" style="margin-top:1.5rem;"><button type="button" id="settingsSaveBtn" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>';
-        } else {
-            html += '<div class="user-row" style="margin-top:1.5rem;"><button type="button" id="settingsSaveBtn" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>';
-        }
-        div.innerHTML = html;
-        messagesEl.appendChild(div);
-        settingsPendingSettings = { acrobot: null, homer: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
-        var acrobotToggle = document.getElementById('acrobotActiveToggle');
-        if (acrobotToggle) {
-            acrobotToggle.addEventListener('change', function() {
-                settingsPendingSettings.acrobot = acrobotToggle.checked;
-            });
-        }
-        var homerToggle = document.getElementById('homerActiveToggle');
-        if (homerToggle) {
-            homerToggle.addEventListener('change', function() {
-                settingsPendingSettings.homer = homerToggle.checked;
-            });
-        }
-        div.querySelectorAll('select.user-rank-select').forEach(function(sel) {
-            var uid = parseInt(sel.getAttribute('data-user-id'), 10);
-            if (uid === currentUserId) return;
-            sel.addEventListener('change', function() {
-                var rank = sel.value;
-                if (rank) settingsPendingSettings.ranks[uid] = rank;
-            });
-        });
-        var resetStatsBtn = div.querySelector('#resetStatsDataBtn');
-        if (resetStatsBtn) {
-            resetStatsBtn.addEventListener('click', function() {
-                var typed = prompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.');
-                if (typed !== 'RESET') {
-                    if (typed !== null) setStatus('Reset cancelled. You must type RESET exactly.');
-                    return;
-                }
-                socket.emit('reset_stats_data', { confirm: 'RESET' });
-            });
-        }
-        div.querySelectorAll('input.settings-protect-room').forEach(function(cb) {
-            var rid = parseInt(cb.getAttribute('data-room-id'), 10);
-            cb.addEventListener('change', function() {
-                var room = state.allRooms.find(function(r) { return r.id === rid; });
-                if (!room) return;
-                socket.emit('update_room', { room_id: rid, name: room.name, is_protected: this.checked });
-            });
-        });
-        div.querySelectorAll('button.settings-delete-room').forEach(function(btn) {
-            var rid = parseInt(btn.getAttribute('data-room-id'), 10);
-            var rname = btn.getAttribute('data-room-name') || '';
-            btn.addEventListener('click', function() {
-                if (!confirm('Delete channel "' + rname + '" and all its messages?')) return;
-                socket.emit('delete_room', { room_id: rid, from_settings: true });
-            });
-        });
-        div.querySelectorAll('button.settings-wipe-room').forEach(function(btn) {
-            var rid = parseInt(btn.getAttribute('data-room-id'), 10);
-            var rname = btn.getAttribute('data-room-name') || '';
-            btn.addEventListener('click', function() {
-                if (!confirm('Wipe all chat history from "' + rname + '"? This cannot be undone.')) return;
-                socket.emit('wipe_room_history', { room_id: rid });
-            });
-        });
-        div.querySelectorAll('button.settings-delete-user').forEach(function(btn) {
-            var uid = parseInt(btn.getAttribute('data-user-id'), 10);
-            var uname = btn.getAttribute('data-username') || '?';
-            btn.addEventListener('click', function() {
-                if (!confirm('Permanently delete user "' + uname + '"? This cannot be undone.')) return;
-                socket.emit('delete_user', { target_user_id: uid });
-            });
-        });
-        var deleteMyMessagesBtn = document.getElementById('deleteMyMessagesBtn');
-        if (deleteMyMessagesBtn) {
-            deleteMyMessagesBtn.addEventListener('click', function() {
-                var typed = prompt('Type DELETE_ALL_MY_MESSAGES (exactly) to delete all your messages. This cannot be undone.');
-                if (typed !== 'DELETE_ALL_MY_MESSAGES') {
-                    if (typed !== null) setStatus('Cancelled. You must type DELETE_ALL_MY_MESSAGES exactly.');
-                    return;
-                }
-                socket.emit('delete_my_messages', { confirm: 'DELETE_ALL_MY_MESSAGES' });
-            });
-        }
-        var messageRetentionSelect = document.getElementById('messageRetentionSelect');
-        if (messageRetentionSelect) {
-            messageRetentionSelect.addEventListener('change', function() {
-                var val = this.value || null;
-                socket.emit('set_message_retention', { days: val });
-            });
-        }
-        var chatBgColorEl = document.getElementById('chatBgColor');
-        if (chatBgColorEl) {
-            chatBgColorEl.value = localStorage.getItem('chatBgColor') || '#0f0f12';
-            chatBgColorEl.addEventListener('input', function() {
-                settingsPendingSettings.bgColor = this.value;
-            });
-        }
-        div.querySelectorAll('.theme-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var theme = this.getAttribute('data-theme') || 'dark';
-                settingsPendingSettings.theme = theme;
-                div.querySelectorAll('.theme-btn').forEach(function(b) { b.classList.remove('active'); if (b.getAttribute('data-theme') === theme) b.classList.add('active'); });
-                applyTheme(theme);
-            });
-        });
-        var saveBtn = document.getElementById('settingsSaveBtn');
-        if (saveBtn) {
-            saveBtn.addEventListener('click', function() {
-                if (!settingsPendingSettings) return;
-                if (settingsPendingSettings.theme != null) applyTheme(settingsPendingSettings.theme);
-                if (settingsPendingSettings.bgColor != null) {
-                    localStorage.setItem('chatBgColor', settingsPendingSettings.bgColor);
-                    applyChatBackgroundColor();
-                }
-                if (settingsPendingSettings.acrobot != null && isSuperAdmin) {
-                    acrobotActive = settingsPendingSettings.acrobot;
-                    socket.emit('set_acrobot_active', { active: acrobotActive });
-                }
-                if (settingsPendingSettings.homer != null && isSuperAdmin) {
-                    homerActive = settingsPendingSettings.homer;
-                    socket.emit('set_homer_active', { active: homerActive });
-                }
-                Object.keys(settingsPendingSettings.ranks || {}).forEach(function(uid) {
-                    var rank = settingsPendingSettings.ranks[uid];
-                    if (rank) socket.emit('set_user_rank', { target_user_id: parseInt(uid, 10), rank: rank });
-                });
-                var rp = settingsPendingSettings.rolePerms || {};
-                Object.keys(rp).forEach(function(role) {
-                    Object.keys(rp[role] || {}).forEach(function(perm) {
-                        socket.emit('set_role_permission', { role: role, permission: perm, allowed: rp[role][perm] });
-                    });
-                });
-                settingsPendingSettings = { acrobot: null, homer: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
-                var toast = document.createElement('div');
-                toast.className = 'ping-toast';
-                toast.style.background = '#166534';
-                toast.textContent = 'Settings saved.';
-                document.body.appendChild(toast);
-                setTimeout(function() { toast.remove(); }, 2000);
-            });
-        }
-    }
-
     function applyChatBackgroundColor() {
         var val = localStorage.getItem('chatBgColor') || '#0f0f12';
+        state.bgColor = val;
         var el = document.querySelector('.chat-area');
         if (el) el.style.backgroundColor = val;
     }
@@ -2462,9 +2159,95 @@ const chitchatApp = createApp({
     function applyTheme(theme) {
         theme = theme || localStorage.getItem('chitchatTheme') || 'dark';
         localStorage.setItem('chitchatTheme', theme);
+        state.theme = theme;
         document.body.classList.remove('theme-light', 'theme-high-contrast');
         if (theme === 'light') document.body.classList.add('theme-light');
         else if (theme === 'high-contrast') document.body.classList.add('theme-high-contrast');
+    }
+
+    function getTheme() { return state.theme || localStorage.getItem('chitchatTheme') || 'dark'; }
+    function setTheme(theme) { applyTheme(theme); }
+    function getBgColor() { return state.bgColor || localStorage.getItem('chatBgColor') || '#0f0f12'; }
+    function setBgColor(val) {
+        if (val) { localStorage.setItem('chatBgColor', val); state.bgColor = val; applyChatBackgroundColor(); }
+    }
+    function settingsDeleteMyMessages() {
+        var typed = prompt('Type DELETE_ALL_MY_MESSAGES (exactly) to delete all your messages. This cannot be undone.');
+        if (typed !== 'DELETE_ALL_MY_MESSAGES') {
+            if (typed !== null) setStatus('Cancelled. You must type DELETE_ALL_MY_MESSAGES exactly.');
+            return;
+        }
+        socket.emit('delete_my_messages', { confirm: 'DELETE_ALL_MY_MESSAGES' });
+    }
+    function settingsSetMessageRetention(val) {
+        var days = val ? parseInt(val, 10) : null;
+        state.messageRetentionDays = messageRetentionDays = days;
+        socket.emit('set_message_retention', { days: val || null });
+    }
+    function settingsSetAcrobot(checked) {
+        acrobotActive = checked;
+        state.acrobotActive = checked;
+        socket.emit('set_acrobot_active', { active: checked });
+    }
+    function settingsSetHomer(checked) {
+        homerActive = checked;
+        state.homerActive = checked;
+        socket.emit('set_homer_active', { active: checked });
+    }
+    function settingsResetStats() {
+        var typed = prompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.');
+        if (typed !== 'RESET') {
+            if (typed !== null) setStatus('Reset cancelled. You must type RESET exactly.');
+            return;
+        }
+        socket.emit('reset_stats_data', { confirm: 'RESET' });
+    }
+    function settingsSetRoomProtected(roomId, roomName, checked) {
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
+        if (!room) return;
+        socket.emit('update_room', { room_id: roomId, name: roomName, is_protected: checked });
+    }
+    function settingsDeleteRoom(roomId, roomName) {
+        if (!confirm('Delete channel "' + roomName + '" and all its messages?')) return;
+        socket.emit('delete_room', { room_id: roomId, from_settings: true });
+    }
+    function settingsWipeRoom(roomId, roomName) {
+        if (!confirm('Wipe all chat history from "' + roomName + '"? This cannot be undone.')) return;
+        socket.emit('wipe_room_history', { room_id: roomId });
+    }
+    function settingsSetUserRank(userId, rank) {
+        if (rank) socket.emit('set_user_rank', { target_user_id: userId, rank: rank });
+    }
+    function settingsDeleteUser(userId, username) {
+        if (!confirm('Permanently delete user "' + username + '"? This cannot be undone.')) return;
+        socket.emit('delete_user', { target_user_id: userId });
+    }
+    function settingsSetDefaultChannel(roomId) {
+        var rid = parseInt(roomId, 10);
+        if (rid) {
+            state.defaultChannelId = String(rid);
+            socket.emit('set_default_room', { room_id: rid });
+        }
+    }
+    function settingsSetRolePermission(role, permission, allowed) {
+        if (!state.rolePermissions[role]) state.rolePermissions[role] = {};
+        state.rolePermissions[role][permission] = allowed;
+        socket.emit('set_role_permission', { role: role, permission: permission, allowed: allowed });
+    }
+    function settingsToggleRoomMute(roomId, muted) {
+        socket.emit('mute_room_notifications', { room_id: roomId, muted: muted });
+        if (muted) state.roomNotificationMuted[roomId] = true;
+        else delete state.roomNotificationMuted[roomId];
+    }
+    function settingsSave() {
+        if (state.theme) applyTheme(state.theme);
+        if (state.bgColor) { localStorage.setItem('chatBgColor', state.bgColor); applyChatBackgroundColor(); }
+        var toast = document.createElement('div');
+        toast.className = 'ping-toast';
+        toast.style.background = '#166534';
+        toast.textContent = 'Settings saved.';
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 2000);
     }
 
     function applyMessagesSectionHeight() {
@@ -2473,21 +2256,13 @@ const chitchatApp = createApp({
         }
     }
 
-    function renderRoomList(rooms, activeRoom) {
-        if (rooms && rooms.length) {
-            state.allRooms = rooms;
-            if (state.roomOrderIds.length === 0) state.roomOrderIds = rooms.map(function(r) { return r.id; });
-        }
-        state.currentRoom = activeRoom || state.currentRoom;
-    }
-
     function switchRoom(roomId) {
         if (state.currentRoom && state.currentRoom.id === roomId) return;
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (room) {
             state.currentRoom = room;
             clearUnreadForRoom(roomId);
-            renderRoomList(null, state.currentRoom);
+            state.currentRoom = state.currentRoom;
             state.messages = [];
             if (messagesEl) messagesEl.classList.toggle('is-dm', !!(room && room.is_dm));
             setAcroPhase('idle', null);
@@ -2610,7 +2385,7 @@ const chitchatApp = createApp({
         inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
         setTimeout(function() { if (inputEl) inputEl.focus(); }, 50);
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, replyToMessage: replyToMessage };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -2652,7 +2427,11 @@ const chitchatApp = createApp({
             data.room_notification_muted.forEach(function(rid) { state.roomNotificationMuted[rid] = true; });
         }
         if (data.users) state.allUsersWithStatus = data.users;
-        if (data.rooms) renderRoomList(data.rooms, data.room);
+        if (data.rooms) {
+            state.allRooms = data.rooms;
+            if (state.roomOrderIds.length === 0) state.roomOrderIds = data.rooms.map(function(r) { return r.id; });
+            state.currentRoom = data.room || state.currentRoom;
+        }
         if (state.currentRoom && data.room_muted_in_room) {
             state.roomMutedInRoom[state.currentRoom.id] = new Set(data.room_muted_in_room);
         }
@@ -2737,7 +2516,6 @@ const chitchatApp = createApp({
                 state.roomNotificationMuted = {};
                 data.room_notification_muted.forEach(function(rid) { state.roomNotificationMuted[rid] = true; });
             }
-            renderRoomList(null, state.currentRoom);
         }
     });
 
@@ -2749,7 +2527,6 @@ const chitchatApp = createApp({
                 state.roomNotificationMuted = {};
                 data.room_notification_muted.forEach(function(rid) { state.roomNotificationMuted[rid] = true; });
             }
-            renderRoomList(null, state.currentRoom);
         }
     });
 
@@ -2769,7 +2546,6 @@ const chitchatApp = createApp({
                 var refreshed = data.rooms.find(function(r) { return r.id === state.currentRoom.id; });
                 if (refreshed) state.currentRoom = refreshed;
             }
-            renderRoomList(null, state.currentRoom);
         }
     });
 
@@ -2781,7 +2557,6 @@ const chitchatApp = createApp({
         if (data.room) {
             state.allRooms = state.allRooms.concat([data.room]);
             state.roomOrderIds.push(data.room.id);
-            renderRoomList(null, state.currentRoom);
             switchRoom(data.room.id);
         }
     });
@@ -2793,7 +2568,6 @@ const chitchatApp = createApp({
             state.allRooms = state.allRooms.concat([data.room]);
             state.roomOrderIds.push(data.room.id);
         }
-        renderRoomList(null, state.currentRoom);
         switchRoom(data.room.id);
     });
 
@@ -2816,7 +2590,6 @@ const chitchatApp = createApp({
         }
         state.allRooms = state.allRooms.filter(function(r) { return r.id !== data.room_id; });
         state.roomOrderIds = state.roomOrderIds.filter(function(id) { return id !== data.room_id; });
-        renderRoomList(null, state.currentRoom);
     });
 
     socket.on('unread_incremented', function(data) {
@@ -2830,10 +2603,7 @@ const chitchatApp = createApp({
     });
 
     socket.on('user_list_updated', function(data) {
-        if (data.users) {
-            state.allUsersWithStatus = data.users;
-            if (state.showingSettings) renderSettingsView();
-        }
+        if (data.users) state.allUsersWithStatus = data.users;
     });
 
     socket.on('profile_updated', function(data) {
@@ -2859,96 +2629,37 @@ const chitchatApp = createApp({
     });
 
     socket.on('acrobot_status', function(data) {
-        acrobotActive = data.active !== false;
-        var toggle = document.getElementById('acrobotActiveToggle');
-        if (toggle) toggle.checked = acrobotActive;
+        state.acrobotActive = acrobotActive = data.active !== false;
     });
     socket.on('homer_status', function(data) {
-        homerActive = data.active !== false;
-        var toggle = document.getElementById('homerActiveToggle');
-        if (toggle) toggle.checked = homerActive;
+        state.homerActive = homerActive = data.active !== false;
     });
 
     socket.on('role_permissions', function(data) {
-        var defaultSelect = document.getElementById('defaultChannelSelect');
-        if (defaultSelect && data.default_room_id != null) {
-            defaultSelect.value = String(data.default_room_id || '');
-            if (!defaultSelect.dataset.listenerAdded) {
-                defaultSelect.dataset.listenerAdded = '1';
-                defaultSelect.addEventListener('change', function() {
-                    var rid = parseInt(this.value, 10);
-                    if (rid) socket.emit('set_default_room', { room_id: rid });
-                });
-            }
-        }
-        var section = document.getElementById('rolePermissionsSection');
-        if (!section || !data.permissions || !isSuperAdmin) return;
-        var perms = data.permissions;
-        var permLabels = {
-            create_room: 'Create channels',
-            update_room: 'Edit channel names',
-            delete_room: 'Delete channels',
-            kick_user: 'Kick users',
-            set_user_rank: 'Set user rankings',
-            acrobot_control: 'AcroBot on/off',
-            homer_control: 'Homer on/off',
-            reset_stats: 'Reset Stats data',
-            export_all: 'Export all rooms'
-        };
-        var roles = [
-            { id: 'rookie', label: 'Rookie' },
-            { id: 'bro', label: 'Bro' },
-            { id: 'fam', label: 'Fam' }
-        ];
-        var html = '<h2>Role Permissions</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Surfer Girl can grant these permissions to Rookie, Bro, or Fam. Surfer Girl always has full access.</p>';
-        html += '<table style="font-size:0.85rem;border-collapse:collapse;"><tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th>';
-        roles.forEach(function(r) { html += '<th style="padding:0.35rem 0.5rem;">' + escapeHtml(r.label) + '</th>'; });
-        html += '</tr>';
-        Object.keys(permLabels).forEach(function(perm) {
-            html += '<tr><td style="padding:0.35rem 0.75rem 0.35rem 0;">' + escapeHtml(permLabels[perm]) + '</td>';
-            roles.forEach(function(r) {
-                var checked = perms[r.id] && perms[r.id][perm];
-                html += '<td style="padding:0.35rem 0.5rem;"><input type="checkbox" class="role-perm-cb" data-role="' + escapeAttr(r.id) + '" data-permission="' + escapeAttr(perm) + '" ' + (checked ? 'checked' : '') + '></td>';
-            });
-            html += '</tr>';
-        });
-        html += '</table>';
-        section.innerHTML = html;
-        if (!settingsPendingSettings) settingsPendingSettings = { acrobot: null, ranks: {}, rolePerms: {}, theme: null, bgColor: null };
-        if (!settingsPendingSettings.rolePerms) settingsPendingSettings.rolePerms = {};
-        section.querySelectorAll('.role-perm-cb').forEach(function(cb) {
-            cb.addEventListener('change', function() {
-                var role = this.getAttribute('data-role');
-                var perm = this.getAttribute('data-permission');
-                if (!settingsPendingSettings.rolePerms[role]) settingsPendingSettings.rolePerms[role] = {};
-                settingsPendingSettings.rolePerms[role][perm] = this.checked;
-            });
-        });
+        if (data.default_room_id != null) state.defaultChannelId = String(data.default_room_id || '');
+        if (!data.permissions || !isSuperAdmin) return;
+        state.rolePermissions = data.permissions || {};
     });
 
     socket.on('audit_log', function(data) {
-        var section = document.getElementById('auditLogSection');
-        if (!section || !data.entries || !Array.isArray(data.entries)) return;
-        if (data.entries.length === 0) {
-            section.innerHTML = '<p style="color:#71717a;margin:0;">No audit entries yet.</p>';
-            return;
-        }
-        var html = '';
-        data.entries.forEach(function(e) {
+        if (!data.entries || !Array.isArray(data.entries)) return;
+        state.auditLogEntries = (data.entries || []).map(function(e, i) {
             var details = '';
             try {
                 var d = e.details ? JSON.parse(e.details) : null;
                 if (d && typeof d === 'object') details = ' ' + JSON.stringify(d);
                 else if (e.details) details = ' ' + String(e.details);
             } catch (_) { if (e.details) details = ' ' + String(e.details); }
-            var time = e.created_at ? new Date(e.created_at).toLocaleString() : '';
-            html += '<div style="padding:0.25rem 0;border-bottom:1px solid #27272a;color:#a1a1aa;">' +
-                '<span style="color:#818cf8;">' + escapeHtml(e.username || '?') + '</span> ' +
-                escapeHtml(e.action || '') + (e.target_type ? ' ' + escapeHtml(e.target_type) + '#' + (e.target_id || '') : '') +
-                (details ? '<span style="color:#71717a;font-size:0.8rem;">' + escapeHtml(details) + '</span>' : '') +
-                ' <span style="font-size:0.75rem;color:#52525b;">' + escapeHtml(time) + '</span></div>';
+            return {
+                id: e.id || i,
+                username: e.username || '?',
+                action: e.action || '',
+                target_type: e.target_type || '',
+                target_id: e.target_id || '',
+                details: details,
+                created_at: e.created_at ? new Date(e.created_at).toLocaleString() : ''
+            };
         });
-        section.innerHTML = html;
     });
 
     socket.on('stats_reset', function(data) {
@@ -3006,7 +2717,7 @@ const chitchatApp = createApp({
     });
 
     socket.on('message_retention_updated', function(data) {
-        messageRetentionDays = data.days !== undefined ? data.days : null;
+        state.messageRetentionDays = messageRetentionDays = data.days !== undefined ? data.days : null;
         setStatus('Auto-delete setting updated.');
     });
 
@@ -3205,9 +2916,11 @@ const chitchatApp = createApp({
 
     function showSettings() {
         state.showingSettings = true;
-        state.currentRoom = null;
-        renderRoomList(state.allRooms.length ? state.allRooms : null, null);
-        renderSettingsView();
+        if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
+        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+        socket.emit('get_acrobot_status');
+        socket.emit('get_homer_status');
+        if (isSuperAdmin) { socket.emit('get_role_permissions'); socket.emit('get_audit_log', { limit: 50 }); }
     }
     if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
 
