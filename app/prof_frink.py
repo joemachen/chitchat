@@ -47,6 +47,9 @@ _frink_daily_enabled = False
 _frink_difficulty: Optional[str] = None  # beginner | intermediate | advanced | master
 _frink_seasons: Optional[list[int]] = None  # e.g. [1, 2, 3] or None for all
 
+# Active question per room_id: {"answer": str, "question_msg_id": int} — cleared when answered or timeout
+_active_trivia: dict[int, dict] = {}
+
 
 @dataclass
 class TriviaQuestion:
@@ -153,7 +156,7 @@ def format_frink_reply(text: str, include_frinkism: bool = True) -> str:
 def get_trivia_response() -> tuple[str, str]:
     """
     Fetch a trivia question and return (question_message, answer_for_later).
-    The question is posted; the answer can be revealed after a delay or on command.
+    The question is posted; the answer is revealed when first correct chat message or after timeout.
     """
     tq = fetch_trivia_question()
     if not tq:
@@ -162,17 +165,85 @@ def get_trivia_response() -> tuple[str, str]:
     return msg, tq.answer
 
 
+def set_active_trivia(room_id: int, answer: str, question_msg_id: int) -> None:
+    """Record active question for answer matching."""
+    global _active_trivia
+    _active_trivia[room_id] = {"answer": answer, "question_msg_id": question_msg_id}
+
+
+def get_active_trivia(room_id: int) -> Optional[dict]:
+    """Get active question for room, or None."""
+    return _active_trivia.get(room_id)
+
+
+def clear_active_trivia(room_id: int) -> None:
+    """Clear active question (answered or timeout)."""
+    global _active_trivia
+    _active_trivia.pop(room_id, None)
+
+
+def _normalize(s: str) -> str:
+    """Normalize for comparison: lower, strip, collapse whitespace, remove apostrophes."""
+    return " ".join(s.strip().lower().replace("'", "").split())
+
+
+def check_trivia_answer(room_id: int, user_answer: str) -> Optional[str]:
+    """
+    If user_answer matches the active question (case-insensitive), return the canonical answer and clear.
+    Otherwise return None.
+    """
+    active = get_active_trivia(room_id)
+    if not active:
+        return None
+    if _normalize(user_answer) == _normalize(active["answer"]):
+        canonical = active["answer"]
+        clear_active_trivia(room_id)
+        return canonical
+    return None
+
+
+def get_trivia_leaderboard(room_id: int, limit: int = 10) -> list[tuple[str, int]]:
+    """Return list of (username, correct_count) for room, sorted by correct desc."""
+    from app.models import TriviaScore, User
+    rows = (
+        TriviaScore.query.filter_by(room_id=room_id)
+        .order_by(TriviaScore.correct.desc())
+        .limit(limit)
+        .all()
+    )
+    result = []
+    for row in rows:
+        u = User.query.get(row.user_id)
+        name = u.username if u else f"User#{row.user_id}"
+        result.append((name, row.correct))
+    return result
+
+
+def award_trivia_point(room_id: int, user_id: int) -> int:
+    """Increment correct count for user in room. Returns new total."""
+    from app.models import TriviaScore, db
+    row = TriviaScore.query.filter_by(room_id=room_id, user_id=user_id).first()
+    if row:
+        row.correct = (row.correct or 0) + 1
+    else:
+        row = TriviaScore(room_id=room_id, user_id=user_id, correct=1)
+        db.session.add(row)
+    db.session.commit()
+    return row.correct
+
+
 def get_help_text() -> str:
     """Frink-flavored help menu."""
     return "\n".join([
         "**Prof Frink — Trivia Bot** " + _random_frinkism(),
         "",
         "**Commands** (only in #Trivia channel):",
-        "• **!trivia** — Fetch one random Simpsons trivia question",
+        "• **!trivia** — Fetch one random Simpsons trivia question (first correct answer in chat wins a point)",
         "• **!daily** — Toggle daily automated trivia post (Surfer Girl or frink_control)",
         "• **!set-difficulty [beginner|intermediate|advanced|master]** — Filter by difficulty",
         "• **!set-seasons [1-20]** — Filter by season(s), e.g. !set-seasons 1 2 3",
         "• **!settings** — Show current bot configuration",
+        "• **!score** / **/score** — Show trivia leaderboard",
         "• **!help** / **!commands** — This message",
         "",
         "The mathematics of knowledge await! Hoyvin-glaven!",

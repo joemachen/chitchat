@@ -29,11 +29,16 @@ from app.acrophobia import (
 )
 from app.homer import get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
 from app.prof_frink import (
+    award_trivia_point,
+    check_trivia_answer,
+    format_frink_reply,
     get_frink_settings,
     get_help_text as frink_get_help,
+    get_trivia_leaderboard,
     get_trivia_response,
     is_frink_active,
     is_frink_daily_enabled,
+    set_active_trivia,
     set_frink_active as frink_set_active,
     set_frink_daily_enabled,
     set_frink_difficulty,
@@ -41,7 +46,7 @@ from app.prof_frink import (
 )
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -496,20 +501,25 @@ def _fire_daily_trivia(socket_io):
             db.session.commit()
             _broadcast_new_message_impl(socket_io, trivia_room.id, msg.to_dict())
             if answer:
+                set_active_trivia(trivia_room.id, answer, msg.id)
 
-                def _reveal(app_obj, rid, ans, fid):
+                def _reveal(app_obj, rid, fid, sock_io):
                     with app_obj.app_context():
-                        rev_msg = Message(
-                            room_id=rid,
-                            user_id=fid,
-                            content=f"**Answer:** {ans}",
-                            message_type="chat",
-                        )
-                        db.session.add(rev_msg)
-                        db.session.commit()
-                        _broadcast_new_message_impl(getattr(app_obj, "socketio", None), rid, rev_msg.to_dict())
+                        from app.prof_frink import get_active_trivia, clear_active_trivia
+                        active = get_active_trivia(rid)
+                        if active:
+                            clear_active_trivia(rid)
+                            rev_msg = Message(
+                                room_id=rid,
+                                user_id=fid,
+                                content=f"**Answer:** {active['answer']}",
+                                message_type="chat",
+                            )
+                            db.session.add(rev_msg)
+                            db.session.commit()
+                            _broadcast_new_message_impl(sock_io, rid, rev_msg.to_dict())
 
-                eventlet.spawn_after(30000, _reveal, app, trivia_room.id, answer, frink_user.id)
+                eventlet.spawn_after(30000, _reveal, app, trivia_room.id, frink_user.id, socket_io)
             logger.info("Posted daily trivia to Trivia room")
     except Exception as e:
         logger.warning("Daily trivia failed: %s", e)
@@ -865,56 +875,76 @@ def register_socket_handlers(socketio):
             return
 
         # Prof Frink — Trivia bot (only in #Trivia channel)
+        trivia_commands = ("!trivia", "! trivia", "!help", "!commands", "! help", "! commands", "!settings", "! settings",
+                          "!set-difficulty", "! set-difficulty", "!set-seasons", "! set-seasons", "!daily", "! daily",
+                          "!score", "/score", "! score", "/ score")
         if room_obj.name == "Trivia":
-            low_content = content.strip().lower()
+            frink_user = User.query.filter_by(username="Prof Frink").first()
             parts = content.strip().split()
             cmd = parts[0].lower() if parts else ""
-            if cmd in ("!trivia", "! trivia") and is_frink_active():
-                frink_user = User.query.filter_by(username="Prof Frink").first()
-                if frink_user:
-                    q_msg, answer = get_trivia_response()
-                    msg = Message(
-                        room_id=room_id,
-                        user_id=frink_user.id,
-                        content=q_msg,
-                        message_type="chat",
-                    )
-                    db.session.add(msg)
-                    db.session.commit()
-                    _broadcast_new_message(room_id, msg.to_dict())
-                    if answer:
-                        def _reveal_answer(app, rid, ans, fid):
-                            with app.app_context():
+            if cmd in ("!trivia", "! trivia") and is_frink_active() and frink_user:
+                q_msg, answer = get_trivia_response()
+                msg = Message(
+                    room_id=room_id,
+                    user_id=frink_user.id,
+                    content=q_msg,
+                    message_type="chat",
+                )
+                db.session.add(msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, msg.to_dict())
+                if answer:
+                    set_active_trivia(room_id, answer, msg.id)
+
+                    def _reveal_answer_timeout(app_obj, rid, fid, socket_io):
+                        with app_obj.app_context():
+                            from app.prof_frink import get_active_trivia, clear_active_trivia
+                            active = get_active_trivia(rid)
+                            if active:
+                                clear_active_trivia(rid)
                                 rev_msg = Message(
                                     room_id=rid,
                                     user_id=fid,
-                                    content=f"**Answer:** {ans}",
+                                    content=f"**Answer:** {active['answer']}",
                                     message_type="chat",
                                 )
                                 db.session.add(rev_msg)
                                 db.session.commit()
-                                _broadcast_new_message(rid, rev_msg.to_dict())
-                        app_obj = current_app._get_current_object()
-                        eventlet.spawn_after(30000, _reveal_answer, app_obj, room_id, answer, frink_user.id)
+                                _broadcast_new_message_impl(socket_io, rid, rev_msg.to_dict())
+
+                    app_obj = current_app._get_current_object()
+                    eventlet.spawn_after(30000, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
                 return
-            if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active():
-                frink_user = User.query.filter_by(username="Prof Frink").first()
-                if frink_user:
-                    help_text = frink_get_help()
-                    msg = Message(room_id=room_id, user_id=frink_user.id, content=help_text, message_type="chat")
+            if cmd in ("!score", "/score", "! score", "/ score") and is_frink_active() and frink_user:
+                leaderboard = get_trivia_leaderboard(room_id, limit=10)
+                if not leaderboard:
+                    lb_text = "No scores yet! Be the first to answer a trivia question correctly, glavin!"
+                else:
+                    lines = ["**Trivia leaderboard**"]
+                    for i, (name, count) in enumerate(leaderboard, 1):
+                        lines.append(f"{i}. **{name}** — {count} correct")
+                    lb_text = format_frink_reply("\n".join(lines))
+                if lb_text:
+                    msg = Message(room_id=room_id, user_id=frink_user.id, content=lb_text, message_type="chat")
                     db.session.add(msg)
                     db.session.commit()
                     _broadcast_new_message(room_id, msg.to_dict())
                 return
-            if cmd in ("!settings", "! settings") and is_frink_active():
-                frink_user = User.query.filter_by(username="Prof Frink").first()
-                if frink_user:
-                    s = get_frink_settings()
-                    txt = f"**Prof Frink settings:** Active={s['active']}, Daily={s['daily_enabled']}, Difficulty={s['difficulty']}, Seasons={s['seasons']}"
-                    msg = Message(room_id=room_id, user_id=frink_user.id, content=txt, message_type="chat")
-                    db.session.add(msg)
-                    db.session.commit()
-                    _broadcast_new_message(room_id, msg.to_dict())
+            if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active() and frink_user:
+            if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active() and frink_user:
+                help_text = frink_get_help()
+                msg = Message(room_id=room_id, user_id=frink_user.id, content=help_text, message_type="chat")
+                db.session.add(msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, msg.to_dict())
+                return
+            if cmd in ("!settings", "! settings") and is_frink_active() and frink_user:
+                s = get_frink_settings()
+                txt = f"**Prof Frink settings:** Active={s['active']}, Daily={s['daily_enabled']}, Difficulty={s['difficulty']}, Seasons={s['seasons']}"
+                msg = Message(room_id=room_id, user_id=frink_user.id, content=txt, message_type="chat")
+                db.session.add(msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, msg.to_dict())
                 return
             if cmd in ("!set-difficulty", "! set-difficulty") and len(parts) >= 2:
                 diff = parts[1].lower()
@@ -952,6 +982,19 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message(room_id, msg.to_dict())
                 return
+            if cmd not in trivia_commands and user.username != "Prof Frink" and content:
+                matched_answer = check_trivia_answer(room_id, content)
+                if matched_answer and frink_user:
+                    total = award_trivia_point(room_id, user_id)
+                    winner_msg = Message(
+                        room_id=room_id,
+                        user_id=frink_user.id,
+                        content=format_frink_reply(f"**{user.username}** got it right! **Answer:** {matched_answer} (+1 point, {total} total)"),
+                        message_type="chat",
+                    )
+                    db.session.add(winner_msg)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, winner_msg.to_dict())
 
         # !Simpsons — Homer says a random Simpsons quote (when Homer is active)
         low_content = content.strip().lower()
@@ -1110,7 +1153,7 @@ def register_socket_handlers(socketio):
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
-                "• In #Trivia: !trivia, !help, !settings, !set-difficulty, !set-seasons (Prof Frink bot)",
+                "• In #Trivia: !trivia (first correct answer wins), !score (leaderboard), !help, !settings (Prof Frink bot)",
                 "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, View profile, Whois",
                 "• Right-click user → View profile, Message, Kick (if permitted)",
                 "• Ctrl+K — room switcher; Esc — close modals",

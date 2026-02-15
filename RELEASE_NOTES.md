@@ -1,9 +1,17 @@
 # Release notes
 
+## v2.3.0 — Trivia scoring, leaderboard, first-correct-wins
+
+**Prof Frink trivia**
+- **First correct answer wins** — Type the answer in chat (case-insensitive); first correct message awards a point. Answer revealed immediately on correct guess, or after 30s if no one gets it.
+- **TriviaScore & leaderboard** — `!score` or `/score` shows top 10 in the Trivia room. Scores persisted per room per user (like Acrophobia).
+
+---
+
 ## v2.2.0 — Prof Frink trivia, daily scheduler, protected save fix, Scrabble acronyms
 
 **Prof Frink trivia bot**
-- **Trivia channel** — New #Trivia room with Simpsons trivia bot. Commands: `!trivia` (random question, answer after 30s), `!help`, `!settings`, `!set-difficulty [beginner|intermediate|advanced|master]`, `!set-seasons [1-20]`.
+- **Trivia channel** — New #Trivia room with Simpsons trivia bot. Commands: `!trivia`, `!help`, `!settings`, `!set-difficulty [beginner|intermediate|advanced|master]`, `!set-seasons [1-20]`.
 - **Daily trivia** — `!daily` (Surfer Girl or frink_control) toggles automated daily post at 9:00 UTC.
 - **Settings** — Prof Frink on/off toggle and `frink_control` permission (like Homer).
 

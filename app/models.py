@@ -228,6 +228,18 @@ class AcroScore(db.Model):
     __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_acro_score"),)
 
 
+class TriviaScore(db.Model):
+    """Persistent trivia correct answers per room per user."""
+    __tablename__ = "trivia_scores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    correct = db.Column(db.Integer, nullable=False, default=0)
+
+    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_trivia_score"),)
+
+
 class AppSetting(db.Model):
     """Key-value app config (e.g. default_room_id for login)."""
     __tablename__ = "app_settings"
