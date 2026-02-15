@@ -13,7 +13,7 @@ chitchat/
 ├── wsgi.py              # Gunicorn entry point; eventlet monkey_patch before imports
 ├── Procfile             # Koyeb: web: python gunicorn_run.py
 ├── requirements.txt    # Python dependencies (flask-migrate, gunicorn, psycopg2-binary)
-├── migrations/          # Flask-Migrate (Alembic) — versions/001..013, env.py
+├── migrations/          # Flask-Migrate (Alembic) — versions/001–017, env.py
 ├── logs/                # Runtime logs (git-ignored except .gitkeep)
 │   ├── app.log          # General activity (start, connections)
 │   └── errors.log       # Exceptions with stack traces and local variable context
@@ -24,7 +24,7 @@ chitchat/
     ├── logging_config.py # Logging setup (logs dir, handlers)
     ├── models.py        # (Step 2) Users, Messages, RoomMute; IgnoreList (legacy)
     ├── templates/
-    │   └── chat.html    # (Step 4) Chat UI (Vanilla JS)
+    │   └── chat.html    # (Step 4) Chat UI (Vue 3)
     └── ...              # Routes, socket handlers, services as needed
 ```
 
@@ -54,7 +54,7 @@ chitchat/
 
 ## UI (Step 4)
 
-- Single chat interface in `app/templates/chat.html` using **Vanilla JS**, Socket.IO client, and **marked.js** for Markdown in messages.
+- Single chat interface in `app/templates/chat.html` using **Vue 3** (CDN, Composition API), Socket.IO client, and **marked.js** for Markdown in messages.
 - **Display name** (from /nick) and **status** (from /status) shown in whois; message header shows display name when set.
 - **Load older messages** button at top of message list; **typing indicator** above the input; **link preview** cards with minimize per message.
 

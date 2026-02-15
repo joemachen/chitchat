@@ -23,6 +23,8 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 
 **Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a channel to **Edit channel** (name and topic). Right-click other users for Whois, Message, Mute, etc.
 
+**Shortcuts** — **Ctrl+K** opens the room switcher; **Esc** closes modals.
+
 **Mobile** — On screens under 768px, a 3-tab bottom bar (Rooms, DMs, Settings) replaces the hamburger menu. Tap Rooms or DMs to open the channel list; tap Settings to open Settings.
 
 ### In the Acrophobia channel

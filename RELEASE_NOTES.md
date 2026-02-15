@@ -13,7 +13,10 @@
 
 ---
 
-## v2.0.0 — Deploy announcements, unread dot, DB pooling
+## v2.0.0 — Deploy announcements, unread dot, DB pooling, Vue refactor
+
+**Frontend**
+- **Vue 3 migration** — Chat UI refactored from vanilla JS to Vue 3 (Composition API via CDN). Room list, messages, user list, stats, settings, modals (profile, whois, edit message/profile/room, search results, room switcher), and unread indicators now use reactive state. No build step.
 
 **System Events**
 - **Version-only announcements** — Release notes are posted to System Events only when a new version is deployed, not on every redeploy. Uses `last_deploy_announced_version` in app settings.

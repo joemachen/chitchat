@@ -20,7 +20,7 @@
 
 ## Frontend
 
-- **Vanilla JS** — No framework; used in `app/templates/chat.html` for the chat UI and Socket.IO client.
+- **Vue 3 (CDN)** — Composition API, reactive state; single template `chat.html`. No build step.
 - **marked.js** — Markdown rendering for message content (bold, italics, code blocks); loaded from CDN.
 - **Link previews** — Server fetches Open Graph data (requests + BeautifulSoup); client renders preview cards with minimize.
 - **Typing indicators** — WebSocket `user_typing` event; “[User] is typing…” above the input.

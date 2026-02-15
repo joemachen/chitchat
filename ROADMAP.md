@@ -8,10 +8,10 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Stack & foundation
 
-- **Stack**: Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vanilla JS; optional pywebview standalone.
+- **Stack**: Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vue 3 (CDN); optional pywebview standalone.
 - **Run**: `run.py` (browser), `run_standalone.py` (native window). Port fallback: if 5000 is in use, tries 5001–5019 automatically.
 - **Production**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with eventlet worker.
-- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–015), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
+- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–017), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
 
 ### Auth & users
 
@@ -70,7 +70,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 2 — Richer chat & moderation
 
-- **Chat**: Optional file/image uploads (size limits, instance/ or configurable storage). Optional reply-to-message (threading or inline). Optional edit/delete own message.
+- **Chat**: Optional file/image uploads (size limits, instance/ or configurable storage). Optional reply-to-message (threading or inline). Edit/delete own message done.
 - **Moderation**: Optional room roles (e.g. owner); room-level mute; admin controls (invite codes, room create/delete, user list) — partly covered by Surfer Girl and role permissions today.
 - **Persistence**: Optional message search (by room, user, text); export room history (JSON/HTML).
 
@@ -124,7 +124,7 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 ## Next up (prioritized)
 
 1. **Health endpoint** — `GET /health` for uptime checks *(done)*
-2. **Keyboard shortcuts** — Ctrl+K room switcher, Esc close modals
+2. **Keyboard shortcuts** — Ctrl+K room switcher, Esc close modals *(done)*
 3. **Message reactions** — *(done)*
 4. **Unread indicators** — *(done)*
 5. **Search** — Search messages in current room or all rooms *(done — in-room search; mobile: in hamburger)*
