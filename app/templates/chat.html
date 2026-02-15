@@ -441,7 +441,7 @@
             .header-settings-logout { display: none !important; }
             .room-list-footer-mobile { display: block !important; }
             .mobile-menu-btn { display: none !important; }
-            .room-list, .user-list { position: fixed; top: 0; bottom: 72px; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+            .room-list, .user-list { position: fixed; top: 0; bottom: 108px; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
             .room-list { left: 0; }
             .user-list { left: auto; right: 0; transform: translateX(100%); border-left: none; border-right: 1px solid #27272a; }
             .room-list.open { transform: translateX(0); box-shadow: 4px 0 12px rgba(0,0,0,0.3); }
@@ -2456,6 +2456,20 @@
 
     function switchRoom(roomId) {
         if (currentRoom && currentRoom.id === roomId) return;
+        var room = allRooms.find(function(r) { return r.id === roomId; });
+        if (room) {
+            currentRoom = room;
+            clearUnreadForRoom(roomId);
+            renderRoomList(null, currentRoom);
+            updateMobileRoomName(room);
+            messagesEl.innerHTML = '<div class="loading-msgs" style="padding:1.5rem;text-align:center;color:#71717a;font-size:0.9rem;">Loading…</div>';
+            messagesEl.classList.toggle('is-dm', !!(room && room.is_dm));
+            if (channelTopicEl) { channelTopicEl.classList.add('empty'); channelTopicEl.innerHTML = ''; }
+            if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+            setAcroPhase('idle', null);
+            typingUsers = {};
+            updateTypingIndicator();
+        }
         socket.emit('join_room', { room_id: roomId });
         var rl = document.getElementById('roomList');
         var ov = document.getElementById('sidebarOverlay');

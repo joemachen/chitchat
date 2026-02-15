@@ -1,5 +1,19 @@
 # Release notes
 
+## v1.10.0 — SocketIO fix, mobile footer, faster channel switch
+
+**Flask-SocketIO 5.x compatibility**
+- **Broadcast fix** — Replaced context `emit(..., broadcast=True)` with `socketio.emit(..., broadcast=True)` throughout. Fixes "unexpected keyword argument 'broadcast'" error when deleting users or performing other broadcast operations.
+
+**Mobile**
+- **Drawer footer** — Room list drawer bottom clearance increased to 108px so Search, Settings, and Log out are fully visible above the 3-tab nav bar.
+
+**Channel switching**
+- **Optimistic UI** — Room list selection, header, and loading state update immediately on click; content loads in as it arrives.
+- **Deferred presence** — Presence broadcast on room join is deferred so the joining user receives room content first.
+
+---
+
 ## v1.9.0 — Delete user fix, Send message, mobile drawer
 
 **Delete account & delete user**

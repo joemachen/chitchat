@@ -473,7 +473,7 @@ def register_socket_handlers(socketio):
         if was_offline:
             _post_system_event(f"{username} came online")
         logger.info("Socket connected: user_id=%s", user_id)
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
     @socketio.on("disconnect")
     def on_disconnect():
@@ -496,7 +496,7 @@ def register_socket_handlers(socketio):
                 _online_user_ids.discard(user_id)
                 _post_system_event(f"{username} went offline")
                 logger.info("Socket disconnected: user_id=%s (last socket)", user_id)
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
     def _is_super_admin(user_id):
         """Return True if user is Surfer Girl (top level, all permissions)."""
@@ -641,7 +641,8 @@ def register_socket_handlers(socketio):
         socketio_join_room(socket_room)
         if room_obj.name.strip().lower() not in ("stats",):
             _user_id_to_room[user_id] = (room_id, room_obj.name)
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            # Defer presence broadcast so room_joined reaches the joining user first
+            eventlet.spawn_after(0, lambda: socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True))
         else:
             _user_id_to_room.pop(user_id, None)
 
@@ -902,7 +903,7 @@ def register_socket_handlers(socketio):
                 if not existing:
                     dm_room = _get_or_create_dm_room(user_id, target.id)
                     rooms = Room.query.order_by(Room.name).all()
-                    emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+                    socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
                 else:
                     dm_room = existing
                 dm_msg = Message(
@@ -964,7 +965,7 @@ def register_socket_handlers(socketio):
             db.session.add(msg)
             db.session.commit()
             _broadcast_new_message(room_id, msg.to_dict())
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
         # /dnd — Set Do Not Disturb status.
@@ -976,7 +977,7 @@ def register_socket_handlers(socketio):
             db.session.add(msg)
             db.session.commit()
             _broadcast_new_message(room_id, msg.to_dict())
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
         # /online — Clear away/dnd, back to online.
@@ -989,7 +990,7 @@ def register_socket_handlers(socketio):
             db.session.add(msg)
             db.session.commit()
             _broadcast_new_message(room_id, msg.to_dict())
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             return
 
         # /nick <name> — Set or clear display name (shown in chat). Any user.
@@ -1004,7 +1005,7 @@ def register_socket_handlers(socketio):
             db.session.add(msg)
             db.session.commit()
             _broadcast_new_message(room_id, msg.to_dict())
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
             _post_system_event(f"{user.username} changed nick to " + (nick or "(cleared)"))
             return
 
@@ -1469,7 +1470,7 @@ def register_socket_handlers(socketio):
                 _post_system_event(f"{user.username} is away: {away_message}")
             else:
                 _post_system_event(f"{user.username} is no longer away")
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         emit("profile_updated", {"status_line": status_line, "away_message": away_message})
         logger.info("Profile updated by user %s", user.username)
 
@@ -1492,7 +1493,7 @@ def register_socket_handlers(socketio):
         if status == "online":
             user.away_message = None
         db.session.commit()
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
 
     @socketio.on("report_message")
     def on_report_message(data):
@@ -1666,7 +1667,7 @@ def register_socket_handlers(socketio):
         db.session.commit()
         _audit_log(user_id, "create_room", "room", room.id, {"name": name})
         rooms = Room.query.order_by(Room.name).all()
-        emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_created", {"room": room.to_dict()})
         logger.info("Room created: %s by user %s", name, user_id)
 
@@ -1728,7 +1729,7 @@ def register_socket_handlers(socketio):
         room = Room.query.get(room_id)
         _audit_log(user_id, "update_room", "room", room_id, {"name": name, "topic": getattr(room, "topic", None), "is_protected": getattr(room, "is_protected", None)})
         rooms = Room.query.order_by(Room.name).all()
-        emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_renamed", {"room_id": room_id, "room": room.to_dict()})
         if topic_changed:
             user = User.query.get(user_id)
@@ -1782,7 +1783,7 @@ def register_socket_handlers(socketio):
         db.session.commit()
         _audit_log(user_id, "delete_room", "room", room_id, {"name": room_name})
         rooms = Room.query.order_by(Room.name).all()
-        emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+        socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
         emit("room_deleted", {"room_id": room_id})
         logger.info("Room deleted: %s", room_id)
 
@@ -1937,7 +1938,7 @@ def register_socket_handlers(socketio):
             db.session.add(room)
             db.session.commit()
             rooms = Room.query.order_by(Room.name).all()
-            emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
+            socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]}, broadcast=True)
             logger.info("DM room created between %s and %s", user_id, other_id)
         emit("dm_room", {"room": room.to_dict()})
 
@@ -2010,7 +2011,7 @@ def register_socket_handlers(socketio):
         target.is_super_admin = bool(is_super)
         db.session.commit()
         _audit_log(user_id, "set_super_admin", "user", target_id, {"target_username": target.username, "is_super_admin": target.is_super_admin})
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set Super Admin for user %s to %s", user_id, target_id, target.is_super_admin)
 
     @socketio.on("set_user_rank")
@@ -2044,7 +2045,7 @@ def register_socket_handlers(socketio):
         target.is_super_admin = rank == "super_admin"
         db.session.commit()
         _audit_log(user_id, "set_user_rank", "user", target_id, {"target_username": target.username, "rank": rank})
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
 
     @socketio.on("delete_user")
@@ -2117,8 +2118,8 @@ def register_socket_handlers(socketio):
             db.session.delete(target)
             db.session.commit()
             _audit_log(user_id, "delete_user", "user", target_id, {"target_username": target_username})
-            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
-            emit("rooms_updated", {"rooms": [r.to_dict() for r in _rooms_sorted_for_user(user_id)]}, broadcast=True)
+            socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in _rooms_sorted_for_user(user_id)]}, broadcast=True)
             logger.info("User %s deleted user %s", user_id, target_id)
         except Exception as e:
             db.session.rollback()
@@ -2234,8 +2235,8 @@ def register_socket_handlers(socketio):
             return
         acrophobia_set_acrobot_active(bool(active))
         _audit_log(user_id, "set_acrobot_active", None, None, {"active": is_acrobot_active()})
-        emit("acrobot_status", {"active": is_acrobot_active()}, broadcast=True)
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("acrobot_status", {"active": is_acrobot_active()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set AcroBot active=%s", user_id, is_acrobot_active())
 
     @socketio.on("get_homer_status")
@@ -2259,8 +2260,8 @@ def register_socket_handlers(socketio):
             return
         homer_set_active(bool(active))
         _audit_log(user_id, "set_homer_active", None, None, {"active": is_homer_active()})
-        emit("homer_status", {"active": is_homer_active()}, broadcast=True)
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+        socketio.emit("homer_status", {"active": is_homer_active()}, broadcast=True)
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
         logger.info("User %s set Homer active=%s", user_id, is_homer_active())
 
     @socketio.on("reset_stats_data")
