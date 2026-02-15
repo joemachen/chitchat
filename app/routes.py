@@ -23,7 +23,7 @@ from app.auth import (
 from sqlalchemy.exc import OperationalError
 
 from app.config import Config
-from app.models import IgnoreList, Message, MessageReport, RolePermission, Room, User, db
+from app.models import AcroScore, AuditLog, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, db
 
 
 def _can_export_all(user):
@@ -320,10 +320,23 @@ def register_routes(app):
         if confirm != "DELETE":
             return render_template("delete_account.html", user=user, error="Type DELETE (all caps) to confirm.")
         # Remove all data associated with this user, then delete the user.
+        # Order matters: clear FKs before deleting user.
         MessageReport.query.filter_by(reported_by_user_id=user_id).delete()
         IgnoreList.query.filter(
             (IgnoreList.user_id == user_id) | (IgnoreList.ignored_user_id == user_id)
         ).delete(synchronize_session=False)
+        RoomMute.query.filter(
+            (RoomMute.muted_user_id == user_id) | (RoomMute.muted_by_id == user_id)
+        ).delete(synchronize_session=False)
+        AcroScore.query.filter_by(user_id=user_id).delete()
+        AuditLog.query.filter_by(user_id=user_id).delete()
+        # Delete DM rooms where user is a participant (so "DM: Chachi" disappears for others)
+        dm_rooms = Room.query.filter(
+            Room.dm_with_id.isnot(None),
+            (Room.created_by_id == user_id) | (Room.dm_with_id == user_id),
+        ).all()
+        for dm_room in dm_rooms:
+            db.session.delete(dm_room)
         Message.query.filter_by(user_id=user_id).delete()
         Room.query.filter(Room.created_by_id == user_id).update({"created_by_id": None})
         Room.query.filter(Room.topic_set_by_id == user_id).update({"topic_set_by_id": None})

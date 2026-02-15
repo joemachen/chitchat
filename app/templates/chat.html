@@ -2089,7 +2089,7 @@
             html += '<h2>Users — Rankings</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>';
             (allUsersWithStatus || []).forEach(function(u) {
                 var me = u.id === currentUserId;
-                var isSystem = u.username === 'AcroBot' || u.username === 'System';
+                var isSystem = u.username === 'AcroBot' || u.username === 'System' || u.username === 'Homer';
                 var canDelete = !me && !isSystem;
                 var currentRank = (u.rank || 'rookie').toLowerCase();
                 if (['rookie', 'bro', 'fam', 'super_admin'].indexOf(currentRank) === -1) currentRank = 'rookie';

@@ -2108,6 +2108,7 @@ def register_socket_handlers(socketio):
             (RoomMute.muted_user_id == target_id) | (RoomMute.muted_by_id == target_id)
         ).delete(synchronize_session=False)
         AcroScore.query.filter_by(user_id=target_id).delete()
+        AuditLog.query.filter_by(user_id=target_id).delete()
         db.session.delete(target)
         db.session.commit()
         _audit_log(user_id, "delete_user", "user", target_id, {"target_username": target_username})
