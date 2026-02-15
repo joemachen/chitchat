@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, edit profile (status, away message; announces in System Events; auto-replies to DMs when away), an in-channel stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, !daily, !set-difficulty, !set-seasons; hot streaks; DM replies), message edit/delete, file/image uploads, and admin moderation with role permissions (kick, channel CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, edit profile (status, away message, bio; announces in System Events; auto-replies to DMs when away), an in-channel stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, !daily, !set-difficulty, !set-seasons; hot streaks; DM replies), message edit/delete, file/image uploads, and admin moderation with role permissions (kick, channel CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
@@ -52,7 +52,7 @@ chitchat/
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–017
+├── migrations/            # Flask-Migrate (Alembic) versions 001–019
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -80,7 +80,7 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–017), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–019), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="eventlet"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
@@ -216,7 +216,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.5.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.8.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 
@@ -273,7 +273,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 2.1.0); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 2.8.0); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
