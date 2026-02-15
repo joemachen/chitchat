@@ -441,7 +441,7 @@
             .header-settings-logout { display: none !important; }
             .room-list-footer-mobile { display: block !important; }
             .mobile-menu-btn { display: none !important; }
-            .room-list, .user-list { position: fixed; top: 0; bottom: 0; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+            .room-list, .user-list { position: fixed; top: 0; bottom: 72px; z-index: 1000; width: 260px; max-width: 85vw; transform: translateX(-100%); transition: transform 0.2s ease, box-shadow 0.2s ease; }
             .room-list { left: 0; }
             .user-list { left: auto; right: 0; transform: translateX(100%); border-left: none; border-right: 1px solid #27272a; }
             .room-list.open { transform: translateX(0); box-shadow: 4px 0 12px rgba(0,0,0,0.3); }
@@ -472,7 +472,7 @@
 <body>
     <div id="contextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="whois">Whois</button>
-        <button type="button" data-action="message-user">Message</button>
+        <button type="button" data-action="message-user">Send message</button>
         <button type="button" data-action="mute-in-room">Mute in this room</button>
         <button type="button" data-action="kick-user">Kick user</button>
         <button type="button" data-action="edit-profile" id="contextMenuEditProfile" style="display:none;">Edit profile</button>
@@ -502,6 +502,7 @@
         <button type="button" data-action="mute-message-user-in-room">Mute in this room</button>
         <button type="button" data-action="report-message">Report message</button>
         <button type="button" data-action="mark-unread">Mark unread</button>
+        <button type="button" data-action="message-send-message" id="messageContextSendMessage" style="display:none;">Send message</button>
         <button type="button" data-action="message-whois">Whois</button>
     </div>
     <div id="profileModal" class="profile-modal" style="display: none;">
@@ -1225,6 +1226,7 @@
     var unhideMsgBtn = messageContextMenuEl.querySelector('[data-action="unhide-message"]');
     var messageContextCopyBtn = messageContextMenuEl.querySelector('[data-action="copy"]');
     var messageWhoisBtn = messageContextMenuEl.querySelector('[data-action="message-whois"]');
+    var messageContextSendMessageBtn = messageContextMenuEl.querySelector('[data-action="message-send-message"]');
     function showMessageContextMenu(x, y, messageId, userId, content, displayName) {
         messageContextTarget = { messageId: messageId, userId: userId, content: content || '', displayName: displayName || '?' };
         var sel = window.getSelection ? window.getSelection().toString() : '';
@@ -1234,6 +1236,7 @@
         if (editBtn) editBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
         if (delBtn) delBtn.style.display = (userId === currentUserId) ? 'block' : 'none';
         if (messageWhoisBtn) messageWhoisBtn.style.display = (userId !== currentUserId) ? 'block' : 'none';
+        if (messageContextSendMessageBtn) messageContextSendMessageBtn.style.display = (userId !== currentUserId) ? 'block' : 'none';
         var msgUserHidden = isMessageUserHidden(messageId);
         if (hideMsgBtn) hideMsgBtn.style.display = msgUserHidden ? 'none' : 'block';
         if (unhideMsgBtn) unhideMsgBtn.style.display = msgUserHidden ? 'block' : 'none';
@@ -1660,6 +1663,13 @@
         e.stopPropagation();
         if (messageContextTarget && messageContextTarget.userId) {
             socket.emit('get_whois', { user_id: messageContextTarget.userId });
+        }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="message-send-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget && messageContextTarget.userId) {
+            socket.emit('get_or_create_dm', { other_user_id: messageContextTarget.userId });
         }
         hideMessageContextMenu();
     });

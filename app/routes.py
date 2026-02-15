@@ -335,6 +335,9 @@ def register_routes(app):
             Room.dm_with_id.isnot(None),
             (Room.created_by_id == user_id) | (Room.dm_with_id == user_id),
         ).all()
+        dm_room_ids = [r.id for r in dm_rooms]
+        if dm_room_ids:
+            RoomMute.query.filter(RoomMute.room_id.in_(dm_room_ids)).delete(synchronize_session=False)
         for dm_room in dm_rooms:
             db.session.delete(dm_room)
         Message.query.filter_by(user_id=user_id).delete()

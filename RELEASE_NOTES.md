@@ -1,5 +1,21 @@
 # Release notes
 
+## v1.9.0 — Delete user fix, Send message, mobile drawer
+
+**Delete account & delete user**
+- **RoomMute FK fix** — Delete user and delete account now clear RoomMute rows for DM rooms before deleting them, fixing foreign key violations that prevented deletion.
+- **Error handling** — Delete user now catches exceptions, rolls back, and shows a clear error message instead of failing silently.
+
+**Context menus**
+- **Send message** — Right-click or long-press on a username (user list, messages, header) or on someone's message to open "Send message". Creates a new DM or opens the existing one and switches to it.
+- **User menu** — "Message" renamed to "Send message".
+- **Message menu** — Added "Send message" when right-clicking on another user's message.
+
+**Mobile**
+- **New Room button** — The room list drawer now ends above the bottom nav bar, so the New Room button and footer (Search, Settings, Log out) are no longer hidden underneath it.
+
+---
+
 ## v1.8.0 — Message hover position & Acrophobia polish
 
 **Message hover bar**

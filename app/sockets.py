@@ -2077,44 +2077,54 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Cannot delete system users"})
             return
         target_username = target.username
-        # Disconnect target if online
-        for sid, uid in list(_sid_to_user_id.items()):
-            if uid == target_id:
-                socketio.emit("kicked_from_app", {"message": "Your account was deleted."}, room=sid)
-                socketio_disconnect(sid)
-                break
-        # Delete DM rooms involving the deleted user (so "DM: Chachi" disappears for all)
-        dm_rooms_to_delete = Room.query.filter(
-            Room.dm_with_id.isnot(None),
-            (Room.created_by_id == target_id) | (Room.dm_with_id == target_id),
-        ).all()
-        for dm_room in dm_rooms_to_delete:
-            room_id = dm_room.id
-            db.session.delete(dm_room)
-            socketio.emit("room_deleted", {"room_id": room_id}, broadcast=True)
-        # Cascade delete: reports by user, reports of user's messages, ignore list, room refs
-        msg_ids = [r[0] for r in db.session.query(Message.id).filter_by(user_id=target_id).all()]
-        if msg_ids:
-            MessageReaction.query.filter(MessageReaction.message_id.in_(msg_ids)).delete(synchronize_session=False)
-            MessageReport.query.filter(MessageReport.message_id.in_(msg_ids)).delete(synchronize_session=False)
-        MessageReport.query.filter_by(reported_by_user_id=target_id).delete()
-        IgnoreList.query.filter(
-            (IgnoreList.user_id == target_id) | (IgnoreList.ignored_user_id == target_id)
-        ).delete(synchronize_session=False)
-        Message.query.filter_by(user_id=target_id).delete()
-        Room.query.filter(Room.created_by_id == target_id).update({"created_by_id": None})
-        Room.query.filter(Room.topic_set_by_id == target_id).update({"topic_set_by_id": None})
-        RoomMute.query.filter(
-            (RoomMute.muted_user_id == target_id) | (RoomMute.muted_by_id == target_id)
-        ).delete(synchronize_session=False)
-        AcroScore.query.filter_by(user_id=target_id).delete()
-        AuditLog.query.filter_by(user_id=target_id).delete()
-        db.session.delete(target)
-        db.session.commit()
-        _audit_log(user_id, "delete_user", "user", target_id, {"target_username": target_username})
-        emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
-        emit("rooms_updated", {"rooms": [r.to_dict() for r in _rooms_sorted_for_user(user_id)]}, broadcast=True)
-        logger.info("User %s deleted user %s", user_id, target_id)
+        try:
+            # Disconnect target if online
+            for sid, uid in list(_sid_to_user_id.items()):
+                if uid == target_id:
+                    socketio.emit("kicked_from_app", {"message": "Your account was deleted."}, room=sid)
+                    socketio_disconnect(sid)
+                    break
+            # Delete DM rooms involving the deleted user (so "DM: Chachi" disappears for all)
+            dm_rooms_to_delete = Room.query.filter(
+                Room.dm_with_id.isnot(None),
+                (Room.created_by_id == target_id) | (Room.dm_with_id == target_id),
+            ).all()
+            dm_room_ids = [r.id for r in dm_rooms_to_delete]
+            # RoomMute has FK to rooms; must delete before deleting rooms
+            if dm_room_ids:
+                RoomMute.query.filter(RoomMute.room_id.in_(dm_room_ids)).delete(synchronize_session=False)
+            for dm_room in dm_rooms_to_delete:
+                room_id = dm_room.id
+                db.session.delete(dm_room)
+                socketio.emit("room_deleted", {"room_id": room_id}, broadcast=True)
+            # Cascade delete: reports by user, reports of user's messages, ignore list, room refs
+            msg_ids = [r[0] for r in db.session.query(Message.id).filter_by(user_id=target_id).all()]
+            if msg_ids:
+                MessageReaction.query.filter(MessageReaction.message_id.in_(msg_ids)).delete(synchronize_session=False)
+                MessageReport.query.filter(MessageReport.message_id.in_(msg_ids)).delete(synchronize_session=False)
+            MessageReport.query.filter_by(reported_by_user_id=target_id).delete()
+            IgnoreList.query.filter(
+                (IgnoreList.user_id == target_id) | (IgnoreList.ignored_user_id == target_id)
+            ).delete(synchronize_session=False)
+            Message.query.filter_by(user_id=target_id).delete()
+            Room.query.filter(Room.created_by_id == target_id).update({"created_by_id": None})
+            Room.query.filter(Room.topic_set_by_id == target_id).update({"topic_set_by_id": None})
+            RoomMute.query.filter(
+                (RoomMute.muted_user_id == target_id) | (RoomMute.muted_by_id == target_id)
+            ).delete(synchronize_session=False)
+            AcroScore.query.filter_by(user_id=target_id).delete()
+            AuditLog.query.filter_by(user_id=target_id).delete()
+            db.session.delete(target)
+            db.session.commit()
+            _audit_log(user_id, "delete_user", "user", target_id, {"target_username": target_username})
+            emit("user_list_updated", {"users": _get_users_with_online_status()}, broadcast=True)
+            emit("rooms_updated", {"rooms": [r.to_dict() for r in _rooms_sorted_for_user(user_id)]}, broadcast=True)
+            logger.info("User %s deleted user %s", user_id, target_id)
+        except Exception as e:
+            db.session.rollback()
+            err_msg = str(e) if str(e) else repr(e)
+            logger.exception("delete_user failed for target %s: %s", target_id, err_msg)
+            emit("error", {"message": f"Could not delete user: {err_msg}"})
 
     @socketio.on("get_role_permissions")
     def on_get_role_permissions(data=None):
