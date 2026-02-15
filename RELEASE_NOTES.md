@@ -1,5 +1,20 @@
 # Release notes
 
+## v2.0.0 — Deploy announcements, unread dot, DB pooling
+
+**System Events**
+- **Version-only announcements** — Release notes are posted to System Events only when a new version is deployed, not on every redeploy. Uses `last_deploy_announced_version` in app settings.
+
+**Unread indicators**
+- **Red dot accuracy** — Dot only shows when a room has unread messages. Hidden for the current room, muted rooms, and when there are no unread messages.
+- **Badge count** — Title and favicon unread count exclude the current room and muted rooms.
+
+**Reliability**
+- **Database pooling** — PostgreSQL engine options: `pool_pre_ping` and `pool_recycle` (300s) to reduce "SSL connection has been closed unexpectedly" errors.
+- **Eventlet launcher** — `gunicorn_run.py` runs `eventlet.monkey_patch()` before gunicorn to fix "RLock(s) were not greened" warning.
+
+---
+
 ## v1.10.0 — SocketIO fix, mobile footer, faster channel switch
 
 **Flask-SocketIO 5.x compatibility**

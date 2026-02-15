@@ -34,6 +34,6 @@
 
 ## Deployment
 
-- **Koyeb + Neon**: `Procfile` (`web: gunicorn --worker-class eventlet -w 1 wsgi:app`). Set `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE` in Koyeb environment variables. Optional: `CHITCHAT_VERSION` for deploy announcements (posted to System Events on startup).
+- **Koyeb + Neon**: `Procfile` (`web: python gunicorn_run.py`). Set `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE` in Koyeb environment variables. Optional: `CHITCHAT_VERSION` for deploy announcements (posted to System Events only when version changes).
 - **Gunicorn** — Production WSGI server; eventlet worker for WebSocket support.
 - **psycopg2-binary** — PostgreSQL driver for Neon.

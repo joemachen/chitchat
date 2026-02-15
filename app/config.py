@@ -30,6 +30,12 @@ class Config:
         _db_uri = _db_uri.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URI = _db_uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # PostgreSQL/Neon: prevent "SSL connection has been closed unexpectedly" from stale connections
+    SQLALCHEMY_ENGINE_OPTIONS = (
+        {"pool_pre_ping": True, "pool_recycle": 300}
+        if _db_uri and "postgresql" in _db_uri
+        else {}
+    )
     # Server name/branding (shown in header)
     SERVER_NAME = os.environ.get("CHITCHAT_SERVER_NAME", "No Homers Club")
     # Simple Invite Code (pre-defined in config)

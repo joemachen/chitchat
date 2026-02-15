@@ -8,7 +8,7 @@ from flask_socketio import SocketIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash
 
-from app.models import Message, Room, User, db
+from app.models import AppSetting, Message, Room, User, db
 from app.version import VERSION
 
 logger = logging.getLogger("chitchat")
@@ -46,9 +46,15 @@ def _get_release_notes_for_version(version: str) -> str | None:
 
 
 def _post_deploy_announcement(app: Flask) -> None:
-    """Post server deploy announcement to System Events, including release notes for this version."""
+    """Post server deploy announcement to System Events only when version has changed."""
     with app.app_context():
         try:
+            row = AppSetting.query.filter_by(key="last_deploy_announced_version").first()
+            last_announced = row.value if row and row.value else None
+            if last_announced == VERSION:
+                logger.debug("Skipping deploy announcement: version %s already announced", VERSION)
+                return
+
             sys_room = Room.query.filter_by(name="System Events").first()
             sys_user = User.query.filter_by(username="System").first()
             if sys_room and sys_user:
@@ -62,6 +68,10 @@ def _post_deploy_announcement(app: Flask) -> None:
                     message_type="chat",
                 )
                 db.session.add(msg)
+                if row:
+                    row.value = VERSION
+                else:
+                    db.session.add(AppSetting(key="last_deploy_announced_version", value=VERSION))
                 db.session.commit()
                 logger.info("Posted deploy announcement v%s", VERSION)
         except Exception as e:

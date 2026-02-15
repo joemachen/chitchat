@@ -995,7 +995,11 @@ const chitchatApp = createApp({
         const currentUserIdNum = {{ user.id }};
         const isSuperAdminFlag = {{ 'true' if user.is_super_admin else 'false' }};
         const userPermissionsObj = {{ (user_permissions|default({}))|tojson|safe }};
-        function hasUnread(r) { return state.unreadRooms[r.id] || (state.unreadMentions[r.id] && state.unreadMentions[r.id].size); }
+        function hasUnread(r) {
+            if (state.currentRoom && r.id === state.currentRoom.id && !state.showingSettings) return false;
+            if (state.roomNotificationMuted[r.id]) return false;
+            return state.unreadRooms[r.id] || (state.unreadMentions[r.id] && state.unreadMentions[r.id].size);
+        }
         function isRoomActive(r) { return state.currentRoom && r.id === state.currentRoom.id && !state.showingSettings; }
         function roomDisplayName(r) {
             if (!r.is_dm) return r.name || '?';
@@ -1213,8 +1217,13 @@ chitchatApp.mount('#app');
     }
     function updateUnreadBadge() {
         var count = 0;
-        Object.keys(state.unreadRooms).forEach(function() { count += 1; });
-        Object.keys(state.unreadMentions).forEach(function(rid) { count += (state.unreadMentions[rid] && state.unreadMentions[rid].size) || 0; });
+        var currentRid = state.currentRoom && !state.showingSettings ? state.currentRoom.id : null;
+        Object.keys(state.unreadRooms).forEach(function(rid) {
+            if (rid != currentRid && !state.roomNotificationMuted[rid]) count += 1;
+        });
+        Object.keys(state.unreadMentions).forEach(function(rid) {
+            if (rid != currentRid && !state.roomNotificationMuted[rid] && state.unreadMentions[rid] && state.unreadMentions[rid].size) count += state.unreadMentions[rid].size;
+        });
         document.title = (count > 0 ? '(' + count + ') ' : '') + baseTitle;
         var link = document.querySelector('link[rel="icon"]') || document.createElement('link');
         if (!link.getAttribute('rel')) { link.rel = 'icon'; document.head.appendChild(link); }

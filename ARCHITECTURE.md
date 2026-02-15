@@ -11,7 +11,7 @@ chitchat/
 ├── run.bat              # Windows: venv, deps, launch run.py
 ├── run.py               # Entry point; env validation, migrations + seed, then socketio.run
 ├── wsgi.py              # Gunicorn entry point; eventlet monkey_patch before imports
-├── Procfile             # Koyeb: web: gunicorn --worker-class eventlet -w 1 wsgi:app
+├── Procfile             # Koyeb: web: python gunicorn_run.py
 ├── requirements.txt    # Python dependencies (flask-migrate, gunicorn, psycopg2-binary)
 ├── migrations/          # Flask-Migrate (Alembic) — versions/001..013, env.py
 ├── logs/                # Runtime logs (git-ignored except .gitkeep)
