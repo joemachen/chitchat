@@ -27,21 +27,25 @@ from app.acrophobia import (
     is_acrobot_active,
     set_acrobot_active as acrophobia_set_acrobot_active,
 )
-from app.homer import get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
+from app.homer import get_homer_dm_reply, get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
 from app.prof_frink import (
     award_trivia_point,
     check_trivia_answer,
+    clear_all_trivia_streaks,
     format_frink_reply,
     get_frink_settings,
     get_help_text as frink_get_help,
     get_trivia_leaderboard,
     get_trivia_response,
+    get_frink_dm_reply,
+    get_trivia_rounds_remaining,
     is_frink_active,
     is_frink_daily_enabled,
     set_active_trivia,
     set_frink_active as frink_set_active,
     set_frink_daily_enabled,
     set_frink_difficulty,
+    set_trivia_rounds_remaining,
     set_frink_seasons,
 )
 from app.link_preview import get_previews_for_message_content
@@ -553,10 +557,11 @@ def _fire_daily_trivia(socket_io):
 
                 def _reveal(app_obj, rid, fid, sock_io):
                     with app_obj.app_context():
-                        from app.prof_frink import get_active_trivia, clear_active_trivia
+                        from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks
                         active = get_active_trivia(rid)
                         if active:
                             clear_active_trivia(rid)
+                            clear_all_trivia_streaks(rid)
                             rev_msg = Message(
                                 room_id=rid,
                                 user_id=fid,
@@ -567,7 +572,7 @@ def _fire_daily_trivia(socket_io):
                             db.session.commit()
                             _broadcast_new_message_impl(sock_io, rid, rev_msg.to_dict())
 
-                eventlet.spawn_after(30000, _reveal, app, trivia_room.id, frink_user.id, socket_io)
+                eventlet.spawn_after(30, _reveal, app, trivia_room.id, frink_user.id, socket_io)
             logger.info("Posted daily trivia to Trivia room")
     except Exception as e:
         logger.warning("Daily trivia failed: %s", e)
@@ -930,38 +935,70 @@ def register_socket_handlers(socketio):
             frink_user = User.query.filter_by(username="Prof Frink").first()
             parts = content.strip().split()
             cmd = parts[0].lower() if parts else ""
-            if cmd in ("!trivia", "! trivia") and is_frink_active() and frink_user:
+
+            def _post_next_trivia_round(rid, fid, sock_io, app_obj):
+                """Post one trivia question and schedule reveal/timeout. Used for follow-up rounds."""
+                with app_obj.app_context():
+                    q_msg, answer = get_trivia_response()
+                    msg = Message(room_id=rid, user_id=fid, content=q_msg, message_type="chat")
+                    db.session.add(msg)
+                    db.session.commit()
+                    _broadcast_new_message_impl(sock_io, rid, msg.to_dict())
+                    if answer:
+                        set_active_trivia(rid, answer, msg.id)
+
+                        def _reveal_timeout(app_o, r, frink_id, sio):
+                            with app_o.app_context():
+                                from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining
+                                active = get_active_trivia(r)
+                                if active:
+                                    clear_active_trivia(r)
+                                    clear_all_trivia_streaks(r)
+                                    rev_msg = Message(room_id=r, user_id=frink_id, content=f"**Answer:** {active['answer']}", message_type="chat")
+                                    db.session.add(rev_msg)
+                                    db.session.commit()
+                                    _broadcast_new_message_impl(sio, r, rev_msg.to_dict())
+                                if get_trivia_rounds_remaining(r) > 0:
+                                    set_trivia_rounds_remaining(r, get_trivia_rounds_remaining(r) - 1)
+                                    eventlet.spawn_after(3, _post_next_trivia_round, r, frink_id, sio, app_o)
+
+                        eventlet.spawn_after(30, _reveal_timeout, app_obj, rid, fid, sock_io)
+
+            def _reveal_answer_timeout(app_obj, rid, fid, socket_io):
+                with app_obj.app_context():
+                    from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining
+                    active = get_active_trivia(rid)
+                    if active:
+                        clear_active_trivia(rid)
+                        clear_all_trivia_streaks(rid)
+                        rev_msg = Message(room_id=rid, user_id=fid, content=f"**Answer:** {active['answer']}", message_type="chat")
+                        db.session.add(rev_msg)
+                        db.session.commit()
+                        _broadcast_new_message_impl(socket_io, rid, rev_msg.to_dict())
+                    if get_trivia_rounds_remaining(rid) > 0:
+                        set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
+                        eventlet.spawn_after(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
+
+            # !trivia or !trivia X (X=1-7 consecutive rounds)
+            is_trivia_cmd = cmd in ("!trivia", "! trivia")
+            if is_trivia_cmd and is_frink_active() and frink_user:
+                rounds = 1
+                if len(parts) >= 2 and parts[1].isdigit():
+                    r = int(parts[1])
+                    rounds = max(1, min(7, r))
+                if rounds > 1:
+                    set_trivia_rounds_remaining(room_id, rounds - 1)
+
+                # Post first question
                 q_msg, answer = get_trivia_response()
-                msg = Message(
-                    room_id=room_id,
-                    user_id=frink_user.id,
-                    content=q_msg,
-                    message_type="chat",
-                )
+                msg = Message(room_id=room_id, user_id=frink_user.id, content=q_msg, message_type="chat")
                 db.session.add(msg)
                 db.session.commit()
                 _broadcast_new_message(room_id, msg.to_dict())
                 if answer:
                     set_active_trivia(room_id, answer, msg.id)
-
-                    def _reveal_answer_timeout(app_obj, rid, fid, socket_io):
-                        with app_obj.app_context():
-                            from app.prof_frink import get_active_trivia, clear_active_trivia
-                            active = get_active_trivia(rid)
-                            if active:
-                                clear_active_trivia(rid)
-                                rev_msg = Message(
-                                    room_id=rid,
-                                    user_id=fid,
-                                    content=f"**Answer:** {active['answer']}",
-                                    message_type="chat",
-                                )
-                                db.session.add(rev_msg)
-                                db.session.commit()
-                                _broadcast_new_message_impl(socket_io, rid, rev_msg.to_dict())
-
                     app_obj = current_app._get_current_object()
-                    eventlet.spawn_after(30000, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
+                    eventlet.spawn_after(30, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
                 return
             if cmd in ("!score", "/score", "! score", "/ score") and is_frink_active() and frink_user:
                 leaderboard = get_trivia_leaderboard(room_id, limit=10)
@@ -1032,16 +1069,24 @@ def register_socket_handlers(socketio):
             if cmd not in trivia_commands and user.username != "Prof Frink" and content:
                 matched_answer = check_trivia_answer(room_id, content)
                 if matched_answer and frink_user:
-                    total = award_trivia_point(room_id, user_id)
+                    total, streak_msg = award_trivia_point(room_id, user_id)
+                    winner_text = f"**{user.username}** got it right! **Answer:** {matched_answer} (+1 point, {total} total)"
+                    if streak_msg:
+                        winner_text += f"\n\n{streak_msg}"
                     winner_msg = Message(
                         room_id=room_id,
                         user_id=frink_user.id,
-                        content=format_frink_reply(f"**{user.username}** got it right! **Answer:** {matched_answer} (+1 point, {total} total)"),
+                        content=format_frink_reply(winner_text),
                         message_type="chat",
                     )
                     db.session.add(winner_msg)
                     db.session.commit()
                     _broadcast_new_message(room_id, winner_msg.to_dict())
+                    # Schedule next round if multi-round session
+                    if get_trivia_rounds_remaining(room_id) > 0:
+                        set_trivia_rounds_remaining(room_id, get_trivia_rounds_remaining(room_id) - 1)
+                        app_obj = current_app._get_current_object()
+                        eventlet.spawn_after(3, _post_next_trivia_round, room_id, frink_user.id, socketio, app_obj)
 
         # !Simpsons — Homer says a random Simpsons quote (when Homer is active, channel allowed)
         low_content = content.strip().lower()
@@ -1085,7 +1130,7 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message(room_id, msg1.to_dict())
                     app = current_app._get_current_object()
-                    eventlet.spawn_after(3000, _netsplit_reconnect, app, room_id, names, sys_user.id)
+                    eventlet.spawn_after(3, _netsplit_reconnect, app, room_id, names, sys_user.id)
                 else:
                     msg1 = Message(
                         room_id=room_id,
@@ -1097,7 +1142,7 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message(room_id, msg1.to_dict())
                     app = current_app._get_current_object()
-                    eventlet.spawn_after(3000, _netsplit_reconnect, app, room_id, "Server A and Server B", sys_user.id)
+                    eventlet.spawn_after(3, _netsplit_reconnect, app, room_id, "Server A and Server B", sys_user.id)
             return
 
         # DM with AcroBot: during Acrophobia submit phase, treat message as submission (so DMs count)
@@ -1200,7 +1245,7 @@ def register_socket_handlers(socketio):
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
-                "• In #Trivia: !trivia (first correct answer wins), !score (leaderboard), !help, !settings (Prof Frink bot)",
+                "• In #Trivia: !trivia or !trivia X (X=1–7 consecutive rounds), !score (leaderboard), !help, !settings (Prof Frink bot)",
                 "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, View profile, Whois",
                 "• Right-click user → View profile, Message, Kick (if permitted)",
                 "• Ctrl+K — room switcher; Esc — close modals",
@@ -1509,11 +1554,28 @@ def register_socket_handlers(socketio):
         payload = msg.to_dict()
         _broadcast_new_message(room_id, payload)
 
-        # DM auto-reply: if the other user has away_message, post an auto-reply from them
+        # DM auto-reply: away message, or DM with Prof Frink/Homer
         if room_obj.dm_with_id is not None:
             other_user_id = room_obj.dm_with_id if room_obj.created_by_id == user_id else room_obj.created_by_id
             other_user = User.query.get(other_user_id) if other_user_id else None
-            if other_user and getattr(other_user, "away_message", None):
+            # DM with Prof Frink: reply with something Frink-y
+            frink_user = User.query.filter_by(username="Prof Frink").first()
+            if frink_user and other_user_id == frink_user.id and is_frink_active():
+                reply = format_frink_reply(get_frink_dm_reply())
+                bot_msg = Message(room_id=room_id, user_id=frink_user.id, content=reply, message_type="chat")
+                db.session.add(bot_msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, bot_msg.to_dict())
+            # DM with Homer: reply with something Homer-esque
+            homer_user = User.query.filter_by(username="Homer").first()
+            if homer_user and other_user_id == homer_user.id and is_homer_active():
+                reply = get_homer_dm_reply()
+                bot_msg = Message(room_id=room_id, user_id=homer_user.id, content=reply, message_type="chat")
+                db.session.add(bot_msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, bot_msg.to_dict())
+            # DM with regular user: if they have away_message, post auto-reply
+            elif other_user and getattr(other_user, "away_message", None):
                 away_msg = Message(
                     room_id=room_id,
                     user_id=other_user_id,
@@ -1926,7 +1988,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "create_room"):
-            emit("error", {"message": "Only Surfer Girls can create channels (or your role needs this permission)"})
+            emit("error", {"message": "Only admins can create channels (or your role needs this permission)"})
             return
         name = ((data or {}).get("name") or "").strip()
         if not name:
@@ -1969,10 +2031,10 @@ def register_socket_handlers(socketio):
             return
         is_owner = room.created_by_id == user_id
         if not _has_permission(user_id, "update_room") and not is_owner:
-            emit("error", {"message": "Only Surfer Girls, room owners, or users with edit permission can edit channels"})
+            emit("error", {"message": "Only admins, room owners, or users with edit permission can edit channels"})
             return
         if getattr(room, "is_protected", False) and name and not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girl can rename protected channels"})
+            emit("error", {"message": "Only an admin can rename protected channels"})
             return
         changed = False
         if name:
@@ -2038,7 +2100,7 @@ def register_socket_handlers(socketio):
             return
         is_owner = room.created_by_id == user_id or (room.dm_with_id and room.dm_with_id == user_id)
         if not _has_permission(user_id, "delete_room") and not is_owner:
-            emit("error", {"message": "Only Surfer Girls, room owners, or users with delete permission can delete channels"})
+            emit("error", {"message": "Only admins, room owners, or users with delete permission can delete channels"})
             return
         general = Room.query.filter_by(name="general").first()
         if general and room.id == general.id:
@@ -2046,10 +2108,10 @@ def register_socket_handlers(socketio):
             return
         if getattr(room, "is_protected", False):
             if not (data or {}).get("from_settings"):
-                emit("error", {"message": "Protected channels can only be removed via Settings by a Surfer Girl"})
+                emit("error", {"message": "Protected channels can only be removed via Settings by an admin"})
                 return
             if not _is_super_admin(user_id):
-                emit("error", {"message": "Only Surfer Girls can delete protected channels"})
+                emit("error", {"message": "Only admins can delete protected channels"})
                 return
         room_name = room.name
         db.session.delete(room)
@@ -2068,7 +2130,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girls can wipe room history"})
+            emit("error", {"message": "Only admins can wipe room history"})
             return
         room_id = (data or {}).get("room_id")
         if not room_id:
@@ -2223,7 +2285,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "kick_user"):
-            emit("error", {"message": "Only Surfer Girls can kick users (or your role needs this permission)"})
+            emit("error", {"message": "Only admins can kick users (or your role needs this permission)"})
             return
         room_id = (data or {}).get("room_id")
         target_id = (data or {}).get("target_user_id")
@@ -2243,7 +2305,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "User not found"})
             return
         if target_user.username in ("AcroBot", "Homer", "Prof Frink") and not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girl can kick AcroBot, Homer, or Prof Frink"})
+            emit("error", {"message": "Only an admin can kick AcroBot, Homer, or Prof Frink"})
             return
         room = Room.query.get(room_id)
         if not room:
@@ -2265,7 +2327,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girls can assign Surfer Girl"})
+            emit("error", {"message": "Only admins can assign the top admin role"})
             return
         target_id = (data or {}).get("target_user_id")
         is_super = (data or {}).get("is_super_admin")
@@ -2295,7 +2357,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "set_user_rank"):
-            emit("error", {"message": "Only Surfer Girls can set user rankings (or your role needs this permission)"})
+            emit("error", {"message": "Only admins can set user rankings (or your role needs this permission)"})
             return
         target_id = (data or {}).get("target_user_id")
         rank = ((data or {}).get("rank") or "").strip().lower()
@@ -2329,7 +2391,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girls can delete users"})
+            emit("error", {"message": "Only admins can delete users"})
             return
         target_id = (data or {}).get("target_user_id")
         if target_id is None:
@@ -2433,7 +2495,7 @@ def register_socket_handlers(socketio):
         """Set default channel for login. Surfer Girl only."""
         user_id = session.get("user_id")
         if not user_id or not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girls can set the default channel"})
+            emit("error", {"message": "Only admins can set the default channel"})
             return
         room_id = (data or {}).get("room_id")
         if room_id is None:
@@ -2466,7 +2528,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girls can configure role permissions"})
+            emit("error", {"message": "Only admins can configure role permissions"})
             return
         role = ((data or {}).get("role") or "").strip().lower()
         permission = ((data or {}).get("permission") or "").strip()
@@ -2501,7 +2563,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "acrobot_control"):
-            emit("error", {"message": "Only Surfer Girls can activate or deactivate AcroBot (or your role needs this permission)"})
+            emit("error", {"message": "Only admins can activate or deactivate AcroBot (or your role needs acrobot_control permission)"})
             return
         active = (data or {}).get("active")
         if active is None:
@@ -2526,7 +2588,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "homer_control"):
-            emit("error", {"message": "Only Surfer Girls can activate or deactivate Homer (or your role needs homer_control permission)"})
+            emit("error", {"message": "Only admins can activate or deactivate Homer (or your role needs homer_control permission)"})
             return
         active = (data or {}).get("active")
         if active is None:
@@ -2551,7 +2613,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "frink_control"):
-            emit("error", {"message": "Only Surfer Girls can activate or deactivate Prof Frink (or your role needs frink_control permission)"})
+            emit("error", {"message": "Only admins can activate or deactivate Prof Frink (or your role needs frink_control permission)"})
             return
         active = (data or {}).get("active")
         if active is None:
@@ -2577,7 +2639,7 @@ def register_socket_handlers(socketio):
         """Set which channels each bot can respond in. Surfer Girl only. {acrobot: [...], homer: null, frink: [...]}."""
         user_id = session.get("user_id")
         if not user_id or not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girls can configure bot channels"})
+            emit("error", {"message": "Only admins can configure bot channels"})
             return
         cfg = data or {}
         new_cfg = {}
@@ -2602,7 +2664,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Not authenticated"})
             return
         if not _has_permission(user_id, "reset_stats"):
-            emit("error", {"message": "Only Surfer Girls can reset Stats data (or your role needs this permission)"})
+            emit("error", {"message": "Only admins can reset Stats data (or your role needs this permission)"})
             return
         if (data or {}).get("confirm") != "RESET":
             emit("error", {"message": "Send confirm: 'RESET' to reset all message data (Stats). This cannot be undone."})

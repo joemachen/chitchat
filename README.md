@@ -43,13 +43,13 @@ Type **/help** or **/msg acrobot help** in that room for full instructions and r
 
 | Command | Description |
 |--------|-------------|
-| **!trivia** | Get a Simpsons trivia question. First correct answer in chat wins a point. |
-| **!daily** | (Surfer Girl/frink_control) Toggle automated daily question at 9:00 UTC. |
+| **!trivia** or **!trivia X** (X=1–7) | Get one or X consecutive Simpsons trivia questions. First correct answer wins a point. |
+| **!daily** | (admin/frink_control) Toggle automated daily question at 9:00 UTC. |
 | **!set-difficulty** [level] | Set difficulty: beginner, intermediate, advanced, master. |
 | **!set-seasons** [1-20] | Restrict questions to specific seasons. |
 | **!score** or **/score** | Show Trivia leaderboard. |
 
-Surfer Girl (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Surfer Girl (or homer_control permission) can turn Homer on/off ("Homer is online" toggle). Surfer Girl (or frink_control permission) can turn Prof Frink on/off ("Prof Frink is online" toggle). **Bot channels** — Surfer Girl can configure which channels each bot can respond in (Settings → Bot channels).
+Admins (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Admins (or homer_control permission) can turn Homer on/off ("Homer is online" toggle). Admins (or frink_control permission) can turn Prof Frink on/off ("Prof Frink is online" toggle). **Bot channels** — admins can configure which channels each bot can respond in (Settings → Bot channels).
 
 ## Docs
 

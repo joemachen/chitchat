@@ -36,7 +36,7 @@ chitchat/
 - **Environment safety**: `run.py` validates `CHITCHAT_SECRET_KEY` and `CHITCHAT_INVITE_CODE` are non-default; exits with a clear message if not.
 - **Logging**: `/logs` directory; `app.log` for general activity; `errors.log` for exceptions with **full stack traces and local variable context** per frame (Recursive Learning Loop).
 - **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `ROADMAP.md`, `migrations/README`.
-- **Production**: `Procfile` for Koyeb; gunicorn with eventlet worker. Role permissions (Surfer Girl configures rookie/bro/fam) in `role_permissions` table.
+- **Production**: `Procfile` for Koyeb; gunicorn with eventlet worker. Role permissions (Super Admin configures rookie/bro/fam) in `role_permissions` table.
 
 ## Data Model (Step 2)
 

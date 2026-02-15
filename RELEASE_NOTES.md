@@ -1,9 +1,29 @@
 # Release notes
 
+## v2.5.0 — Trivia rounds, bot DMs, hot streaks, scrollbars, UX
+
+**Prof Frink trivia**
+- **!trivia X** — Run 1–7 consecutive trivia rounds (e.g. `!trivia 3`). Next question posts 3 seconds after each round ends.
+- **Trivia timeout fix** — Answer now reveals after 30 seconds (was 8+ hours due to eventlet seconds vs milliseconds).
+- **Hot streaks** — Prof Frink recognizes consecutive correct answers and says something Frink-y (2, 3, 5+ in a row).
+- **DM replies** — Message Prof Frink in a DM; he replies with a random Frink-y greeting.
+
+**Homer**
+- **DM replies** — Message Homer in a DM; he replies with a Homer-esque message.
+
+**UI**
+- **Bot labels** — Bots (AcroBot, Homer, Prof Frink, System) show "(bot)" in the Users list.
+- **Dark mode scrollbars** — Scrollbars themed for dark/light mode (room list, user list, messages, modals).
+
+**Admin terminology**
+- **Public references** — "Surfer Girl" replaced with "admin" or "Super Admin" in user-facing text; only the super admin sees the internal role name.
+
+---
+
 ## v2.4.0 — Bot channel management, trivia in Stats
 
 **Bot channel management**
-- **Surfer Girl config** — Settings → Bot channels: configure which channels AcroBot, Homer, and Prof Frink can respond in. Comma-separated channel names; "all" or empty = all channels. Defaults: AcroBot=Acrophobia, Homer=all, Prof Frink=Trivia.
+- **admin config** — Settings → Bot channels: configure which channels AcroBot, Homer, and Prof Frink can respond in. Comma-separated channel names; "all" or empty = all channels. Defaults: AcroBot=Acrophobia, Homer=all, Prof Frink=Trivia.
 
 **Stats channel**
 - **Trivia leaderboard** — Stats view now shows Trivia leaderboard (top 10 by correct answers), alongside Acrophobia leaderboard.
@@ -22,12 +42,12 @@
 
 **Prof Frink trivia bot**
 - **Trivia channel** — New #Trivia room with Simpsons trivia bot. Commands: `!trivia`, `!help`, `!settings`, `!set-difficulty [beginner|intermediate|advanced|master]`, `!set-seasons [1-20]`.
-- **Daily trivia** — `!daily` (Surfer Girl or frink_control) toggles automated daily post at 9:00 UTC.
+- **Daily trivia** — `!daily` (admin or frink_control) toggles automated daily post at 9:00 UTC.
 - **Settings** — Prof Frink on/off toggle and `frink_control` permission (like Homer).
 
 **Protected channel save**
 - **Settings fix** — Protected channel checkbox in Settings → Channels now saves correctly (optimistic update + room_renamed sync).
-- **Edit Room modal** — Surfer Girl can toggle "Protect channel" when editing a room.
+- **Edit Room modal** — admin can toggle "Protect channel" when editing a room.
 
 **Acrophobia**
 - **Scrabble-weighted acronyms** — Letter distribution now follows Scrabble tile frequencies (E common, Q/Z rare). Same letter rarely repeats twice in a row.
@@ -37,7 +57,7 @@
 ## v2.1.0 — Protected channels, delete user fix, chat history
 
 **Protected channel editing**
-- **Name edit restricted** — Non–Surfer Girl users editing a protected channel see "Protected channel names cannot be edited, sucka." instead of the name input. They can still edit the topic.
+- **Name edit restricted** — Non–admin users editing a protected channel see "Protected channel names cannot be edited, sucka." instead of the name input. They can still edit the topic.
 
 **Delete user**
 - **MessageReaction fix** — Delete user now removes reactions by the deleted user before deletion, fixing the `user_id` null violation on `message_reactions`.
@@ -160,7 +180,7 @@
 - **Whois replaces View profile** — Right-click on a username (in messages or user list) now shows Whois instead of View profile. Whois shows account info, online status, IP, connected time, shared rooms.
 
 **AcroBot & Homer**
-- **Kick restricted** — Only Surfer Girl can kick AcroBot or Homer. Users with kick_user permission can kick other users but not system bots.
+- **Kick restricted** — Only admin can kick AcroBot or Homer. Users with kick_user permission can kick other users but not system bots.
 
 **Cross-browser**
 - **Form controls** — Consistent appearance for buttons, inputs, and textareas across browsers and devices.
@@ -176,7 +196,7 @@
 - **Mint Linux Firefox** — Link and image clicks now behave the same as on other systems (explicit `window.open` for consistent new-tab behavior).
 
 **Protected channels**
-- **Rename restricted** — Only Surfer Girl can rename protected channels. Room owners and users with edit permission can no longer rename protected channels.
+- **Rename restricted** — Only admin can rename protected channels. Room owners and users with edit permission can no longer rename protected channels.
 
 ---
 

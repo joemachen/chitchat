@@ -60,3 +60,18 @@ def set_homer_active(active: bool) -> None:
 def get_random_simpsons_quote() -> str:
     """Return a random Simpsons quote."""
     return random.choice(SIMPSONS_QUOTES)
+
+
+# Homer-esque DM replies when users message him directly
+HOMER_DM_REPLIES = [
+    "Mmm... a message. *reads* D'oh! I mean, hey! What's up?",
+    "Woo-hoo! Someone's talking to me! What do you need, friend?",
+    "D'oh! You messaged me? I was just thinking about donuts. What's going on?",
+    "Oh, hi there! Homer Simpson at your service. Need a quote? Try !Simpsons in a channel!",
+    "Mmm... message. *scratches belly* Yeah, I'm here. What can I do for ya?",
+]
+
+
+def get_homer_dm_reply() -> str:
+    """Return a random Homer-esque reply for DMs."""
+    return random.choice(HOMER_DM_REPLIES)

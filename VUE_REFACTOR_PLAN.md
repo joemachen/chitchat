@@ -72,7 +72,7 @@ CDN-based Vue 3 (Composition API), no build step. Flask backend unchanged.
 | State | Type | Source | Description |
 |-------|------|--------|-------------|
 | `messageRetentionDays` | `ref(null)` | room_joined, message_retention_updated | 7 | 30 | 90 | null |
-| `rolePermissions` | `ref({})` | role_permissions | Surfer Girl config |
+| `rolePermissions` | `ref({})` | role_permissions | Super Admin config |
 | `auditLogEntries` | `ref([])` | audit_log | Audit log data |
 | `defaultRoomId` | `ref(null)` | role_permissions | Default channel |
 | `settingsPendingSettings` | `ref({})` | Settings form dirty state |

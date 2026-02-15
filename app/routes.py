@@ -193,7 +193,7 @@ def register_routes(app):
             export_all = False
         else:
             if not _can_export_all(user):
-                return jsonify({"error": "Surfer Girl only (or your role needs export_all permission)"}), 403
+                return jsonify({"error": "Admin only (or your role needs export_all permission)"}), 403
             messages = Message.query.order_by(Message.room_id, Message.created_at.asc()).all()
             room_name = None
             export_all = True

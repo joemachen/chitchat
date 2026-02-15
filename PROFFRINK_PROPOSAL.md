@@ -34,14 +34,14 @@ Config: `TRIVIA_API_URL = "https://simpsons-trivia.com/api/questions"` in `app/c
 
 ---
 
-## 3. Integration TODO (Surfer Girl Protocol)
+## 3. Integration TODO (Super Admin Protocol)
 
 1. **Seed Trivia room** in `_seed_default_data()`: `Room(name="Trivia", is_protected=True)`
 2. **Add Prof Frink user** in seed (like Homer)
 3. **Socket integration** in `on_send_message`: when `room.name == "Trivia"`, parse `!trivia`, `!daily`, `!set-difficulty`, `!set-seasons`, `!settings`, `!help`
 4. **Channel restriction**: Prof Frink responds **only** in #Trivia (unlike Homer, who responds in any room)
-5. **bot_manager / botPermissions**: Add `state.bot_permissions` or `AppSetting` key `bot_channels` mapping `room_id -> [acrobot, homer, prof_frink]` for Surfer Girl to toggle which channels each bot can spawn in
-6. **frink_control permission**: Add to `role_permissions` (like `homer_control`); Surfer Girl toggles Prof Frink in Settings
+5. **bot_manager / botPermissions**: Add `state.bot_permissions` or `AppSetting` key `bot_channels` mapping `room_id -> [acrobot, homer, prof_frink]` for Super Admin to toggle which channels each bot can spawn in
+6. **frink_control permission**: Add to `role_permissions` (like `homer_control`); Super Admin toggles Prof Frink in Settings
 7. **Daily trivia**: Cron/scheduler or eventlet timer to post one question per day when `_frink_daily_enabled`
 
 ---
@@ -51,7 +51,7 @@ Config: `TRIVIA_API_URL = "https://simpsons-trivia.com/api/questions"` in `app/c
 | Command | Who | Action |
 |---------|-----|--------|
 | `!trivia` | Any | Post one random question (answer revealed after delay or `!answer`) |
-| `!daily` | Surfer Girl | Toggle daily automated post |
+| `!daily` | Super Admin | Toggle daily automated post |
 | `!set-difficulty X` | Any | Filter: beginner, intermediate, advanced, master |
 | `!set-seasons 1 2 3` | Any | Filter by season(s) 1–20 |
 | `!settings` | Any | Show current config |
@@ -66,4 +66,4 @@ Config: `TRIVIA_API_URL = "https://simpsons-trivia.com/api/questions"` in `app/c
 - [x] Integrate with sockets (Trivia room, command parsing)
 - [x] Add Prof Frink to Settings UI (toggle, like Homer)
 - [x] Add frink_control permission
-- [ ] Add bot channel management (Surfer Girl protocol) — future
+- [ ] Add bot channel management (Super Admin protocol) — future

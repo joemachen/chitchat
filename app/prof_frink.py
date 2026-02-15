@@ -50,6 +50,22 @@ _frink_seasons: Optional[list[int]] = None  # e.g. [1, 2, 3] or None for all
 # Active question per room_id: {"answer": str, "question_msg_id": int} — cleared when answered or timeout
 _active_trivia: dict[int, dict] = {}
 
+# Multi-round sessions: room_id -> rounds left to post after current (for !trivia X)
+_trivia_rounds_remaining: dict[int, int] = {}
+
+# Hot streaks: (room_id, user_id) -> consecutive correct count
+_trivia_streak: dict[tuple[int, int], int] = {}
+
+HOT_STREAK_PHRASES = [
+    "Ooh, the mathematics of a hot streak! Glavin!",
+    "Two in a row! The probability is most favorable!",
+    "Three consecutive! The flux capacitor approves!",
+    "Four! Four! Hoyvin-glaven!",
+    "Five! A pentagon of perfection!",
+    "Six! The hex of knowledge!",
+    "Seven! A week of wisdom! Shabooey!",
+]
+
 
 @dataclass
 class TriviaQuestion:
@@ -153,6 +169,18 @@ def format_frink_reply(text: str, include_frinkism: bool = True) -> str:
     return f"{prefix}{text}"
 
 
+def get_frink_dm_reply() -> str:
+    """Return a random Frink-y reply for DMs."""
+    dm_replies = [
+        "Glavin! The flux capacitor is buzzing! What can this humble scientist do for you?",
+        "Hoyvin! A message! Ooh, the mathematics of communication!",
+        "Yes, yes! You've reached the lab. The thingamajig is at your service!",
+        "Shabooey! Prof Frink here, ready to assist with all matters scientific!",
+        "Glaaven! Your message has been received. The probability of a reply is 100%!",
+    ]
+    return random.choice(dm_replies)
+
+
 def get_trivia_response() -> tuple[str, str]:
     """
     Fetch a trivia question and return (question_message, answer_for_later).
@@ -180,6 +208,20 @@ def clear_active_trivia(room_id: int) -> None:
     """Clear active question (answered or timeout)."""
     global _active_trivia
     _active_trivia.pop(room_id, None)
+
+
+def get_trivia_rounds_remaining(room_id: int) -> int:
+    """Rounds left to post after current (for !trivia X)."""
+    return _trivia_rounds_remaining.get(room_id, 0)
+
+
+def set_trivia_rounds_remaining(room_id: int, n: int) -> None:
+    """Set rounds left for multi-round session."""
+    global _trivia_rounds_remaining
+    if n <= 0:
+        _trivia_rounds_remaining.pop(room_id, None)
+    else:
+        _trivia_rounds_remaining[room_id] = n
 
 
 def _normalize(s: str) -> str:
@@ -219,9 +261,41 @@ def get_trivia_leaderboard(room_id: int, limit: int = 10) -> list[tuple[str, int
     return result
 
 
-def award_trivia_point(room_id: int, user_id: int) -> int:
-    """Increment correct count for user in room. Returns new total."""
+def _reset_other_streaks(room_id: int, keep_user_id: int) -> None:
+    """Reset streaks for everyone in room except keep_user_id."""
+    global _trivia_streak
+    to_remove = [k for k in _trivia_streak if k[0] == room_id and k[1] != keep_user_id]
+    for k in to_remove:
+        del _trivia_streak[k]
+
+
+def clear_all_trivia_streaks(room_id: int) -> None:
+    """Clear all streaks in room (e.g. on timeout with no winner)."""
+    global _trivia_streak
+    to_remove = [k for k in _trivia_streak if k[0] == room_id]
+    for k in to_remove:
+        del _trivia_streak[k]
+
+
+def get_hot_streak_message(room_id: int, user_id: int) -> Optional[str]:
+    """Return Frink-y message if user has hot streak (2+ consecutive correct), else None."""
+    streak = _trivia_streak.get((room_id, user_id), 0)
+    if streak >= 2 and streak <= 7:
+        idx = min(streak - 2, len(HOT_STREAK_PHRASES) - 1)
+        return HOT_STREAK_PHRASES[idx]
+    if streak >= 8:
+        return random.choice(HOT_STREAK_PHRASES) + f" {streak} in a row!"
+    return None
+
+
+def award_trivia_point(room_id: int, user_id: int) -> tuple[int, Optional[str]]:
+    """Increment correct count for user in room. Returns (new_total, hot_streak_message)."""
     from app.models import TriviaScore, db
+    global _trivia_streak
+    _reset_other_streaks(room_id, user_id)
+    _trivia_streak[(room_id, user_id)] = _trivia_streak.get((room_id, user_id), 0) + 1
+    streak_msg = get_hot_streak_message(room_id, user_id)
+
     row = TriviaScore.query.filter_by(room_id=room_id, user_id=user_id).first()
     if row:
         row.correct = (row.correct or 0) + 1
@@ -229,7 +303,7 @@ def award_trivia_point(room_id: int, user_id: int) -> int:
         row = TriviaScore(room_id=room_id, user_id=user_id, correct=1)
         db.session.add(row)
     db.session.commit()
-    return row.correct
+    return row.correct, streak_msg
 
 
 def get_help_text() -> str:
@@ -238,8 +312,8 @@ def get_help_text() -> str:
         "**Prof Frink — Trivia Bot** " + _random_frinkism(),
         "",
         "**Commands** (only in #Trivia channel):",
-        "• **!trivia** — Fetch one random Simpsons trivia question (first correct answer in chat wins a point)",
-        "• **!daily** — Toggle daily automated trivia post (Surfer Girl or frink_control)",
+        "• **!trivia** or **!trivia X** (X=1–7) — Fetch one or X consecutive Simpsons trivia questions (first correct answer wins a point)",
+        "• **!daily** — Toggle daily automated trivia post (admin or frink_control)",
         "• **!set-difficulty [beginner|intermediate|advanced|master]** — Filter by difficulty",
         "• **!set-seasons [1-20]** — Filter by season(s), e.g. !set-seasons 1 2 3",
         "• **!settings** — Show current bot configuration",

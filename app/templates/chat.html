@@ -15,6 +15,19 @@
     <style>
         /* Mobile-first: base styles for all devices; min-width media queries for larger screens */
         * { box-sizing: border-box; }
+        /* Dark mode scrollbars (default) */
+        :root { scrollbar-color: #3f3f46 #18181c; scrollbar-width: thin; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #18181c; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+        ::-webkit-scrollbar-corner { background: #18181c; }
+        /* Light mode scrollbars */
+        body.theme-light { scrollbar-color: #d4d4d8 #e4e4e7; }
+        body.theme-light ::-webkit-scrollbar-track { background: #e4e4e7; }
+        body.theme-light ::-webkit-scrollbar-thumb { background: #d4d4d8; }
+        body.theme-light ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+        body.theme-light ::-webkit-scrollbar-corner { background: #e4e4e7; }
         button, input:not([type="checkbox"]):not([type="radio"]), textarea, select { -webkit-appearance: none; appearance: none; font-family: inherit; }
         input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; flex-shrink: 0; cursor: pointer; accent-color: #6366f1; }
         body { font-family: system-ui, -apple-system, sans-serif; background: #0f0f12; color: #e4e4e7; min-height: 100vh; min-height: 100dvh; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
@@ -566,7 +579,7 @@
     <div v-if="state.editRoomModal" class="edit-message-modal" role="dialog" aria-label="Edit channel" aria-modal="true">
         <h3>Edit channel</h3>
         <template v-if="state.editRoomModal.is_protected && !isSuperAdmin">
-            <p class="edit-profile-label" style="color:#f87171;margin:0 0 0.75rem;">Protected channel names cannot be edited, sucka.</p>
+            <p class="edit-profile-label" style="color:#f87171;margin:0 0 0.75rem;">Protected channel names cannot be edited.</p>
         </template>
         <template v-else>
             <label for="editRoomInput" class="edit-profile-label">Channel name</label>
@@ -805,7 +818,7 @@
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>
                                 <div class="user-row"><button type="button" @click="window.chitchat && window.chitchat.settingsResetStats && window.chitchat.settingsResetStats()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>
                                 <h2>Channels</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Surfer Girl can mark any channel protected.</p>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Admins can mark any channel protected.</p>
                                 <div v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
                                     <span>{{ r.name }}<span v-if="r.is_protected" style="color:#71717a;"> (protected)</span></span>
                                     <span style="display:flex;gap:0.35rem;align-items:center;">
@@ -815,14 +828,14 @@
                                     </span>
                                 </div>
                                 <h2>Users — Rankings</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user rankings (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
                                 <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
                                     <select :disabled="u.id === currentUserId" :value="(u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRank && window.chitchat.settingsSetUserRank(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
                                         <option value="rookie">Rookie</option>
                                         <option value="bro">Bro</option>
                                         <option value="fam">Fam</option>
-                                        <option value="super_admin">Surfer Girl</option>
+                                        <option value="super_admin">Super Admin</option>
                                     </select>
                                     <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
                                 </div>
@@ -847,7 +860,7 @@
                                     <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Prof Frink:</span><input type="text" :value="(state.botChannels && state.botChannels.frink) ? state.botChannels.frink.join(', ') : ''" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('frink', $event.target.value)" placeholder="Trivia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
                                 </div>
                                 <h2>Role Permissions</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Surfer Girl can grant these permissions to Rookie, Bro, or Fam. Surfer Girl always has full access.</p>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Super Admin can grant these permissions to Rookie, Bro, or Fam. Super Admin always has full access.</p>
                                 <table style="font-size:0.85rem;border-collapse:collapse;">
                                     <tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th><th style="padding:0.35rem 0.5rem;">Rookie</th><th style="padding:0.35rem 0.5rem;">Bro</th><th style="padding:0.35rem 0.5rem;">Fam</th></tr>
                                     <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','frink_control','reset_stats','export_all']" :key="perm">
@@ -1028,7 +1041,8 @@ const chitchatApp = createApp({
         }
         function userDisplayLabel(u, isMe) {
             var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
-            return displayLabel + (isMe ? ' (you)' : '');
+            var botSuffix = (u.username === 'AcroBot' || u.username === 'Homer' || u.username === 'Prof Frink' || u.username === 'System') ? ' (bot)' : '';
+            return displayLabel + botSuffix + (isMe ? ' (you)' : '');
         }
         const roomsInOrder = computed(() => {
             var byId = {};

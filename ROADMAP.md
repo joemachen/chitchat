@@ -16,34 +16,34 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 ### Auth & users
 
 - **Auth**: Invite-code registration, login, logout, password reset, “remember me” (cookie + server token for standalone).
-- **Surfer Girl** (top role, formerly “Super Admin”): Full access; configures role permissions for Rookie, Bro, Fam. Surfer Girl only: access Settings, assign Surfer Girl to others.
-- **Role permissions**: Surfer Girl can grant/revoke per-role permissions (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all). Bro/Fam with permissions can perform those actions without being Surfer Girl.
+- **Super Admin** (top role, formerly “Super Admin”): Full access; configures role permissions for Rookie, Bro, Fam. Super Admin only: access Settings, assign Super Admin to others.
+- **Role permissions**: Super Admin can grant/revoke per-role permissions (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all). Bro/Fam with permissions can perform those actions without being Super Admin.
 
 ### Rooms & channels
 
-- **Rooms**: general, Stats (stats view: top typers, active hours, favorite words, Acrophobia & Trivia leaderboards), **Acrophobia** (game bot), **Trivia** (Prof Frink bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Protected channels**: Only Surfer Girl can rename protected channels; others see an alert when editing but can still edit the topic. **Default channel**: Surfer Girl can set which channel users see on login (Settings → Default channel).
+- **Rooms**: general, Stats (stats view: top typers, active hours, favorite words, Acrophobia & Trivia leaderboards), **Acrophobia** (game bot), **Trivia** (Prof Frink bot), plus user-created rooms. Full CRUD for channels (Super Admin or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Protected channels**: Only Super Admin can rename protected channels; others see an alert when editing but can still edit the topic. **Default channel**: Super Admin can set which channel users see on login (Settings → Default channel).
 - **Channel topic**: Any user can set with **/topic &lt;content&gt;**. Topic is pinned at top of channel with “Set by &lt;user&gt; on &lt;date/time&gt;”; toast notifies the room when topic is updated.
 
 ### Real-time & commands
 
 - **Presence**: Online/offline in user list; connect/disconnect broadcasts.
-- **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); room mute; right-click user → Whois, Kick (Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only).
+- **Messages**: Join room → full history; send message; edit/delete own message; /ping &lt;username&gt;, /em or /me &lt;text&gt; (emote); room mute; right-click user → Whois, Kick (Super Admin or kick_user permission; AcroBot/Homer: Super Admin only).
 - **IRC-style**: **/whois &lt;username&gt;** — shows account created, online/offline, IP, time connected (modal to requester only). **/topic &lt;content&gt;** for channel topic. **Username lookup**: /whois, /ping, /msg, and @mentions are case-insensitive (e.g. /whois joe finds "Joe").
 
 ### Acrophobia (AcroBot)
 
 - **AcroBot** in room **Acrophobia**: hosts rounds (acronym → submit phrase → vote → winner). Commands: **/start** or **/start X** (X=1–7 consecutive rounds), **/vote N**, **/help**, **/msg acrobot help** (full help and rules); **/msg acrobot &lt;anything&gt;** gets a short reply when bot is active. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt (e.g. “Thanks. I got your vote for this round, L'il Bro”). AcroBot often addresses users as “L'il Bro” or “L'il Homey”.
-- **Activate/deactivate**: In Settings (Surfer Girl only), “AcroBot is online” toggle. When off, bot does not start rounds or accept votes; user list shows AcroBot as offline. When on, AcroBot appears online in user list.
+- **Activate/deactivate**: In Settings (Super Admin only), “AcroBot is online” toggle. When off, bot does not start rounds or accept votes; user list shows AcroBot as offline. When on, AcroBot appears online in user list.
 - **Timers**: Submit phase (60s) with warnings at 30s and 15s remaining; vote phase (45s) with countdown from 15s to 1s (urgency styling when ≤15s); bot messages persisted and broadcast like normal chat.
 
 ### UX
 
 - **Global features** (all rooms, DMs, Acrophobia): @mention highlights (message pulse, room badge), tab flashing when mentioned and tab is hidden, link previews (OG metadata for URLs; minimize per preview). These apply app-wide, not just in Acrophobia.
 - **Copy/paste**: Message text, channel topic, room names, and stats area are explicitly selectable (user-select: text). Paste in the message input works as usual. **Multi-line input**: Shift+Enter for new line; Enter to send. Edit message uses a styled modal with full message visibility.
-- **Context menu**: Right-click on a username (in messages or user list) shows Whois and Kick (if Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible).
+- **Context menu**: Right-click on a username (in messages or user list) shows Whois and Kick (if Super Admin or kick_user permission; AcroBot/Homer: Super Admin only). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible).
 - **Mobile**: Single compact header (hamburger, logo, channel name, info chevron, users); collapsible info drawer for topic/connection; search in hamburger menu; fixed header; chat fills space.
 - **DMs**: Consolidated per user pair (deduplicated); only DMs you participate in are shown.
-- **Homer**: System user; type **!Simpsons** in any room to trigger a random Simpsons quote (when Homer is online). Online/offline toggle in Settings (Surfer Girl only); homer_control permission. Homer’s status: “It says no HomerS. We're allowed to have one.”
+- **Homer**: System user; type **!Simpsons** in any room to trigger a random Simpsons quote (when Homer is online). Online/offline toggle in Settings (Super Admin only); homer_control permission. Homer’s status: “It says no HomerS. We're allowed to have one.”
 
 ---
 
@@ -62,7 +62,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 1 — Local, stable (mostly done)
 
-- **Done**: AcroBot + Acrophobia room in migration; /help and /msg acrobot help; activate/deactivate in Settings; port fallback; copy/paste; context menu fix; Surfer Girl + Settings + topic + whois; role permissions; **message reactions**; **unread indicators** (server-backed).
+- **Done**: AcroBot + Acrophobia room in migration; /help and /msg acrobot help; activate/deactivate in Settings; port fallback; copy/paste; context menu fix; Super Admin + Settings + topic + whois; role permissions; **message reactions**; **unread indicators** (server-backed).
 - **Optional remaining**:
   - Acrophobia: optional /score (in-memory or DB), optional per-round time limits.
   - UX: unread indicators per room.
@@ -71,7 +71,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 ### Phase 2 — Richer chat & moderation
 
 - **Chat**: Optional file/image uploads (size limits, instance/ or configurable storage). Optional reply-to-message (threading or inline). Edit/delete own message done.
-- **Moderation**: Optional room roles (e.g. owner); room-level mute; admin controls (invite codes, room create/delete, user list) — partly covered by Surfer Girl and role permissions today.
+- **Moderation**: Optional room roles (e.g. owner); room-level mute; admin controls (invite codes, room create/delete, user list) — partly covered by Super Admin and role permissions today.
 - **Persistence**: Optional message search (by room, user, text); export room history (JSON/HTML).
 
 ### Phase 3 — Online deployment ✅ done
@@ -83,7 +83,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 ### Phase 4 — Polish & “best of” features
 
 - **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; **status (online/away/dnd/invisible)** done — right-click own name; rich presence (“in Acrophobia”, “in general”).
-- **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room and in Stats; **Prof Frink trivia** done (Trivia room, scoring, leaderboard in Stats); **Bot channel management** done (Surfer Girl configures which channels each bot can respond in).
+- **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room and in Stats; **Prof Frink trivia** done (Trivia room, scoring, leaderboard in Stats); **Bot channel management** done (Super Admin configures which channels each bot can respond in).
 - **Reliability**: Optional reconnection with history re-fetch; “last N messages” cache; optional read receipts or “last seen”.
 
 ### Phase 5 — Mobile distribution (long-term, on hold)
@@ -132,7 +132,7 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 7. **Netsplit** — Easter egg: `/netsplit` or random fake netsplit for lols
 8. **Accessibility** — Semantic HTML, keyboard nav, reduced motion, high-contrast
 9. **Rate limits** — Throttle messages per user per minute *(done)*
-10. **Audit log** — Surfer Girl view of who did what *(done)*
+10. **Audit log** — Super Admin view of who did what *(done)*
 11. **Voice chat** — 1:1 or small-group (2–4) via WebRTC P2P; long-term
 12. **Desktop/screen sharing** — 1:1 or small-group; long-term
 | **5** | **Mobile distribution** — long-term, on hold; Report Message & Delete Account in place for store approval |
