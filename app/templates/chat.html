@@ -572,6 +572,7 @@
             <label for="editRoomInput" class="edit-profile-label">Channel name</label>
             <input type="text" id="editRoomInput" ref="editRoomNameRef" v-model="state.editRoomModal.name" placeholder="Room name…" class="edit-room-input" aria-label="Room name" @keydown="onEditRoomKeydown">
         </template>
+        <label v-if="isSuperAdmin" for="editRoomProtectedInput" class="edit-profile-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="editRoomProtectedInput" v-model="state.editRoomModal.is_protected"> Protect channel</label>
         <label for="editRoomTopicInput" class="edit-profile-label">Topic</label>
         <textarea id="editRoomTopicInput" v-model="state.editRoomModal.topic" placeholder="Channel topic…" rows="3" class="edit-room-input" aria-label="Topic"></textarea>
         <div class="edit-message-actions">
@@ -791,6 +792,9 @@
                                 <h2>Homer</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Type !Simpsons in any room to get a random Simpsons quote. When offline, Homer will not respond.</p>
                                 <div class="user-row"><label><input type="checkbox" :checked="state.homerActive" @change="window.chitchat && window.chitchat.settingsSetHomer && window.chitchat.settingsSetHomer($event.target.checked)"> <span>Homer is online</span></label></div>
+                                <h2>Prof Frink</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Trivia bot in the Trivia channel. Type !trivia for a question, !help for commands. When offline, Prof Frink will not respond.</p>
+                                <div class="user-row"><label><input type="checkbox" :checked="state.frinkActive" @change="window.chitchat && window.chitchat.settingsSetFrink && window.chitchat.settingsSetFrink($event.target.checked)"> <span>Prof Frink is online</span></label></div>
                                 <h2>Stats</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>
                                 <div class="user-row"><button type="button" @click="window.chitchat && window.chitchat.settingsResetStats && window.chitchat.settingsResetStats()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>
@@ -806,7 +810,7 @@
                                 </div>
                                 <h2>Users — Rankings</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>
-                                <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                                <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
                                     <select :disabled="u.id === currentUserId" :value="(u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRank && window.chitchat.settingsSetUserRank(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
                                         <option value="rookie">Rookie</option>
@@ -833,8 +837,8 @@
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Surfer Girl can grant these permissions to Rookie, Bro, or Fam. Surfer Girl always has full access.</p>
                                 <table style="font-size:0.85rem;border-collapse:collapse;">
                                     <tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th><th style="padding:0.35rem 0.5rem;">Rookie</th><th style="padding:0.35rem 0.5rem;">Bro</th><th style="padding:0.35rem 0.5rem;">Fam</th></tr>
-                                    <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','reset_stats','export_all']" :key="perm">
-                                        <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create channels', update_room: 'Edit channel names', delete_room: 'Delete channels', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
+                                    <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','frink_control','reset_stats','export_all']" :key="perm">
+                                        <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create channels', update_room: 'Edit channel names', delete_room: 'Delete channels', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', frink_control: 'Prof Frink on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
                                         <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;vertical-align:middle;"><label style="display:flex;align-items:center;justify-content:center;cursor:pointer;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></label></td>
                                     </tr>
                                 </table>
@@ -949,6 +953,7 @@ const state = reactive({
     activeSettingsTab: 'general',
     acrobotActive: true,
     homerActive: true,
+    frinkActive: true,
     messageRetentionDays: {{ (message_retention_days|default(none))|tojson }},
     auditLogEntries: [],
     rolePermissions: {},
@@ -1238,6 +1243,7 @@ const chitchatApp = createApp({
                 if (!(state.editRoomModal.is_protected && !isSuperAdminFlag)) {
                     payload.name = (state.editRoomModal.name || '').trim() || (room && room.name) || undefined;
                 }
+                if (isSuperAdminFlag && 'is_protected' in state.editRoomModal) payload.is_protected = !!state.editRoomModal.is_protected;
                 window.chitchat.socket.emit('update_room', payload);
             }
             hideEditRoomModal();
@@ -1287,6 +1293,7 @@ chitchatApp.mount('#app');
     let socket = null;
     let acrobotActive = true;
     let homerActive = true;
+    let frinkActive = true;
     var settingsPendingSettings = null;
     const messagesEl = document.getElementById('messages');
     const sendForm = document.getElementById('sendForm');
@@ -1565,7 +1572,7 @@ chitchatApp.mount('#app');
         if (whoisBtn) whoisBtn.style.display = isSelf ? 'none' : 'block';
         if (messageUserBtn) messageUserBtn.style.display = isSelf ? 'none' : 'block';
         var canKick = !isSelf && (isSuperAdmin || (userPermissions && userPermissions.kick_user));
-        if (canKick && (username === 'AcroBot' || username === 'Homer') && !isSuperAdmin) canKick = false;
+        if (canKick && (username === 'AcroBot' || username === 'Homer' || username === 'Prof Frink') && !isSuperAdmin) canKick = false;
         kickBtn.style.display = canKick ? 'block' : 'none';
         var inRoom = state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
         if (muteInRoomBtn) {
@@ -2232,6 +2239,11 @@ chitchatApp.mount('#app');
         state.homerActive = checked;
         socket.emit('set_homer_active', { active: checked });
     }
+    function settingsSetFrink(checked) {
+        frinkActive = checked;
+        state.frinkActive = checked;
+        socket.emit('set_frink_active', { active: checked });
+    }
     function settingsResetStats() {
         var typed = prompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.');
         if (typed !== 'RESET') {
@@ -2243,6 +2255,7 @@ chitchatApp.mount('#app');
     function settingsSetRoomProtected(roomId, roomName, checked) {
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (!room) return;
+        room.is_protected = checked;
         socket.emit('update_room', { room_id: roomId, name: roomName, is_protected: checked });
     }
     function settingsDeleteRoom(roomId, roomName) {
@@ -2359,7 +2372,7 @@ chitchatApp.mount('#app');
         hideRoomContextMenu();
         hideSelectionContextMenu();
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -2524,7 +2537,11 @@ chitchatApp.mount('#app');
     });
 
     socket.on('room_renamed', function(data) {
-        if (data.room && state.currentRoom && state.currentRoom.id === data.room_id) state.currentRoom = data.room;
+        if (data.room) {
+            if (state.currentRoom && state.currentRoom.id === data.room_id) state.currentRoom = data.room;
+            var idx = (state.allRooms || []).findIndex(function(r) { return r.id === data.room_id; });
+            if (idx >= 0) state.allRooms[idx] = data.room;
+        }
     });
 
     socket.on('room_created', function(data) {
@@ -2615,6 +2632,9 @@ chitchatApp.mount('#app');
     });
     socket.on('homer_status', function(data) {
         state.homerActive = homerActive = data.active !== false;
+    });
+    socket.on('frink_status', function(data) {
+        state.frinkActive = frinkActive = data.active !== false;
     });
 
     socket.on('role_permissions', function(data) {
@@ -2903,6 +2923,7 @@ chitchatApp.mount('#app');
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         socket.emit('get_acrobot_status');
         socket.emit('get_homer_status');
+        socket.emit('get_frink_status');
         if (isSuperAdmin) { socket.emit('get_role_permissions'); socket.emit('get_audit_log', { limit: 50 }); }
     }
     if (settingsBtn) settingsBtn.addEventListener('click', showSettings);

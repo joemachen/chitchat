@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, edit profile (status, away message; announces in System Events; auto-replies to DMs when away), an in-channel stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, edit profile (status, away message; announces in System Events; auto-replies to DMs when away), an in-channel stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !daily, !set-difficulty, !set-seasons), message edit/delete, file/image uploads, and Surfer Girl moderation with role permissions (kick, channel CRUD, assign Surfer Girl, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
@@ -216,7 +216,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.1.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.2.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 

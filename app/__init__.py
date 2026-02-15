@@ -116,7 +116,7 @@ def _seed_default_data(app: Flask) -> None:
             if not has_any_channel:
                 db.session.add(Room(name="general", is_protected=True))
                 db.session.commit()
-            for rname in ("Stats", "Acrophobia", "System Events"):
+            for rname in ("Stats", "Acrophobia", "System Events", "Trivia"):
                 r = Room.query.filter_by(name=rname).first()
                 if not r:
                     db.session.add(Room(name=rname, is_protected=True))
@@ -150,6 +150,19 @@ def _seed_default_data(app: Flask) -> None:
                 db.session.commit()
             elif getattr(homer, "status_line", None) != homer_status:
                 homer.status_line = homer_status
+                db.session.commit()
+            prof_frink = User.query.filter_by(username="Prof Frink").first()
+            frink_status = "Glavin! The mathematics of trivia await!"
+            if not prof_frink:
+                prof_frink = User(
+                    username="Prof Frink",
+                    password_hash=generate_password_hash("system-bot-no-login"),
+                    status_line=frink_status,
+                )
+                db.session.add(prof_frink)
+                db.session.commit()
+            elif getattr(prof_frink, "status_line", None) != frink_status:
+                prof_frink.status_line = frink_status
                 db.session.commit()
 
             # Promote user "Joe" or "Joe-test" to Super Admin if present

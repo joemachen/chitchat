@@ -1,5 +1,21 @@
 # Release notes
 
+## v2.2.0 — Prof Frink trivia, daily scheduler, protected save fix, Scrabble acronyms
+
+**Prof Frink trivia bot**
+- **Trivia channel** — New #Trivia room with Simpsons trivia bot. Commands: `!trivia` (random question, answer after 30s), `!help`, `!settings`, `!set-difficulty [beginner|intermediate|advanced|master]`, `!set-seasons [1-20]`.
+- **Daily trivia** — `!daily` (Surfer Girl or frink_control) toggles automated daily post at 9:00 UTC.
+- **Settings** — Prof Frink on/off toggle and `frink_control` permission (like Homer).
+
+**Protected channel save**
+- **Settings fix** — Protected channel checkbox in Settings → Channels now saves correctly (optimistic update + room_renamed sync).
+- **Edit Room modal** — Surfer Girl can toggle "Protect channel" when editing a room.
+
+**Acrophobia**
+- **Scrabble-weighted acronyms** — Letter distribution now follows Scrabble tile frequencies (E common, Q/Z rare). Same letter rarely repeats twice in a row.
+
+---
+
 ## v2.1.0 — Protected channels, delete user fix, chat history
 
 **Protected channel editing**

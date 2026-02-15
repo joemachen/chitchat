@@ -2,9 +2,9 @@
 Acrophobia game bot (mIRC/AcroBot-style). Hosts rounds: acronym -> submit phrase -> vote -> winner.
 State is in-memory per room. Scores are persisted in DB. Bot messages are returned for the socket layer to persist and emit.
 Acronyms are 4 or 5 random letters for hundreds of combinations.
+Uses Scrabble letter frequencies for more natural, phraseable acronyms.
 """
 import random
-import string
 import time
 
 
@@ -14,14 +14,32 @@ def _get_db():
     return db, AcroScore, User
 
 
+# Scrabble letter distribution (standard tile counts): 12 E; 9 A,I; 8 O; 6 N,R,T; 4 L,S,U,D; 3 G; 2 B,C,M,P,F,H,V,W,Y; 1 K,J,X,Q,Z
+_SCRABBLE_LETTER_LIST = list("EAIORNTLSUDGBCMPFHVWYKJXQZ")
+_SCRABBLE_WEIGHTS = [12, 9, 9, 8, 6, 6, 6, 4, 4, 4, 4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1]
+
+
 def _random_acronym(length: int | None = None, sudden_death: bool = False) -> str:
-    """Return a random acronym. Default 4-5 letters; sudden_death uses 3-4 letters."""
+    """Return a random acronym. Default 4-5 letters; sudden_death uses 3-4 letters.
+    Uses Scrabble-weighted distribution. Rarely repeats the same letter twice in a row."""
     if sudden_death:
         if length not in (3, 4):
             length = random.choice((3, 4))
     elif length not in (4, 5):
         length = random.choice((4, 5))
-    return "".join(random.choices(string.ascii_uppercase, k=length))
+
+    result = []
+    prev_letter = None
+    for _ in range(length):
+        letters = _SCRABBLE_LETTER_LIST
+        weights = list(_SCRABBLE_WEIGHTS)
+        if prev_letter is not None:
+            idx = letters.index(prev_letter)
+            weights[idx] = max(1, weights[idx] // 10)
+        chosen = random.choices(letters, weights=weights, k=1)[0]
+        result.append(chosen)
+        prev_letter = chosen
+    return "".join(result)
 
 # Game state per room_id: phase, acronym, submissions, votes, end_time, rounds_remaining
 _games = {}

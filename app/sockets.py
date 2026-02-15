@@ -7,7 +7,7 @@ import json
 import re
 import time
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from flask import current_app, request, session
 from flask_socketio import disconnect as socketio_disconnect, emit, join_room as socketio_join_room
@@ -28,6 +28,17 @@ from app.acrophobia import (
     set_acrobot_active as acrophobia_set_acrobot_active,
 )
 from app.homer import get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
+from app.prof_frink import (
+    get_frink_settings,
+    get_help_text as frink_get_help,
+    get_trivia_response,
+    is_frink_active,
+    is_frink_daily_enabled,
+    set_frink_active as frink_set_active,
+    set_frink_daily_enabled,
+    set_frink_difficulty,
+    set_frink_seasons,
+)
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
 from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
@@ -88,6 +99,18 @@ def _get_users_with_online_status():
                 "username": u.username,
                 "display_name": None,
                 "online": is_homer_active(),
+                "is_super_admin": getattr(u, "is_super_admin", False),
+                "rank": rank,
+                "is_system_user": False,
+                "user_status": "online",
+                "current_room_name": None,
+            })
+        elif u.username == "Prof Frink":
+            result.append({
+                "id": u.id,
+                "username": u.username,
+                "display_name": None,
+                "online": is_frink_active(),
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": False,
@@ -434,6 +457,70 @@ def _get_or_create_dm_room(user_id: int, other_user_id: int):
 
 
 PRESENCE_BROADCAST_INTERVAL = 20  # seconds
+DAILY_TRIVIA_HOUR_UTC = 9  # 9:00 AM UTC
+
+
+def _seconds_until_next_daily_utc() -> int:
+    """Seconds until next DAILY_TRIVIA_HOUR_UTC (9:00 UTC)."""
+    now = datetime.now(timezone.utc)
+    next_run = now.replace(hour=DAILY_TRIVIA_HOUR_UTC, minute=0, second=0, microsecond=0)
+    if now >= next_run:
+        next_run += timedelta(days=1)
+    return int((next_run - now).total_seconds())
+
+
+def _fire_daily_trivia(socket_io):
+    """Post daily trivia to Trivia room if enabled; schedule next run in 24h."""
+    try:
+        app = getattr(socket_io, "app", None)
+        if not app:
+            eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+            return
+        with app.app_context():
+            if not is_frink_daily_enabled() or not is_frink_active():
+                eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+                return
+            trivia_room = Room.query.filter_by(name="Trivia").first()
+            frink_user = User.query.filter_by(username="Prof Frink").first()
+            if not trivia_room or not frink_user:
+                eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+                return
+            q_msg, answer = get_trivia_response()
+            msg = Message(
+                room_id=trivia_room.id,
+                user_id=frink_user.id,
+                content=q_msg,
+                message_type="chat",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            _broadcast_new_message_impl(socket_io, trivia_room.id, msg.to_dict())
+            if answer:
+
+                def _reveal(app_obj, rid, ans, fid):
+                    with app_obj.app_context():
+                        rev_msg = Message(
+                            room_id=rid,
+                            user_id=fid,
+                            content=f"**Answer:** {ans}",
+                            message_type="chat",
+                        )
+                        db.session.add(rev_msg)
+                        db.session.commit()
+                        _broadcast_new_message_impl(getattr(app_obj, "socketio", None), rid, rev_msg.to_dict())
+
+                eventlet.spawn_after(30000, _reveal, app, trivia_room.id, answer, frink_user.id)
+            logger.info("Posted daily trivia to Trivia room")
+    except Exception as e:
+        logger.warning("Daily trivia failed: %s", e)
+    eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+
+
+def _start_daily_trivia_scheduler(socket_io):
+    """Schedule first daily trivia post at next 9:00 UTC."""
+    secs = _seconds_until_next_daily_utc()
+    eventlet.spawn_after(secs, _fire_daily_trivia, socket_io)
+    logger.info("Daily trivia scheduler started; first post in %d seconds (%.1f h)", secs, secs / 3600)
 
 
 def _periodic_presence_broadcast(socketio):
@@ -451,6 +538,7 @@ def _periodic_presence_broadcast(socketio):
 def register_socket_handlers(socketio):
     """Register SocketIO event handlers."""
     eventlet.spawn_after(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
+    _start_daily_trivia_scheduler(socketio)
 
     def _post_system_event(content: str):
         """Post a system message to the System Events room."""
@@ -553,7 +641,7 @@ def register_socket_handlers(socketio):
         for rp in RolePermission.query.all():
             if rp.role in result:
                 result[rp.role][rp.permission] = rp.allowed
-        perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "reset_stats", "export_all")
+        perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "frink_control", "reset_stats", "export_all")
         for role in result:
             for p in perms:
                 if p not in result[role]:
@@ -776,6 +864,95 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "User not found"})
             return
 
+        # Prof Frink — Trivia bot (only in #Trivia channel)
+        if room_obj.name == "Trivia":
+            low_content = content.strip().lower()
+            parts = content.strip().split()
+            cmd = parts[0].lower() if parts else ""
+            if cmd in ("!trivia", "! trivia") and is_frink_active():
+                frink_user = User.query.filter_by(username="Prof Frink").first()
+                if frink_user:
+                    q_msg, answer = get_trivia_response()
+                    msg = Message(
+                        room_id=room_id,
+                        user_id=frink_user.id,
+                        content=q_msg,
+                        message_type="chat",
+                    )
+                    db.session.add(msg)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg.to_dict())
+                    if answer:
+                        def _reveal_answer(app, rid, ans, fid):
+                            with app.app_context():
+                                rev_msg = Message(
+                                    room_id=rid,
+                                    user_id=fid,
+                                    content=f"**Answer:** {ans}",
+                                    message_type="chat",
+                                )
+                                db.session.add(rev_msg)
+                                db.session.commit()
+                                _broadcast_new_message(rid, rev_msg.to_dict())
+                        app_obj = current_app._get_current_object()
+                        eventlet.spawn_after(30000, _reveal_answer, app_obj, room_id, answer, frink_user.id)
+                return
+            if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active():
+                frink_user = User.query.filter_by(username="Prof Frink").first()
+                if frink_user:
+                    help_text = frink_get_help()
+                    msg = Message(room_id=room_id, user_id=frink_user.id, content=help_text, message_type="chat")
+                    db.session.add(msg)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg.to_dict())
+                return
+            if cmd in ("!settings", "! settings") and is_frink_active():
+                frink_user = User.query.filter_by(username="Prof Frink").first()
+                if frink_user:
+                    s = get_frink_settings()
+                    txt = f"**Prof Frink settings:** Active={s['active']}, Daily={s['daily_enabled']}, Difficulty={s['difficulty']}, Seasons={s['seasons']}"
+                    msg = Message(room_id=room_id, user_id=frink_user.id, content=txt, message_type="chat")
+                    db.session.add(msg)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg.to_dict())
+                return
+            if cmd in ("!set-difficulty", "! set-difficulty") and len(parts) >= 2:
+                diff = parts[1].lower()
+                if diff in ("beginner", "intermediate", "advanced", "master"):
+                    set_frink_difficulty(diff)
+                    frink_user = User.query.filter_by(username="Prof Frink").first()
+                    if frink_user and is_frink_active():
+                        msg = Message(room_id=room_id, user_id=frink_user.id, content=f"Difficulty set to **{diff}**, glavin!", message_type="chat")
+                        db.session.add(msg)
+                        db.session.commit()
+                        _broadcast_new_message(room_id, msg.to_dict())
+                return
+            if cmd in ("!set-seasons", "! set-seasons") and len(parts) >= 2:
+                try:
+                    seasons = [int(p) for p in parts[1:] if p.isdigit() and 1 <= int(p) <= 20]
+                    set_frink_seasons(seasons if seasons else None)
+                    frink_user = User.query.filter_by(username="Prof Frink").first()
+                    if frink_user and is_frink_active():
+                        disp = str(seasons) if seasons else "all"
+                        msg = Message(room_id=room_id, user_id=frink_user.id, content=f"Seasons filter set to **{disp}**, hoyvin!", message_type="chat")
+                        db.session.add(msg)
+                        db.session.commit()
+                        _broadcast_new_message(room_id, msg.to_dict())
+                except (ValueError, TypeError):
+                    pass
+                return
+            if cmd in ("!daily", "! daily") and _has_permission(user_id, "frink_control"):
+                new_val = not is_frink_daily_enabled()
+                set_frink_daily_enabled(new_val)
+                frink_user = User.query.filter_by(username="Prof Frink").first()
+                if frink_user:
+                    status = "enabled" if new_val else "disabled"
+                    msg = Message(room_id=room_id, user_id=frink_user.id, content=f"Daily trivia **{status}**! Glavin!", message_type="chat")
+                    db.session.add(msg)
+                    db.session.commit()
+                    _broadcast_new_message(room_id, msg.to_dict())
+                return
+
         # !Simpsons — Homer says a random Simpsons quote (when Homer is active)
         low_content = content.strip().lower()
         if low_content in ("!simpsons", "! simpsons"):
@@ -802,7 +979,7 @@ def register_socket_handlers(socketio):
                 victims = list(
                     User.query.filter(
                         User.id != user_id,
-                        User.username.notin_(["AcroBot", "System", "Homer"]),
+                        User.username.notin_(["AcroBot", "System", "Homer", "Prof Frink"]),
                     ).limit(5).all()
                 )
                 if victims:
@@ -933,6 +1110,7 @@ def register_socket_handlers(socketio):
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
+                "• In #Trivia: !trivia, !help, !settings, !set-difficulty, !set-seasons (Prof Frink bot)",
                 "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, View profile, Whois",
                 "• Right-click user → View profile, Message, Kick (if permitted)",
                 "• Ctrl+K — room switcher; Esc — close modals",
@@ -1974,8 +2152,8 @@ def register_socket_handlers(socketio):
         if not target_user:
             emit("error", {"message": "User not found"})
             return
-        if target_user.username in ("AcroBot", "Homer") and not _is_super_admin(user_id):
-            emit("error", {"message": "Only Surfer Girl can kick AcroBot or Homer"})
+        if target_user.username in ("AcroBot", "Homer", "Prof Frink") and not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girl can kick AcroBot, Homer, or Prof Frink"})
             return
         room = Room.query.get(room_id)
         if not room:
@@ -2079,7 +2257,7 @@ def register_socket_handlers(socketio):
         if not target:
             emit("error", {"message": "User not found"})
             return
-        if target.username in ("AcroBot", "System", "Homer"):
+        if target.username in ("AcroBot", "System", "Homer", "Prof Frink"):
             emit("error", {"message": "Cannot delete system users"})
             return
         target_username = target.username
@@ -2206,7 +2384,7 @@ def register_socket_handlers(socketio):
         if role not in ("rookie", "bro", "fam"):
             emit("error", {"message": "role must be rookie, bro, or fam"})
             return
-        valid_perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "reset_stats", "export_all")
+        valid_perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "frink_control", "reset_stats", "export_all")
         if permission not in valid_perms:
             emit("error", {"message": f"permission must be one of: {', '.join(valid_perms)}"})
             return
@@ -2269,6 +2447,31 @@ def register_socket_handlers(socketio):
         socketio.emit("homer_status", {"active": is_homer_active()})
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
         logger.info("User %s set Homer active=%s", user_id, is_homer_active())
+
+    @socketio.on("get_frink_status")
+    def on_get_frink_status(data=None):
+        """Return whether Prof Frink is active (online). Any user can request."""
+        emit("frink_status", {"active": is_frink_active()})
+
+    @socketio.on("set_frink_active")
+    def on_set_frink_active(data):
+        """Activate or deactivate Prof Frink. Surfer Girl or frink_control permission."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _has_permission(user_id, "frink_control"):
+            emit("error", {"message": "Only Surfer Girls can activate or deactivate Prof Frink (or your role needs frink_control permission)"})
+            return
+        active = (data or {}).get("active")
+        if active is None:
+            emit("error", {"message": "active (true/false) required"})
+            return
+        frink_set_active(bool(active))
+        _audit_log(user_id, "set_frink_active", None, None, {"active": is_frink_active()})
+        socketio.emit("frink_status", {"active": is_frink_active()})
+        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
+        logger.info("User %s set Prof Frink active=%s", user_id, is_frink_active())
 
     @socketio.on("reset_stats_data")
     def on_reset_stats_data(data):
