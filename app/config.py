@@ -51,3 +51,5 @@ class Config:
     )
     # Rate limit: max messages per user per minute (0 = disabled)
     MESSAGES_PER_MINUTE = int(os.environ.get("CHITCHAT_MESSAGES_PER_MINUTE", "60"))
+    # Disable template caching so changes are visible during development
+    TEMPLATES_AUTO_RELOAD = True

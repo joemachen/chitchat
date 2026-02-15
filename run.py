@@ -5,6 +5,7 @@ For Flask CLI (e.g. flask db upgrade): FLASK_APP=run:app and use the app created
 import eventlet
 eventlet.monkey_patch()
 
+import os
 import socket
 import sys
 
@@ -79,7 +80,8 @@ if __name__ == "__main__":
             logger.info("Port %s in use; using %s", PORT_START, port)
         logger.info("No Homers Club ready")
         print(f"\n  No Homers Club running at  http://{host}:{port}  — open in your browser.\n")
-        app.socketio.run(app, host=host, port=port, debug=False, use_reloader=False)
+        debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+        app.socketio.run(app, host=host, port=port, debug=debug, use_reloader=False)
     except SystemExit:
         raise
     except Exception:

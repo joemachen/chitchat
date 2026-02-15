@@ -142,13 +142,14 @@ def _seed_default_data(app: Flask) -> None:
                 homer.status_line = homer_status
                 db.session.commit()
 
-            # Promote user "Joe" to Super Admin if present
-            joe = User.query.filter_by(username="Joe").first()
-            if joe and not getattr(joe, "is_super_admin", False):
-                joe.is_super_admin = True
-                if hasattr(joe, "rank"):
-                    joe.rank = "super_admin"
-                db.session.commit()
+            # Promote user "Joe" or "Joe-test" to Super Admin if present
+            for username in ("Joe", "Joe-test"):
+                user = User.query.filter_by(username=username).first()
+                if user and not getattr(user, "is_super_admin", False):
+                    user.is_super_admin = True
+                    if hasattr(user, "rank"):
+                        user.rank = "super_admin"
+                    db.session.commit()
         except Exception as e:
             logger.warning("Seed default data skipped or partial: %s", e)
             db.session.rollback()

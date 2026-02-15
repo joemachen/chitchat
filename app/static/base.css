@@ -1,0 +1,14 @@
+/* Global layout: full viewport across all pages */
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+}
+#app {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+}

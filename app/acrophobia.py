@@ -207,7 +207,7 @@ def handle_message(room_id: int, user_id: int, username: str, content: str, from
             g["votes"][user_id] = n - 1
             nick = _acrobot_nickname()
             room_ack = [] if from_dm else ["A vote has been received."]
-            dm_ack = [(user_id, f"Thanks. I got your vote for this round, {nick}.")] if from_dm else []
+            dm_ack = [(user_id, f"Thanks. I got your vote for this round, {nick}.")]
             return True, room_ack, dm_ack
         return True, [], []  # Ignore non-commands during voting
     # idle: allow normal chat or /start

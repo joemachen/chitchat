@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}">
     <title>No Homers Club — {{ user.username }}</title>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
@@ -13,9 +15,9 @@
     <style>
         /* Mobile-first: base styles for all devices; min-width media queries for larger screens */
         * { box-sizing: border-box; }
-        button, input, textarea, select { -webkit-appearance: none; appearance: none; font-family: inherit; }
-        html, body { height: 100%; }
-        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #0f0f12; color: #e4e4e7; min-height: 100%; min-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+        button, input:not([type="checkbox"]):not([type="radio"]), textarea, select { -webkit-appearance: none; appearance: none; font-family: inherit; }
+        input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; flex-shrink: 0; cursor: pointer; accent-color: #6366f1; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0f0f12; color: #e4e4e7; min-height: 100vh; min-height: 100dvh; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
         .header {
             padding: 0.75rem 1rem;
             background: #18181c;
@@ -350,6 +352,8 @@
         body.theme-light .theme-btn { background: #fafafa; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
         .theme-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+        body.theme-light input[type="checkbox"], body.theme-light input[type="radio"] { accent-color: #6366f1; }
+        body.theme-high-contrast input[type="checkbox"], body.theme-high-contrast input[type="radio"] { accent-color: var(--accent, #60a5fa); }
         /* Mobile responsive */
         .mobile-menu-btn { display: none; background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; padding: 0.35rem 0.5rem; }
         .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; }
@@ -471,7 +475,7 @@
     </style>
 </head>
 <body>
-    <div id="app">
+    <div id="app">{% raw %}
     <div id="contextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="whois">Whois</button>
         <button type="button" data-action="message-user">Send message</button>
@@ -569,8 +573,8 @@
     <div class="header" id="header">
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <div class="header-brand">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo" aria-hidden="true">
-            <h1 class="header-title-desktop">{{ server_name|default('No Homers Club') }} — <span class="header-username" data-user-id="{{ user.id }}" data-username="{{ user.username }}" title="Right-click to set status">{{ user.username }}</span></h1>
+            <img src="{% endraw %}{{ url_for('static', filename='logo.png') }}{% raw %}" alt="" class="header-logo" aria-hidden="true">
+            <h1 class="header-title-desktop">{% endraw %}{{ server_name|default('No Homers Club') }}{% raw %} — <span class="header-username" data-user-id="{% endraw %}{{ user.id }}{% raw %}" data-username="{% endraw %}{{ user.username }}{% raw %}" title="Right-click to set status">{% endraw %}{{ user.username }}{% raw %}</span></h1>
             <span class="header-title-mobile" id="headerChannelName" aria-hidden="true">{{ mobileRoomName }}</span>
         </div>
         <button type="button" id="headerInfoBtn" class="header-info-btn" aria-label="Toggle topic and connection info" title="Topic & connection">▾</button>
@@ -578,7 +582,7 @@
             <button type="button" id="usersToggleBtn" class="mobile-menu-btn" aria-label="Toggle users">👥</button>
             <span class="header-settings-logout">
                 <button type="button" id="settingsBtn">Settings</button>
-                <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
+                <form action="{% endraw %}{{ url_for('logout') }}{% raw %}" method="post" style="display:inline;">
                     <button type="submit">Log out</button>
                 </form>
             </span>
@@ -608,7 +612,7 @@
                             <div v-for="r in channelsInOrder" :key="r.id" :class="['room-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" draggable="true" :data-room-id="r.id" @click="onRoomClick(r.id, $event)" @dragstart="onRoomDragStart($event, r.id, 'channel')" @dragend="onRoomDragEnd($event)" @dragover.prevent="onRoomDragOver($event, r.id, 'channel')" @dragleave="onRoomDragLeave($event)" @drop.prevent="onRoomDrop($event, r.id, 'channel')">
                                 <span class="room-item-grip" title="Drag to reorder">⋮⋮</span>
                                 <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
-                                <span class="room-item-name">{{ r.name }}</span>
+                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? 'mute ' : '' }}{{ r.name }}</span>
                                 <span class="room-item-actions">
                                     <button v-if="canEditRoom(r)" type="button" class="edit" title="Edit" @click="onEditRoom(r.id, $event)">✎</button>
                                     <button v-if="canDeleteRoom(r)" type="button" class="delete" title="Delete" @click="onDeleteRoom(r.id, $event)">×</button>
@@ -626,7 +630,7 @@
                             <div v-for="r in dmsInOrder" :key="r.id" :class="['room-item', 'dm-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" draggable="true" :data-room-id="r.id" @click="onRoomClick(r.id, $event)" @dragstart="onRoomDragStart($event, r.id, 'dm')" @dragend="onRoomDragEnd($event)" @dragover.prevent="onRoomDragOver($event, r.id, 'dm')" @dragleave="onRoomDragLeave($event)" @drop.prevent="onRoomDrop($event, r.id, 'dm')">
                                 <span class="room-item-grip" title="Drag to reorder">⋮⋮</span>
                                 <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
-                                <span class="room-item-name">{{ roomDisplayName(r) }}</span>
+                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? 'mute ' : '' }}{{ roomDisplayName(r) }}</span>
                                 <span class="room-item-actions"><button type="button" class="delete" title="Delete DM" @click="onDeleteRoom(r.id, $event)">×</button></span>
                             </div>
                         </template>
@@ -636,14 +640,14 @@
             </div>
             <div class="room-list-footer-sticky">
                 <div class="room-list-footer">
-                    {% if user.is_super_admin or (user_permissions|default({})).get('create_room') %}
+                    {% endraw %}{% if user.is_super_admin or (user_permissions|default({})).get('create_room') %}
                     <button type="button" id="newRoomBtn">+ New room</button>
-                    {% endif %}
+                    {% endif %}{% raw %}
                 </div>
                 <div class="room-list-footer-mobile">
                     <button type="button" id="searchBtnMobile">Search</button>
                     <button type="button" id="settingsBtnMobile">Settings</button>
-                    <form action="{{ url_for('logout') }}" method="post" style="display:inline;">
+                    <form action="{% endraw %}{{ url_for('logout') }}{% raw %}" method="post" style="display:inline;">
                         <button type="submit">Log out</button>
                     </form>
                 </div>
@@ -691,11 +695,9 @@
                                 <span v-for="(r, ri) in (msg.reactions || [])" :key="ri" :class="['msg-reaction', { own: (r.user_ids || []).indexOf(currentUserId) !== -1 }]" :data-emoji="r.emoji" :title="(r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')')" @click.stop="onToggleReaction(msg.id, r.emoji, (r.user_ids || []).indexOf(currentUserId) !== -1)">
                                     {{ r.emoji }} <span class="msg-reaction-count">{{ r.count || 0 }}</span>
                                 </span>
-                                <span class="msg-reaction msg-reaction-add" title="Add reaction" @click.stop="onShowReactionPicker(msg.id, $event.target)">➕</span>
                             </div>
                             <div class="msg-hover-bar" :data-msg-id="msg.id">
                                 <span v-for="(r, ri) in (msg.reactions || []).slice().sort((a,b) => (b.count||0) - (a.count||0)).slice(0, 3)" :key="'h'+ri" :class="['msg-reaction', { own: (r.user_ids || []).indexOf(currentUserId) !== -1 }]" :data-emoji="r.emoji" :title="r.emoji" @click.stop="onToggleReaction(msg.id, r.emoji, (r.user_ids || []).indexOf(currentUserId) !== -1)">{{ r.emoji }}</span>
-                                <span class="msg-reaction msg-reaction-add" title="Add reaction" @click.stop="onShowReactionPicker(msg.id, $event.target)">➕</span>
                                 <button v-if="msg.user_id === currentUserId" type="button" class="msg-hover-btn msg-hover-edit" title="Edit" @click.stop="onEditMessage(msg.id, msg.content)">✎</button>
                                 <button type="button" class="msg-hover-btn msg-hover-reply" title="Reply" @click.stop="onReplyToMessage(msg)">↩</button>
                             </div>
@@ -720,12 +722,12 @@
                                 </div>
                             </div>
                             <div class="stats-chart-x-axis">
-                                <span v-for="h in [0,6,12,18]" :key="h" class="stats-chart-x-label" style="flex:1;text-align:center;">{{ h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm') }}</span>
+                                <span v-for="h in [0,6,12,18]" :key="h" class="stats-chart-x-label" style="flex:1;text-align:center;">{{ formatHourLabel(h) }}</span>
                             </div>
                         </div>
                         <div class="stats-chart-legend"><template v-for="(d, i) in statsActiveHours" :key="d.day"><span v-if="i"> · </span><span :style="{ color: statsDayColors[i] || '#6366f1' }">{{ d.day }}</span></template></div>
                         <h2>Favorite words (top typers)</h2>
-                        <p v-for="f in (state.stats && state.stats.favorite_words) || []" :key="f.user_id"><strong>{{ f.username }}</strong> <span class="favorite-words">{{ (f.words || []).map(function(w) { return w.word + ' (' + w.count + ')'; }).join(', ') }}</span></p>
+                        <p v-for="f in (state.stats && state.stats.favorite_words) || []" :key="f.user_id"><strong>{{ f.username }}</strong> <span class="favorite-words">{{ formatFavoriteWords(f) }}</span></p>
                         <template v-if="(state.stats && state.stats.acro_leaderboard && state.stats.acro_leaderboard.length)">
                             <h2>Acrophobia leaderboard</h2>
                             <ul>
@@ -796,7 +798,7 @@
                                         <option value="fam">Fam</option>
                                         <option value="super_admin">Surfer Girl</option>
                                     </select>
-                                    <button v-if="u.id !== currentUserId" type="button" @click="window.chitchat && window.chitchat.settingsDeleteUser && window.chitchat.settingsDeleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
+                                    <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
                                 </div>
                                 <h2>Audit log</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>
@@ -817,7 +819,7 @@
                                     <tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th><th style="padding:0.35rem 0.5rem;">Rookie</th><th style="padding:0.35rem 0.5rem;">Bro</th><th style="padding:0.35rem 0.5rem;">Fam</th></tr>
                                     <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','reset_stats','export_all']" :key="perm">
                                         <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create channels', update_room: 'Edit channel names', delete_room: 'Delete channels', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
-                                        <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></td>
+                                        <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;vertical-align:middle;"><label style="display:flex;align-items:center;justify-content:center;cursor:pointer;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></label></td>
                                     </tr>
                                 </table>
                             </template>
@@ -827,11 +829,11 @@
                             <h2>Appearance</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Theme and chat background (saved in this browser).</p>
                             <div class="user-row" style="align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Theme:</span>
-                                <button type="button" :class="['theme-btn', { active: state.theme === 'dark' }]" @click="window.chitchat && window.chitchat.setTheme && window.chitchat.setTheme('dark')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button>
-                                <button type="button" :class="['theme-btn', { active: state.theme === 'light' }]" @click="window.chitchat && window.chitchat.setTheme && window.chitchat.setTheme('light')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button>
-                                <button type="button" :class="['theme-btn', { active: state.theme === 'high-contrast' }]" @click="window.chitchat && window.chitchat.setTheme && window.chitchat.setTheme('high-contrast')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">High contrast</button>
+                                <button type="button" :class="['theme-btn', { active: state.theme === 'dark' }]" @click="setTheme('dark')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Dark</button>
+                                <button type="button" :class="['theme-btn', { active: state.theme === 'light' }]" @click="setTheme('light')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">Light</button>
+                                <button type="button" :class="['theme-btn', { active: state.theme === 'high-contrast' }]" @click="setTheme('high-contrast')" style="padding:0.35rem 0.75rem;border-radius:6px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;cursor:pointer;font-size:0.9rem;">High contrast</button>
                             </div>
-                            <div class="user-row" style="align-items:center;gap:0.5rem;"><label style="display:flex;align-items:center;gap:0.5rem;">Chat background: <input type="color" :value="state.bgColor || '#0f0f12'" @input="window.chitchat && window.chitchat.setBgColor && window.chitchat.setBgColor($event.target.value)" style="width:2.5rem;height:1.5rem;padding:0;border:none;border-radius:4px;cursor:pointer;"></label></div>
+                            <div class="user-row" style="align-items:center;gap:0.5rem;"><label style="display:flex;align-items:center;gap:0.5rem;">Chat background: <input type="color" :value="state.bgColor || '#0f0f12'" @input="setBgColor($event.target.value)" style="width:2.5rem;height:1.5rem;padding:0;border:none;border-radius:4px;cursor:pointer;"></label></div>
                         </template>
                         <template v-else-if="state.activeSettingsTab === 'notifications'">
                             <h2>Notifications</h2>
@@ -896,7 +898,7 @@
             <span>Settings</span>
         </button>
     </nav>
-    </div><!-- #app -->
+    {% endraw %}</div><!-- #app -->
 
     <script>
 const { createApp, ref, reactive, computed, nextTick } = Vue;
@@ -959,7 +961,9 @@ const chitchatApp = createApp({
         const channelTopicEmpty = computed(() => !state.currentRoom || !state.currentRoom.topic);
         const mobileRoomName = computed(() => {
             var room = state.currentRoom;
-            return !room ? (state.showingSettings ? 'Settings' : '') : (room.is_dm ? ('DM: ' + (_dmOtherUsername(room, {{ user.id }}) || '?')) : '#' + room.name);
+            if (!room) return state.showingSettings ? 'Settings' : '';
+            var base = room.is_dm ? ('DM: ' + (_dmOtherUsername(room, {{ user.id }}) || '?')) : ('#' + room.name);
+            return (state.roomNotificationMuted[room.id] ? 'mute ' : '') + base;
         });
         const showChannelTopic = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
         const filteredUsers = computed(() => {
@@ -1091,8 +1095,10 @@ const chitchatApp = createApp({
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
             html = html.replace(/(https?:\/\/[^\s<>"']+)/g, function(match, offset, fullStr) {
                 if (offset > 0 && fullStr[offset - 1] === '"') return match;
+                if (offset > 1 && fullStr.substring(offset - 2, offset) === '">') return match;
                 var url = match.replace(/[.,;:)]+$/, '');
-                var isGif = /\.gif(\?|$)/i.test(url) || /giphy\.com.*\.gif/i.test(url);
+                var isGif = /\.gif(\?|$)/i.test(url) || /giphy\.com.*\.gif/i.test(url) || /tenor\.com.*\.gif/i.test(url);
+                if (isGif && msg.link_previews && msg.link_previews.length) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url.replace(/^https?:\/\//, '')) + '</a>';
                 if (isGif) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
                 return '<a href="' + escA(match) + '" target="_blank" rel="noopener noreferrer">' + esc(match) + '</a>';
             });
@@ -1120,9 +1126,16 @@ const chitchatApp = createApp({
         function onEditMessage(msgId, content) { if (window.chitchat && window.chitchat.showEditMessageModal) window.chitchat.showEditMessageModal(msgId, content); }
         function onReplyToMessage(msg) { if (window.chitchat && window.chitchat.replyToMessage) window.chitchat.replyToMessage(msg); }
         function onLinkPreviewMinimize(ev) { var el = ev.target.closest('.msg-link-preview'); if (el) el.classList.add('minimized'); }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize };
+        function formatFavoriteWords(f) { var w = f.words || []; return w.map(function(x) { return x.word + ' (' + x.count + ')'; }).join(', '); }
+        function formatHourLabel(h) { return h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm'); }
+        function setTheme(theme) { if (window.chitchat && window.chitchat.setTheme) window.chitchat.setTheme(theme); }
+        function setBgColor(val) { if (window.chitchat && window.chitchat.setBgColor) window.chitchat.setBgColor(val); }
+        function deleteUser(userId, username) { if (window.chitchat && window.chitchat.settingsDeleteUser) window.chitchat.settingsDeleteUser(userId, username); }
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, deleteUser };
     }
 });
+chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
+chitchatApp.mount('#app');
 
 (function() {
     const currentUserId = {{ user.id }};
@@ -1809,7 +1822,7 @@ const chitchatApp = createApp({
         e.stopPropagation();
         if (messageContextTarget && state.currentRoom) {
             var msgEl = document.getElementById('msg-' + messageContextTarget.messageId);
-            var anchor = msgEl ? (msgEl.querySelector('.msg-reactions') || msgEl.querySelector('.msg-reaction-add')) : null;
+            var anchor = msgEl ? msgEl.querySelector('.msg-reactions') : null;
             if (anchor) showReactionPicker(messageContextTarget.messageId, anchor);
             else showReactionPicker(messageContextTarget.messageId, messageContextMenuEl);
         }
@@ -2570,6 +2583,14 @@ const chitchatApp = createApp({
         }
         switchRoom(data.room.id);
     });
+    socket.on('dm_room_added', function(data) {
+        if (!data.room) return;
+        var existing = state.allRooms.find(function(r) { return r.id === data.room.id; });
+        if (!existing) {
+            state.allRooms = state.allRooms.concat([data.room]);
+            state.roomOrderIds.push(data.room.id);
+        }
+    });
 
     socket.on('room_history_wiped', function(data) {
         if (data.room_id && state.currentRoom && state.currentRoom.id === data.room_id) {
@@ -2824,12 +2845,13 @@ const chitchatApp = createApp({
         inputEl.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 if (e.shiftKey) {
-                    return;
+                    return; /* Shift+Enter: allow default (new line) */
                 }
                 e.preventDefault();
+                e.stopPropagation();
                 sendMessageWithAttachment();
             }
-        });
+        }, true);
         inputEl.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 128) + 'px';
@@ -3161,7 +3183,7 @@ const chitchatApp = createApp({
             document.body.style.userSelect = 'none';
         });
     })();
-chitchatApp.mount('#app');
+})();
     </script>
 </body>
 </html>

@@ -1129,6 +1129,11 @@ def register_socket_handlers(socketio):
                             db.session.add(dm_msg)
                             db.session.commit()
                             _broadcast_new_message(dm_room.id, dm_msg.to_dict())
+                            socketio.emit(
+                                "dm_room_added",
+                                {"room": dm_room.to_dict()},
+                                room=f"user_{target_user_id}",
+                            )
                     if bot_replies and is_acrobot_active() and "**Acronym:" in (bot_replies[0] or ""):
                         _schedule_acrophobia_submit_timer(room_id)
                         emit("acrophobia_phase", acrophobia_get_phase_info(room_id), room=f"room_{room_id}")
