@@ -28,6 +28,7 @@ class User(db.Model):
     away_message = db.Column(db.Text, nullable=True)
     display_name = db.Column(db.String(80), nullable=True)  # /nick; shown in chat when set
     status_line = db.Column(db.String(120), nullable=True)  # /status
+    bio = db.Column(db.String(200), nullable=True)  # Short bio shown in whois
     user_status = db.Column(db.String(20), nullable=False, default="online")  # online | away | dnd
     last_seen = db.Column(db.DateTime, nullable=True)  # Updated on disconnect for /whois
     message_retention_days = db.Column(db.Integer, nullable=True)  # None = keep forever; 7/30/90 = auto-delete after N days

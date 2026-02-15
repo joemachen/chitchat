@@ -4,6 +4,7 @@ Acrophobia game bot in room "Acrophobia". Super Admin: kick, channels, assign ad
 """
 import eventlet
 import json
+import random
 import re
 import time
 from collections import Counter
@@ -324,6 +325,32 @@ def _get_stats():
     }
 
 
+def _get_user_stats(user_id: int) -> dict:
+    """Return stats for a single user (message count, acro wins, trivia correct)."""
+    msg_count = (
+        db.session.query(func.count(Message.id))
+        .filter_by(user_id=user_id)
+        .scalar() or 0
+    )
+    acro_room = Room.query.filter_by(name="Acrophobia").first()
+    acro_wins = 0
+    if acro_room:
+        row = AcroScore.query.filter_by(room_id=acro_room.id, user_id=user_id).first()
+        if row:
+            acro_wins = row.wins
+    trivia_room = Room.query.filter_by(name="Trivia").first()
+    trivia_correct = 0
+    if trivia_room:
+        row = TriviaScore.query.filter_by(room_id=trivia_room.id, user_id=user_id).first()
+        if row:
+            trivia_correct = row.correct
+    return {
+        "msg_count": msg_count,
+        "acro_wins": acro_wins,
+        "trivia_correct": trivia_correct,
+    }
+
+
 def _netsplit_reconnect(app, room_id: int, names: str, sys_user_id: int) -> None:
     """Post netsplit reconnection message (called from eventlet.spawn_after)."""
     with app.app_context():
@@ -496,6 +523,21 @@ def _user_by_username(username: str):
     if not username or not str(username).strip():
         return None
     return User.query.filter(func.lower(User.username) == str(username).strip().lower()).first()
+
+
+def _user_by_nick(nick: str):
+    """Return User by username or display_name. Case-insensitive. Excludes bots."""
+    if not nick or not str(nick).strip():
+        return None
+    n = str(nick).strip().lower()
+    for u in User.query.filter(
+        User.username.notin_(["AcroBot", "System", "Homer", "Prof Frink"])
+    ).all():
+        if (u.username and u.username.lower() == n) or (
+            getattr(u, "display_name", None) and str(u.display_name).strip().lower() == n
+        ):
+            return u
+    return None
 
 
 def _get_or_create_dm_room(user_id: int, other_user_id: int):
@@ -915,6 +957,9 @@ def register_socket_handlers(socketio):
             return
         raw = (data or {}).get("content") or ""
         content = raw.strip()
+        # Normalize ! to / for commands (e.g. !trivia -> /trivia, !vote 1 -> /vote 1)
+        if content and content[0] == "!" and (len(content) == 1 or content[1] in (" ", "\t") or content[1:2].isalnum() or content[1:2] in ("-", ".")):
+            content = "/" + content[1:]
         has_attachment = bool((data or {}).get("attachment_url"))
         if not content and not has_attachment:
             return
@@ -927,10 +972,10 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "User not found"})
             return
 
-        # Prof Frink — Trivia bot (channel configurable via Settings)
-        trivia_commands = ("!trivia", "! trivia", "!help", "!commands", "! help", "! commands", "!settings", "! settings",
-                          "!set-difficulty", "! set-difficulty", "!set-seasons", "! set-seasons", "!daily", "! daily",
-                          "!score", "/score", "! score", "/ score")
+        # Prof Frink — Trivia bot (channel configurable via Settings). ! and / both work (normalized above).
+        trivia_commands = ("/trivia", "/ trivia", "/help", "/commands", "/ help", "/ commands", "/settings", "/ settings",
+                          "/set-difficulty", "/ set-difficulty", "/set-seasons", "/ set-seasons", "/daily", "/ daily",
+                          "/score", "/ score")
         if _bot_allowed_in_room("frink", room_obj):
             frink_user = User.query.filter_by(username="Prof Frink").first()
             parts = content.strip().split()
@@ -979,8 +1024,8 @@ def register_socket_handlers(socketio):
                         set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
                         eventlet.spawn_after(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
 
-            # !trivia or !trivia X (X=1-7 consecutive rounds)
-            is_trivia_cmd = cmd in ("!trivia", "! trivia")
+            # /trivia or /trivia X (X=1-7 consecutive rounds)
+            is_trivia_cmd = cmd in ("/trivia", "/ trivia")
             if is_trivia_cmd and is_frink_active() and frink_user:
                 rounds = 1
                 if len(parts) >= 2 and parts[1].isdigit():
@@ -1000,7 +1045,7 @@ def register_socket_handlers(socketio):
                     app_obj = current_app._get_current_object()
                     eventlet.spawn_after(30, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
                 return
-            if cmd in ("!score", "/score", "! score", "/ score") and is_frink_active() and frink_user:
+            if cmd in ("/score", "/ score") and is_frink_active() and frink_user:
                 leaderboard = get_trivia_leaderboard(room_id, limit=10)
                 if not leaderboard:
                     lb_text = "No scores yet! Be the first to answer a trivia question correctly, glavin!"
@@ -1015,14 +1060,14 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message(room_id, msg.to_dict())
                 return
-            if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active() and frink_user:
+            if cmd in ("/help", "/commands", "/ help", "/ commands") and is_frink_active() and frink_user:
                 help_text = frink_get_help()
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=help_text, message_type="chat")
                 db.session.add(msg)
                 db.session.commit()
                 _broadcast_new_message(room_id, msg.to_dict())
                 return
-            if cmd in ("!settings", "! settings") and is_frink_active() and frink_user:
+            if cmd in ("/settings", "/ settings") and is_frink_active() and frink_user:
                 s = get_frink_settings()
                 txt = f"**Prof Frink settings:** Active={s['active']}, Daily={s['daily_enabled']}, Difficulty={s['difficulty']}, Seasons={s['seasons']}"
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=txt, message_type="chat")
@@ -1030,7 +1075,7 @@ def register_socket_handlers(socketio):
                 db.session.commit()
                 _broadcast_new_message(room_id, msg.to_dict())
                 return
-            if cmd in ("!set-difficulty", "! set-difficulty") and len(parts) >= 2:
+            if cmd in ("/set-difficulty", "/ set-difficulty") and len(parts) >= 2:
                 diff = parts[1].lower()
                 if diff in ("beginner", "intermediate", "advanced", "master"):
                     set_frink_difficulty(diff)
@@ -1041,7 +1086,7 @@ def register_socket_handlers(socketio):
                         db.session.commit()
                         _broadcast_new_message(room_id, msg.to_dict())
                 return
-            if cmd in ("!set-seasons", "! set-seasons") and len(parts) >= 2:
+            if cmd in ("/set-seasons", "/ set-seasons") and len(parts) >= 2:
                 try:
                     seasons = [int(p) for p in parts[1:] if p.isdigit() and 1 <= int(p) <= 20]
                     set_frink_seasons(seasons if seasons else None)
@@ -1055,7 +1100,7 @@ def register_socket_handlers(socketio):
                 except (ValueError, TypeError):
                     pass
                 return
-            if cmd in ("!daily", "! daily") and _has_permission(user_id, "frink_control"):
+            if cmd in ("/daily", "/ daily") and _has_permission(user_id, "frink_control"):
                 new_val = not is_frink_daily_enabled()
                 set_frink_daily_enabled(new_val)
                 frink_user = User.query.filter_by(username="Prof Frink").first()
@@ -1088,9 +1133,40 @@ def register_socket_handlers(socketio):
                         app_obj = current_app._get_current_object()
                         eventlet.spawn_after(3, _post_next_trivia_round, room_id, frink_user.id, socketio, app_obj)
 
-        # !Simpsons — Homer says a random Simpsons quote (when Homer is active, channel allowed)
+        # /slap or !slap <nick> — IRC-style slap. If nick not found, Homer mocks for slapping self.
         low_content = content.strip().lower()
-        if low_content in ("!simpsons", "! simpsons") and _bot_allowed_in_room("homer", room_obj):
+        if (low_content.startswith("/slap ") or low_content.startswith("!slap ")):
+            slap_nick = content[6:].strip()
+            actor_name = (getattr(user, "display_name", None) and str(user.display_name).strip()) or user.username
+            target = _user_by_nick(slap_nick)
+            if target and target.id != user_id:
+                target_label = (getattr(target, "display_name", None) and str(target.display_name).strip()) or target.username
+                slap_msg = Message(
+                    room_id=room_id,
+                    user_id=user_id,
+                    content=f"*** {actor_name} slaps {target_label} around a bit with a large trout",
+                    message_type="action",
+                )
+                db.session.add(slap_msg)
+                db.session.commit()
+                _broadcast_new_message(room_id, slap_msg.to_dict())
+            else:
+                if _bot_allowed_in_room("homer", room_obj) and is_homer_active():
+                    homer_user = User.query.filter_by(username="Homer").first()
+                    if homer_user:
+                        mock = random.choice([
+                            f"D'oh! {actor_name} tried to slap someone who doesn't exist. *slaps self with a trout*",
+                            f"Woo-hoo! {actor_name} just slapped themself with a large trout. Classic!",
+                            f"Mmm... trout. {actor_name} couldn't find anyone to slap, so they slapped themself. Delicious.",
+                        ])
+                        msg = Message(room_id=room_id, user_id=homer_user.id, content=mock, message_type="chat")
+                        db.session.add(msg)
+                        db.session.commit()
+                        _broadcast_new_message(room_id, msg.to_dict())
+            return
+
+        # /simpsons — Homer says a random Simpsons quote (when Homer is active, channel allowed)
+        if low_content in ("/simpsons", "/ simpsons") and _bot_allowed_in_room("homer", room_obj):
             if is_homer_active():
                 homer_user = User.query.filter_by(username="Homer").first()
                 if homer_user:
@@ -1240,6 +1316,7 @@ def register_socket_handlers(socketio):
                 "• /status <text> — set status (shown in /whois); /status to clear",
                 "• /whois <username> — user info, last seen, shared rooms",
                 "• /topic <text> — set channel topic",
+                "• /slap <nick> — slap someone with a large trout (IRC-style)",
                 "• /ping <username> — notify that user",
                 "• /m, /msg, /message <username> <text> — send a direct message to that user",
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
@@ -1353,6 +1430,7 @@ def register_socket_handlers(socketio):
                 "online": online,
                 "display_name": getattr(target, "display_name", None) or None,
                 "status_line": getattr(target, "status_line", None) or None,
+                "bio": getattr(target, "bio", None) or None,
                 "last_seen": _isoformat_utc(getattr(target, "last_seen", None)),
             }
             if online:
@@ -1794,9 +1872,12 @@ def register_socket_handlers(socketio):
         payload = data or {}
         status_line = (payload.get("status_line") or "").strip()[:120] or None
         away_message = (payload.get("away_message") or "").strip() or None
+        bio = (payload.get("bio") or "").strip()[:200] or None
         old_away = getattr(user, "away_message", None) or None
         user.status_line = status_line
         user.away_message = away_message
+        if hasattr(user, "bio"):
+            user.bio = bio
         if hasattr(user, "user_status"):
             user.user_status = "away" if away_message else "online"
         db.session.commit()
@@ -1806,7 +1887,7 @@ def register_socket_handlers(socketio):
             else:
                 _post_system_event(f"{user.username} is no longer away")
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
-        emit("profile_updated", {"status_line": status_line, "away_message": away_message})
+        emit("profile_updated", {"status_line": status_line, "away_message": away_message, "bio": bio})
         logger.info("Profile updated by user %s", user.username)
 
     @socketio.on("set_user_status")
@@ -1943,6 +2024,55 @@ def register_socket_handlers(socketio):
             muted = True
         db.session.commit()
         emit("room_notification_mute_updated", {"room_id": room_id, "muted": muted, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
+
+    @socketio.on("mute_room_notifications")
+    def on_mute_room_notifications(data):
+        """Set mute notifications for a room (muted=True or False)."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = (data or {}).get("room_id")
+        muted = (data or {}).get("muted", True)
+        if not room_id:
+            emit("error", {"message": "room_id required"})
+            return
+        try:
+            room_id = int(room_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id"})
+            return
+        rooms = _rooms_sorted_for_user(user_id)
+        if not any(r.id == room_id for r in rooms):
+            emit("error", {"message": "Room not found or access denied"})
+            return
+        existing = UserRoomNotificationMute.query.filter_by(user_id=user_id, room_id=room_id).first()
+        if muted and not existing:
+            db.session.add(UserRoomNotificationMute(user_id=user_id, room_id=room_id))
+        elif not muted and existing:
+            db.session.delete(existing)
+        db.session.commit()
+        emit("room_notification_mute_updated", {"room_id": room_id, "muted": muted, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
+
+    @socketio.on("mute_all_room_notifications")
+    def on_mute_all_room_notifications(data):
+        """Mute or unmute notifications for all channels. action='mute_all' or 'unmute_all'."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        action = (data or {}).get("action", "mute_all")
+        mute = action == "mute_all"
+        rooms = _rooms_sorted_for_user(user_id)
+        channel_rooms = [r for r in rooms if not r.is_dm]
+        for r in channel_rooms:
+            existing = UserRoomNotificationMute.query.filter_by(user_id=user_id, room_id=r.id).first()
+            if mute and not existing:
+                db.session.add(UserRoomNotificationMute(user_id=user_id, room_id=r.id))
+            elif not mute and existing:
+                db.session.delete(existing)
+        db.session.commit()
+        emit("room_notification_mute_updated", {"room_id": None, "muted": mute, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
 
     @socketio.on("search_messages")
     def on_search_messages(data):
@@ -2218,6 +2348,7 @@ def register_socket_handlers(socketio):
             "online": online,
             "display_name": getattr(target, "display_name", None) or None,
             "status_line": getattr(target, "status_line", None) or None,
+            "bio": getattr(target, "bio", None) or None,
             "last_seen": _isoformat_utc(getattr(target, "last_seen", None)),
         }
         if online:
@@ -2237,6 +2368,24 @@ def register_socket_handlers(socketio):
         room_ids = [r[0] for r in room_ids]
         payload["shared_rooms"] = [r.name for r in Room.query.filter(Room.id.in_(room_ids)).all()] if room_ids else []
         emit("whois_result", payload)
+
+    @socketio.on("get_user_stats")
+    def on_get_user_stats(data):
+        """Return user-specific stats (msg_count, acro_wins, trivia_correct) for the requesting user."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        target_id = (data or {}).get("user_id")
+        if target_id is not None:
+            try:
+                target_id = int(target_id)
+            except (TypeError, ValueError):
+                target_id = user_id
+        else:
+            target_id = user_id
+        stats = _get_user_stats(target_id)
+        emit("user_stats", stats)
 
     @socketio.on("get_or_create_dm")
     def on_get_or_create_dm(data):

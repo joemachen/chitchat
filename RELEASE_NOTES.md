@@ -1,5 +1,26 @@
 # Release notes
 
+## v2.8.0 — Profile tab, bio, away message, notification prefs
+
+**Settings → Profile tab (desktop)**
+- **Profile tab** — New first tab in Settings mirroring the mobile profile panel: Nick, Status, Visibility (Online/Away/DND/Invisible), Away message, Bio/About, Time connected, Member since, Stats preview.
+- **Notification preferences** — Per-room mute summary ("X of Y channels muted"), Mute all / Unmute all buttons, link to Notifications tab for per-room control.
+
+**Profile additions**
+- **Bio / About** — Short bio (up to 200 chars) shown in whois and profile modals.
+- **Away message** — Auto-reply for DMs (already in Edit profile modal; now in Profile tab and mobile panel).
+- **Notification prefs** — Mute summary and global Mute all / Unmute all in Profile tab and mobile profile panel.
+
+**Mobile profile panel**
+- **Away message** — Input + Save in mobile profile.
+- **Bio / About** — Input + Save in mobile profile.
+- **Notification preferences** — Mute summary, Mute all / Unmute all, link to Settings → Notifications.
+
+**Whois modal**
+- **Bio** — Bio field shown when present.
+
+---
+
 ## v2.7.0 — Mobile navigation redesign, profile home panel
 
 **Mobile navigation**
