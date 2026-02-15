@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
     <title>No Homers Club — {{ user.username }}</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
@@ -470,6 +471,7 @@
     </style>
 </head>
 <body>
+    <div id="app">
     <div id="contextMenu" class="context-menu" style="display: none;">
         <button type="button" data-action="whois">Whois</button>
         <button type="button" data-action="message-user">Send message</button>
@@ -569,7 +571,7 @@
         <div class="header-brand">
             <img src="{{ url_for('static', filename='logo.png') }}" alt="" class="header-logo" aria-hidden="true">
             <h1 class="header-title-desktop">{{ server_name|default('No Homers Club') }} — <span class="header-username" data-user-id="{{ user.id }}" data-username="{{ user.username }}" title="Right-click to set status">{{ user.username }}</span></h1>
-            <span class="header-title-mobile" id="headerChannelName" aria-hidden="true"></span>
+            <span class="header-title-mobile" id="headerChannelName" aria-hidden="true">{{ mobileRoomName }}</span>
         </div>
         <button type="button" id="headerInfoBtn" class="header-info-btn" aria-label="Toggle topic and connection info" title="Topic & connection">▾</button>
         <div class="header-actions">
@@ -582,10 +584,10 @@
             </span>
         </div>
     </div>
-    <div class="status status-desktop" id="status">Connecting…</div>
+    <div class="status status-desktop" id="status">{{ status }}</div>
     <div class="mobile-info-drawer" id="mobileInfoDrawer" aria-hidden="true">
-        <div class="mobile-info-status" id="mobileInfoStatus">Connecting…</div>
-        <div class="mobile-info-topic" id="mobileInfoTopic"></div>
+        <div class="mobile-info-status" id="mobileInfoStatus">{{ status }}</div>
+        <div class="mobile-info-topic" id="mobileInfoTopic" v-html="channelTopicHtml"></div>
     </div>
     <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
     <div class="mobile-search-overlay" id="mobileSearchOverlay" aria-hidden="true">
@@ -601,12 +603,35 @@
             <div class="room-list-scroll">
                 <div class="mobile-tab-panel mobile-tab-rooms active" data-tab="rooms">
                     <div class="room-list-title">ROOMS</div>
-                    <div class="room-list-items" id="roomListItems"></div>
+                    <div class="room-list-items" id="roomListItems">
+                        <template v-if="channelsInOrder.length">
+                            <div v-for="r in channelsInOrder" :key="r.id" :class="['room-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" draggable="true" :data-room-id="r.id" @click="onRoomClick(r.id, $event)" @dragstart="onRoomDragStart($event, r.id, 'channel')" @dragend="onRoomDragEnd($event)" @dragover.prevent="onRoomDragOver($event, r.id, 'channel')" @dragleave="onRoomDragLeave($event)" @drop.prevent="onRoomDrop($event, r.id, 'channel')">
+                                <span class="room-item-grip" title="Drag to reorder">⋮⋮</span>
+                                <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
+                                <span class="room-item-name">{{ r.name }}</span>
+                                <span class="room-item-actions">
+                                    <button v-if="canEditRoom(r)" type="button" class="edit" title="Edit" @click="onEditRoom(r.id, $event)">✎</button>
+                                    <button v-if="canDeleteRoom(r)" type="button" class="delete" title="Delete" @click="onDeleteRoom(r.id, $event)">×</button>
+                                </span>
+                            </div>
+                        </template>
+                        <div v-else class="room-item" style="cursor:default;color:#71717a;">No channels</div>
+                    </div>
                 </div>
                 <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
                 <div class="mobile-tab-panel mobile-tab-dms" data-tab="dms">
                     <div class="message-list-title">MESSAGES</div>
-                    <div class="message-list-items" id="messageListItems"></div>
+                    <div class="message-list-items" id="messageListItems">
+                        <template v-if="dmsInOrder.length">
+                            <div v-for="r in dmsInOrder" :key="r.id" :class="['room-item', 'dm-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" draggable="true" :data-room-id="r.id" @click="onRoomClick(r.id, $event)" @dragstart="onRoomDragStart($event, r.id, 'dm')" @dragend="onRoomDragEnd($event)" @dragover.prevent="onRoomDragOver($event, r.id, 'dm')" @dragleave="onRoomDragLeave($event)" @drop.prevent="onRoomDrop($event, r.id, 'dm')">
+                                <span class="room-item-grip" title="Drag to reorder">⋮⋮</span>
+                                <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
+                                <span class="room-item-name">{{ roomDisplayName(r) }}</span>
+                                <span class="room-item-actions"><button type="button" class="delete" title="Delete DM" @click="onDeleteRoom(r.id, $event)">×</button></span>
+                            </div>
+                        </template>
+                        <div v-else class="room-item" style="cursor:default;color:#71717a;">No messages</div>
+                    </div>
                 </div>
             </div>
             <div class="room-list-footer-sticky">
@@ -625,8 +650,8 @@
             </div>
         </nav>
         <section class="chat-area" aria-label="Chat">
-            <div class="mobile-room-name" id="mobileRoomName"></div>
-            <div class="channel-topic empty" id="channelTopic"></div>
+            <div class="mobile-room-name" id="mobileRoomName">{{ mobileRoomName }}</div>
+            <div class="channel-topic" id="channelTopic" :class="{ empty: channelTopicEmpty }" v-show="showChannelTopic" v-html="channelTopicHtml"></div>
             <div class="search-bar-wrap" id="searchBarWrap">
                 <button type="button" id="searchToggleBtn" class="search-toggle-btn" title="Search in this room">Search</button>
                 <div class="search-drawer" id="searchDrawer">
@@ -637,12 +662,82 @@
                 </div>
             </div>
             <div class="messages-wrap" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
-                <div class="load-more-wrap" id="loadMoreWrap" style="display:none;"><button type="button" id="loadMoreBtn">Load older messages</button></div>
-                <div class="messages" id="messages"></div>
+                <div class="load-more-wrap" id="loadMoreWrap" v-show="showMessagesView && state.hasMoreMessages"><button type="button" id="loadMoreBtn">Load older messages</button></div>
+                <div class="messages" id="messages" :class="{ 'is-dm': state.currentRoom && state.currentRoom.is_dm }" ref="messagesContainer">
+                    <template v-if="showMessagesView">
+                        <div v-for="msg in displayMessages" :key="msg.id" :id="'msg-' + msg.id"
+                            :class="['msg', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', 'msg-system': (msg.username || '') === 'System', 'msg-mention-pulse': messageMentionsMe(msg.content), hidden: isMessageRoomHidden(msg), 'msg-user-hidden': isMessageUserHidden(msg.id), mentioned: isMessageMentioned(msg) }]"
+                            :data-msg-id="msg.id" :data-user-id="msg.user_id">
+                            <div class="msg-collapsed-bar" title="Click to unhide" v-show="isMessageUserHidden(msg.id)" @click.stop="onUnhideMessage(msg.id)">
+                                <span aria-hidden="true">👁️‍🗨️</span> Hidden message — click or right-click to unhide
+                            </div>
+                            <div class="msg-header"><span class="msg-username" :data-user-id="msg.user_id" :data-username="msg.username || ''">{{ getMessageDisplayName(msg) }}</span> <span class="msg-time">{{ formatMessageTime(msg.created_at) }}</span></div>
+                            <div class="msg-quote" v-if="msg.parent_id && (msg.parent_content != null || msg.parent_username != null)" :data-parent-id="String(msg.parent_id)" title="Jump to original message" @click="onScrollToMessage(msg.parent_id)">
+                                <strong>{{ (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?') }}</strong>: {{ (msg.parent_content || '').slice(0, 200) }}{{ (msg.parent_content || '').length > 200 ? '…' : '' }}
+                            </div>
+                            <div class="msg-content" v-html="getMessageContentHtml(msg)"></div>
+                            <div class="msg-attachment" v-if="msg.attachment_url">
+                                <a v-if="['png','jpg','jpeg','gif','webp','svg'].indexOf((msg.attachment_filename || '').split('.').pop().toLowerCase()) !== -1" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><img :src="msg.attachment_url" :alt="msg.attachment_filename || ''"></a>
+                                <a v-else class="attachment-file" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer">📎 {{ msg.attachment_filename || 'Attachment' }}</a>
+                            </div>
+                            <div class="msg-edited" v-if="msg.edited_at">edited {{ formatMessageTime(msg.edited_at) }}</div>
+                            <div class="msg-link-previews" v-if="msg.link_previews && msg.link_previews.length">
+                                <div v-for="(p, pi) in msg.link_previews" :key="pi" class="msg-link-preview" :data-url="p.url || ''">
+                                    <div class="link-preview-header"><a :href="p.url || ''" target="_blank" rel="noopener noreferrer">{{ (p.url || '').replace(/^https?:\/\//, '') }}</a><button type="button" class="link-preview-minimize" title="Minimize" @click="onLinkPreviewMinimize($event)">−</button></div>
+                                    <div class="link-preview-body"> <div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div> <div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div> <img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt=""> </div>
+                                </div>
+                            </div>
+                            <div class="msg-reactions" :data-msg-id="msg.id">
+                                <span v-for="(r, ri) in (msg.reactions || [])" :key="ri" :class="['msg-reaction', { own: (r.user_ids || []).indexOf(currentUserId) !== -1 }]" :data-emoji="r.emoji" :title="(r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')')" @click.stop="onToggleReaction(msg.id, r.emoji, (r.user_ids || []).indexOf(currentUserId) !== -1)">
+                                    {{ r.emoji }} <span class="msg-reaction-count">{{ r.count || 0 }}</span>
+                                </span>
+                                <span class="msg-reaction msg-reaction-add" title="Add reaction" @click.stop="onShowReactionPicker(msg.id, $event.target)">➕</span>
+                            </div>
+                            <div class="msg-hover-bar" :data-msg-id="msg.id">
+                                <span v-for="(r, ri) in (msg.reactions || []).slice().sort((a,b) => (b.count||0) - (a.count||0)).slice(0, 3)" :key="'h'+ri" :class="['msg-reaction', { own: (r.user_ids || []).indexOf(currentUserId) !== -1 }]" :data-emoji="r.emoji" :title="r.emoji" @click.stop="onToggleReaction(msg.id, r.emoji, (r.user_ids || []).indexOf(currentUserId) !== -1)">{{ r.emoji }}</span>
+                                <span class="msg-reaction msg-reaction-add" title="Add reaction" @click.stop="onShowReactionPicker(msg.id, $event.target)">➕</span>
+                                <button v-if="msg.user_id === currentUserId" type="button" class="msg-hover-btn msg-hover-edit" title="Edit" @click.stop="onEditMessage(msg.id, msg.content)">✎</button>
+                                <button type="button" class="msg-hover-btn msg-hover-reply" title="Reply" @click.stop="onReplyToMessage(msg)">↩</button>
+                            </div>
+                        </div>
+                    </template>
+                    <div v-else-if="showStatsView" class="stats-view">
+                        <h2>Top 10 typers</h2>
+                        <p style="color:#71717a;font-size:0.85rem;margin:0 0 0.5rem;">By username (login); nick changes do not split counts.</p>
+                        <ul>
+                            <li v-for="t in statsTopTypers" :key="t.user_id" class="stat-row">
+                                <span>{{ t.username }}</span>
+                                <span>{{ t.count }} msgs</span>
+                                <span class="stat-bar-wrap"><span class="stat-bar" :style="{ width: (statsMaxTypers ? 100 * t.count / statsMaxTypers : 0) + '%' }"></span></span>
+                            </li>
+                        </ul>
+                        <h2>Active hours (messages per hour, by day)</h2>
+                        <div class="stats-chart-wrap">
+                            <div class="stats-chart-y-axis"><span>{{ statsMaxCount }}</span><span>0</span></div>
+                            <div class="stats-chart-bars-wrap">
+                                <div v-for="hour in 24" :key="hour" class="stats-chart-hour-group" :title="(hour === 1 ? '12' : hour > 12 ? hour - 12 : hour) + (hour < 12 ? 'am' : 'pm')">
+                                    <div v-for="(d, di) in statsActiveHours" :key="d.day" class="stats-chart-bar" :style="{ height: (statsMaxCount ? 100 * ((d.counts || [])[hour - 1] || 0) / statsMaxCount : 0) + '%', background: statsDayColors[di] || '#6366f1' }" :title="d.day + ': ' + ((d.counts || [])[hour - 1] || 0)"></div>
+                                </div>
+                            </div>
+                            <div class="stats-chart-x-axis">
+                                <span v-for="h in [0,6,12,18]" :key="h" class="stats-chart-x-label" style="flex:1;text-align:center;">{{ h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm') }}</span>
+                            </div>
+                        </div>
+                        <div class="stats-chart-legend"><template v-for="(d, i) in statsActiveHours" :key="d.day"><span v-if="i"> · </span><span :style="{ color: statsDayColors[i] || '#6366f1' }">{{ d.day }}</span></template></div>
+                        <h2>Favorite words (top typers)</h2>
+                        <p v-for="f in (state.stats && state.stats.favorite_words) || []" :key="f.user_id"><strong>{{ f.username }}</strong> <span class="favorite-words">{{ (f.words || []).map(function(w) { return w.word + ' (' + w.count + ')'; }).join(', ') }}</span></p>
+                        <template v-if="(state.stats && state.stats.acro_leaderboard && state.stats.acro_leaderboard.length)">
+                            <h2>Acrophobia leaderboard</h2>
+                            <ul>
+                                <li v-for="(a, i) in state.stats.acro_leaderboard" :key="a.user_id" class="stat-row"><span>{{ i + 1 }}. {{ a.username }}</span><span>{{ a.wins }} win(s)</span></li>
+                            </ul>
+                        </template>
+                    </div>
+                </div>
             </div>
-            <div class="typing-indicator empty" id="typingIndicator"></div>
-            <div class="acro-timer hidden" id="acroTimer"></div>
-            <div class="form-wrap">
+            <div class="typing-indicator" :class="{ empty: !typingText }">{{ typingText }}</div>
+            <div class="acro-timer" :class="{ hidden: !state.acroTimerSeconds || state.acroTimerSeconds <= 0 }" id="acroTimer">{{ state.acroPhase === 'submitting' ? 'Submit' : 'Vote' }}: {{ state.acroTimerSeconds || 0 }}s</div>
+            <div class="form-wrap" :class="{ 'acro-urgency': state.acroFormUrgent }">
                 <form id="sendForm">
                     <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
                     <button type="button" id="attachBtn" class="attach-btn" title="Attach file or image">📎</button>
@@ -655,11 +750,28 @@
             <div class="user-list-title">Users</div>
             <div class="user-list-section" id="userListOnline">
                 <div class="user-list-title">Online</div>
-                <div id="userListOnlineItems"></div>
+                <div id="userListOnlineItems">
+                    <template v-if="onlineUsers.length">
+                        <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
+                            <span class="user-dot"></span>
+                            <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                            <span v-if="u.online && u.current_room_name && u.id !== currentUserId" class="user-item-presence">in {{ u.current_room_name }}</span>
+                        </div>
+                    </template>
+                    <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>
+                </div>
             </div>
             <div class="user-list-section" id="userListOffline">
                 <div class="user-list-title">Offline</div>
-                <div id="userListOfflineItems"></div>
+                <div id="userListOfflineItems">
+                    <template v-if="offlineUsers.length">
+                        <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
+                            <span class="user-dot"></span>
+                            <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                        </div>
+                    </template>
+                    <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>
+                </div>
             </div>
         </aside>
     </main>
@@ -678,8 +790,224 @@
             <span>Settings</span>
         </button>
     </nav>
+    </div><!-- #app -->
 
     <script>
+const { createApp, ref, reactive, computed, nextTick } = Vue;
+function _escapeHtml(s) {
+    if (s == null) return '';
+    var el = document.createElement('div');
+    el.textContent = s;
+    return el.innerHTML;
+}
+const status = ref('Connecting…');
+const connected = ref(false);
+const state = reactive({
+    currentRoom: null,
+    allRooms: [],
+    roomOrderIds: [],
+    allUsersWithStatus: [],
+    showingSettings: false,
+    messages: [],
+    hasMoreMessages: false,
+    typingUsers: {},
+    unreadRooms: {},
+    unreadMentions: {},
+    roomNotificationMuted: {},
+    roomMutedInRoom: {},
+    stats: null,
+    acroPhase: null,
+    acroEndTime: null,
+    acroAcronym: null,
+    acroTimerSeconds: null,
+    acroFormUrgent: false,
+    hiddenMessageIds: []  // Synced from localStorage for reactive hide/unhide
+});
+function _dmOtherUsername(r, currentUserId) {
+    if (!r || !r.is_dm) return null;
+    return r.created_by_id === currentUserId ? (r.dm_with_username || '?') : (r.created_by_username || '?');
+}
+const chitchatApp = createApp({
+    setup() {
+        const typingText = computed(() => {
+            const users = Object.keys(state.typingUsers || {}).map(function(uid) { return state.typingUsers[uid].username; }).filter(Boolean);
+            if (users.length === 0) return '';
+            return users.length === 1 ? (users[0] + ' is typing...') : (users.join(', ') + ' are typing...');
+        });
+        const channelTopicHtml = computed(() => {
+            var room = state.currentRoom;
+            if (!room || !room.topic) return '';
+            var setBy = room.topic_set_by_username || 'Someone';
+            var setAt = room.topic_set_at ? new Date(room.topic_set_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '';
+            return '<strong>Topic:</strong> ' + _escapeHtml(room.topic) + (setBy || setAt ? ' <span style="color:#71717a;">— Set by ' + _escapeHtml(setBy) + (setAt ? ' on ' + setAt : '') + '</span>' : '');
+        });
+        const channelTopicEmpty = computed(() => !state.currentRoom || !state.currentRoom.topic);
+        const mobileRoomName = computed(() => {
+            var room = state.currentRoom;
+            return !room ? (state.showingSettings ? 'Settings' : '') : (room.is_dm ? ('DM: ' + (_dmOtherUsername(room, {{ user.id }}) || '?')) : '#' + room.name);
+        });
+        const showChannelTopic = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
+        const filteredUsers = computed(() => {
+            var users = state.allUsersWithStatus || [];
+            return users.filter(function(u) { return !u.is_system_user; });
+        });
+        const onlineUsers = computed(() => filteredUsers.value.filter(function(u) { return u.online; }));
+        const offlineUsers = computed(() => filteredUsers.value.filter(function(u) { return !u.online; }));
+        function userStatusClass(u, isMe) {
+            if (u.online) return u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : u.user_status === 'invisible' ? 'invisible' : 'online';
+            return (u.user_status === 'invisible' && isMe) ? 'invisible' : 'offline';
+        }
+        function userDisplayLabel(u, isMe) {
+            var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
+            return displayLabel + (isMe ? ' (you)' : '');
+        }
+        const roomsInOrder = computed(() => {
+            var byId = {};
+            (state.allRooms || []).forEach(function(r) { byId[r.id] = r; });
+            var ordered = [];
+            (state.roomOrderIds || []).forEach(function(rid) {
+                if (byId[rid]) { ordered.push(byId[rid]); delete byId[rid]; }
+            });
+            Object.keys(byId).forEach(function(rid) { ordered.push(byId[rid]); });
+            return ordered;
+        });
+        const channelsInOrder = computed(() => (roomsInOrder.value || []).filter(function(r) { return !r.is_dm; }));
+        const dmsInOrder = computed(() => (roomsInOrder.value || []).filter(function(r) { return r.is_dm; }));
+        const currentUserIdNum = {{ user.id }};
+        const isSuperAdminFlag = {{ 'true' if user.is_super_admin else 'false' }};
+        const userPermissionsObj = {{ (user_permissions|default({}))|tojson|safe }};
+        function hasUnread(r) { return state.unreadRooms[r.id] || (state.unreadMentions[r.id] && state.unreadMentions[r.id].size); }
+        function isRoomActive(r) { return state.currentRoom && r.id === state.currentRoom.id && !state.showingSettings; }
+        function roomDisplayName(r) {
+            if (!r.is_dm) return r.name || '?';
+            return 'DM: ' + (_dmOtherUsername(r, currentUserIdNum) || '?');
+        }
+        function canEditRoom(r) {
+            if (!r) return false;
+            var isProtected = r.is_protected === true;
+            var isOwner = r.created_by_id === currentUserIdNum;
+            return isProtected ? isSuperAdminFlag : (isSuperAdminFlag || isOwner || (userPermissionsObj && userPermissionsObj.update_room));
+        }
+        function canDeleteRoom(r) {
+            if (!r || r.is_protected || r.name === 'general') return false;
+            var isOwner = r.created_by_id === currentUserIdNum;
+            return (isSuperAdminFlag || isOwner || (userPermissionsObj && userPermissionsObj.delete_room));
+        }
+        function onRoomClick(rid, ev) {
+            if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
+            state.showingSettings = false;
+            if (window.chitchat && window.chitchat.switchRoom) window.chitchat.switchRoom(rid);
+        }
+        function onEditRoom(rid, ev) { ev.stopPropagation(); if (window.chitchat && window.chitchat.editRoom) window.chitchat.editRoom(rid); }
+        function onDeleteRoom(rid, ev) { ev.stopPropagation(); if (window.chitchat && window.chitchat.deleteRoom) window.chitchat.deleteRoom(rid); }
+        var dragFromId = null;
+        function onRoomDragStart(ev, rid, type) {
+            dragFromId = rid;
+            ev.dataTransfer.setData('text/plain', rid);
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.currentTarget.classList.add('dragging');
+        }
+        function onRoomDragEnd(ev) { ev.currentTarget.classList.remove('dragging'); dragFromId = null; }
+        function onRoomDragOver(ev, rid, type) {
+            var container = ev.currentTarget.closest('.room-list-items, .message-list-items');
+            if (container) container.querySelectorAll('.room-item').forEach(function(x) { x.classList.remove('drag-over'); });
+            ev.currentTarget.classList.add('drag-over');
+        }
+        function onRoomDragLeave(ev) { ev.currentTarget.classList.remove('drag-over'); }
+        function onRoomDrop(ev, rid, type) {
+            ev.currentTarget.classList.remove('drag-over');
+            var fromId = parseInt(ev.dataTransfer.getData('text/plain'), 10);
+            if (fromId === rid) return;
+            var channels = channelsInOrder.value.map(function(r) { return r.id; });
+            var dms = dmsInOrder.value.map(function(r) { return r.id; });
+            var idxFrom, idxTo, newOrder;
+            if (type === 'channel') {
+                idxFrom = channels.indexOf(fromId);
+                idxTo = channels.indexOf(rid);
+                if (idxFrom === -1 || idxTo === -1) return;
+                channels.splice(idxFrom, 1);
+                channels.splice(idxTo, 0, fromId);
+                newOrder = channels.concat(dms);
+            } else {
+                idxFrom = dms.indexOf(fromId);
+                idxTo = dms.indexOf(rid);
+                if (idxFrom === -1 || idxTo === -1) return;
+                dms.splice(idxFrom, 1);
+                dms.splice(idxTo, 0, fromId);
+                newOrder = channels.concat(dms);
+            }
+            state.roomOrderIds = newOrder;
+            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('save_room_order', { room_ids: newOrder });
+        }
+        const currentUsernameVal = {{ user.username|tojson }};
+        const displayMessages = computed(() => state.messages || []);
+        const showMessagesView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
+        const showStatsView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats');
+        const statsTopTypers = computed(() => (state.stats && state.stats.top_typers) || []);
+        const statsMaxTypers = computed(() => Math.max(1, Math.max.apply(null, statsTopTypers.value.map(function(t) { return t.count; })) || 0));
+        const statsActiveHours = computed(() => (state.stats && state.stats.active_hours_by_day) || []);
+        const statsMaxCount = computed(() => {
+            var max = 0;
+            (statsActiveHours.value || []).forEach(function(d) { (d.counts || []).forEach(function(c) { if (c > max) max = c; }); });
+            return Math.max(max, 1);
+        });
+        const statsDayColors = ['#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f43f5e','#6366f1'];
+        function formatMessageTime(iso) {
+            if (!iso) return '';
+            return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true });
+        }
+        function getMessageDisplayName(msg) {
+            return (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
+        }
+        function _escapeAttr(s) {
+            if (s == null) return '';
+            return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+        function getMessageContentHtml(msg) {
+            if (!msg) return '';
+            const esc = _escapeHtml;
+            const escA = _escapeAttr;
+            if (msg.message_type === 'emote') {
+                const linked = (msg.content || '').replace(/https?:\/\/[^\s<>"']+/g, function(m) { return '<a href="' + escA(m) + '" target="_blank" rel="noopener noreferrer">' + esc(m) + '</a>'; });
+                return '<em>* ' + esc(msg.username || '?') + ' ' + linked + '</em>';
+            }
+            var raw = msg.content || '';
+            var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
+            html = html.replace(/(https?:\/\/[^\s<>"']+)/g, function(match, offset, fullStr) {
+                if (offset > 0 && fullStr[offset - 1] === '"') return match;
+                var url = match.replace(/[.,;:)]+$/, '');
+                var isGif = /\.gif(\?|$)/i.test(url) || /giphy\.com.*\.gif/i.test(url);
+                if (isGif) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
+                return '<a href="' + escA(match) + '" target="_blank" rel="noopener noreferrer">' + esc(match) + '</a>';
+            });
+            return html;
+        }
+        function isMessageRoomHidden(msg) {
+            if (!state.currentRoom || msg.room_id !== state.currentRoom.id) return false;
+            return state.roomMutedInRoom[state.currentRoom.id] && state.roomMutedInRoom[state.currentRoom.id].has(msg.user_id);
+        }
+        function messageMentionsMe(content) {
+            if (!content || !currentUsernameVal) return false;
+            var re = new RegExp('@' + (currentUsernameVal || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+            return re.test(content);
+        }
+        function isMessageUserHidden(msgId) {
+            return (state.hiddenMessageIds || []).indexOf(msgId) !== -1;
+        }
+        function isMessageMentioned(msg) {
+            return state.unreadMentions[state.currentRoom?.id] && state.unreadMentions[state.currentRoom.id].has && state.unreadMentions[state.currentRoom.id].has(msg.id);
+        }
+        function onUnhideMessage(msgId) { if (window.chitchat && window.chitchat.unhideMessage) window.chitchat.unhideMessage(msgId); }
+        function onScrollToMessage(parentId) { if (window.chitchat && window.chitchat.scrollToMessage) window.chitchat.scrollToMessage(parentId); }
+        function onToggleReaction(msgId, emoji, isOwn) { if (window.chitchat && window.chitchat.toggleReaction) window.chitchat.toggleReaction(msgId, emoji, isOwn); }
+        function onShowReactionPicker(msgId, target) { if (window.chitchat && window.chitchat.showReactionPicker) window.chitchat.showReactionPicker(msgId, target); }
+        function onEditMessage(msgId, content) { if (window.chitchat && window.chitchat.showEditMessageModal) window.chitchat.showEditMessageModal(msgId, content); }
+        function onReplyToMessage(msg) { if (window.chitchat && window.chitchat.replyToMessage) window.chitchat.replyToMessage(msg); }
+        function onLinkPreviewMinimize(ev) { var el = ev.target.closest('.msg-link-preview'); if (el) el.classList.add('minimized'); }
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize };
+    }
+});
+
 (function() {
     const currentUserId = {{ user.id }};
     const currentUsername = {{ user.username|tojson }};
@@ -689,17 +1017,10 @@
     var messageRetentionDays = {{ (message_retention_days|default(none))|tojson }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
-    var roomMutedInRoom = {};  // room_id -> Set of muted user_ids
-    let currentRoom = null;
-    let allRooms = [];
-    let allUsersWithStatus = [];
-    let showingSettings = false;
     let acrobotActive = true;
     let homerActive = true;
     var settingsPendingSettings = null;
     const messagesEl = document.getElementById('messages');
-    const statusEl = document.getElementById('status');
-    const mobileInfoStatusEl = document.getElementById('mobileInfoStatus');
     const sendForm = document.getElementById('sendForm');
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
@@ -708,47 +1029,36 @@
     const roomListItemsEl = document.getElementById('roomListItems');
     const messageListItemsEl = document.getElementById('messageListItems');
     const newRoomBtn = document.getElementById('newRoomBtn');
-    const channelTopicEl = document.getElementById('channelTopic');
     const searchBarWrapEl = document.getElementById('searchBarWrap');
     const searchDrawerEl = document.getElementById('searchDrawer');
     const searchToggleBtn = document.getElementById('searchToggleBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const loadMoreWrap = document.getElementById('loadMoreWrap');
     const loadMoreBtn = document.getElementById('loadMoreBtn');
-    const typingIndicatorEl = document.getElementById('typingIndicator');
-    const acroTimerEl = document.getElementById('acroTimer');
-    var roomOrderIds = [];
-    var hasMoreMessages = false;
-    var typingUsers = {};
     var typingTimeout = null;
     var replyToMessageId = null;
     var replyToContent = null;
     var replyToDisplayName = null;
     var pendingAttachment = null;  // { url, filename }
-    var unreadMentions = {}; // room_id -> Set of message_id
-    var unreadRooms = {};    // room_id -> true when room has new message(s) not yet read
     var lastReadByRoom = {}; // room_id -> last message id we've "read" (cleared highlight)
     var baseTitle = document.title || 'No Homers Club';
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) stopMentionTabFlash();
     });
-    var acroPhase = null;
-    var acroEndTime = null;
-    var acroAcronym = null;
     var acroTimerInterval = null;
     var messagesSectionHeight = parseInt(localStorage.getItem('chitchatMessagesSectionHeight') || '80', 10) || 80;
 
     function addUnreadMention(roomId, msgId) {
-        if (!unreadMentions[roomId]) unreadMentions[roomId] = new Set();
-        unreadMentions[roomId].add(msgId);
+        if (!state.unreadMentions[roomId]) state.unreadMentions[roomId] = new Set();
+        state.unreadMentions[roomId].add(msgId);
         updateUnreadBadge();
         var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
         if (roomEl) roomEl.classList.add('mentioned');
     }
     function addUnreadForRoom(roomId) {
-        if (currentRoom && currentRoom.id === roomId) return;
-        if (roomNotificationMuted[roomId]) return;
-        unreadRooms[roomId] = true;
+        if (state.currentRoom && state.currentRoom.id === roomId) return;
+        if (state.roomNotificationMuted[roomId]) return;
+        state.unreadRooms[roomId] = true;
         updateUnreadBadge();
         var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
         if (roomEl) {
@@ -757,8 +1067,8 @@
         }
     }
     function clearUnreadForRoom(roomId) {
-        if (unreadMentions[roomId]) { unreadMentions[roomId].clear(); delete unreadMentions[roomId]; }
-        delete unreadRooms[roomId];
+        if (state.unreadMentions[roomId]) { state.unreadMentions[roomId].clear(); delete state.unreadMentions[roomId]; }
+        delete state.unreadRooms[roomId];
         lastReadByRoom[roomId] = true;
         updateUnreadBadge();
         var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
@@ -767,15 +1077,15 @@
             var dot = roomEl.querySelector('.room-item-unread-dot');
             if (dot) dot.style.display = 'none';
         }
-        if (currentRoom && currentRoom.id === roomId) messagesEl.querySelectorAll('.msg').forEach(function(el) { el.classList.remove('mentioned'); });
+        if (state.currentRoom && state.currentRoom.id === roomId) { /* mentioned class reactive via isMessageMentioned */ }
     }
     function isMessageUnread(roomId, msgId) {
-        return unreadMentions[roomId] && unreadMentions[roomId].has(msgId);
+        return state.unreadMentions[roomId] && state.unreadMentions[roomId].has(msgId);
     }
     function updateUnreadBadge() {
         var count = 0;
-        Object.keys(unreadRooms).forEach(function() { count += 1; });
-        Object.keys(unreadMentions).forEach(function(rid) { count += (unreadMentions[rid] && unreadMentions[rid].size) || 0; });
+        Object.keys(state.unreadRooms).forEach(function() { count += 1; });
+        Object.keys(state.unreadMentions).forEach(function(rid) { count += (state.unreadMentions[rid] && state.unreadMentions[rid].size) || 0; });
         document.title = (count > 0 ? '(' + count + ') ' : '') + baseTitle;
         var link = document.querySelector('link[rel="icon"]') || document.createElement('link');
         if (!link.getAttribute('rel')) { link.rel = 'icon'; document.head.appendChild(link); }
@@ -797,13 +1107,12 @@
     }
 
     function setStatus(text) {
-        statusEl.textContent = text;
-        if (mobileInfoStatusEl) mobileInfoStatusEl.textContent = text;
+        status.value = text;
     }
-    function setConnected(ok) { sendBtn.disabled = !ok; setStatus(ok ? 'Connected' : statusEl.textContent); }
+    function setConnected(ok) { connected.value = ok; sendBtn.disabled = !ok; if (ok) setStatus('Connected'); }
 
     function isHidden(msg) {
-        if (currentRoom && msg.room_id === currentRoom.id && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(msg.user_id)) return true;
+        if (state.currentRoom && msg.room_id === state.currentRoom.id && state.roomMutedInRoom[state.currentRoom.id] && state.roomMutedInRoom[state.currentRoom.id].has(msg.user_id)) return true;
         return false;
     }
 
@@ -819,8 +1128,10 @@
         if (hidden && idx === -1) ids.push(msgId);
         else if (!hidden && idx !== -1) ids.splice(idx, 1);
         localStorage.setItem('chitchatHiddenMessages', JSON.stringify(ids));
+        state.hiddenMessageIds = ids.slice();
     }
     function isMessageUserHidden(msgId) { return getHiddenMessageIds().indexOf(msgId) !== -1; }
+    state.hiddenMessageIds = getHiddenMessageIds().slice();
 
     function formatTime(iso) {
         if (!iso) return '';
@@ -976,7 +1287,7 @@
         div.querySelectorAll('.msg-hover-reply').forEach(function(el) {
             el.addEventListener('click', function(e) {
                 e.stopPropagation();
-                if (currentRoom) {
+                if (state.currentRoom) {
                     var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
                     replyToMessageId = msg.id;
                     replyToContent = msg.content;
@@ -1138,36 +1449,6 @@
         setTimeout(function() { el.remove(); }, 4000);
     }
 
-    function updateMobileRoomName(room) {
-        var text = !room ? (showingSettings ? 'Settings' : '') : (room.is_dm ? ('DM: ' + (dmOtherUsername(room) || '?')) : '#' + room.name);
-        var mobileEl = document.getElementById('mobileRoomName');
-        var headerEl = document.getElementById('headerChannelName');
-        if (mobileEl) mobileEl.textContent = text;
-        if (headerEl) headerEl.textContent = text;
-    }
-
-    var mobileInfoTopicEl = document.getElementById('mobileInfoTopic');
-    function renderChannelTopic(room) {
-        updateMobileRoomName(room);
-        if (!channelTopicEl && !mobileInfoTopicEl) return;
-        var topicHtml = '';
-        if (room && room.topic) {
-            var setBy = room.topic_set_by_username || 'Someone';
-            var setAt = room.topic_set_at ? new Date(room.topic_set_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '';
-            topicHtml = '<strong>Topic:</strong> ' + escapeHtml(room.topic) + (setBy || setAt ? ' <span style="color:#71717a;">— Set by ' + escapeHtml(setBy) + (setAt ? ' on ' + setAt : '') + '</span>' : '');
-        }
-        if (channelTopicEl) {
-            if (!room || !room.topic) {
-                channelTopicEl.classList.add('empty');
-                channelTopicEl.innerHTML = '';
-            } else {
-                channelTopicEl.classList.remove('empty');
-                channelTopicEl.innerHTML = topicHtml;
-            }
-        }
-        if (mobileInfoTopicEl) mobileInfoTopicEl.innerHTML = topicHtml;
-    }
-
     var contextMenuEl = document.getElementById('contextMenu');
     var contextMenuTarget = null;
     var kickBtn = contextMenuEl.querySelector('[data-action="kick-user"]');
@@ -1189,10 +1470,10 @@
         var canKick = !isSelf && (isSuperAdmin || (userPermissions && userPermissions.kick_user));
         if (canKick && (username === 'AcroBot' || username === 'Homer') && !isSuperAdmin) canKick = false;
         kickBtn.style.display = canKick ? 'block' : 'none';
-        var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
+        var inRoom = state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
         if (muteInRoomBtn) {
             muteInRoomBtn.style.display = inRoom ? 'block' : 'none';
-            var muted = inRoom && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(userId);
+            var muted = inRoom && state.roomMutedInRoom[state.currentRoom.id] && state.roomMutedInRoom[state.currentRoom.id].has(userId);
             muteInRoomBtn.textContent = muted ? 'Unmute in this room' : 'Mute in this room';
         }
         if (editProfileBtn) editProfileBtn.style.display = isSelf ? 'block' : 'none';
@@ -1202,7 +1483,7 @@
         if (statusDndBtn) statusDndBtn.style.display = isSelf ? 'block' : 'none';
         if (statusInvisibleBtn) statusInvisibleBtn.style.display = isSelf ? 'block' : 'none';
         if (isSelf) {
-            var me = allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
+            var me = state.allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
             currentUserStatus = (me && me.user_status) ? me.user_status : 'online';
         }
         contextMenuEl.style.left = x + 'px';
@@ -1241,9 +1522,9 @@
         if (hideMsgBtn) hideMsgBtn.style.display = msgUserHidden ? 'none' : 'block';
         if (unhideMsgBtn) unhideMsgBtn.style.display = msgUserHidden ? 'block' : 'none';
         if (muteMsgUserBtn) {
-            var inRoom = currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
+            var inRoom = state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
             muteMsgUserBtn.style.display = inRoom ? 'block' : 'none';
-            var muted = inRoom && roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(userId);
+            var muted = inRoom && state.roomMutedInRoom[state.currentRoom.id] && state.roomMutedInRoom[state.currentRoom.id].has(userId);
             muteMsgUserBtn.textContent = muted ? 'Unmute in this room' : 'Mute in this room';
         }
         messageContextMenuEl.style.left = x + 'px';
@@ -1259,7 +1540,6 @@
     var roomToggleProtectedBtn = document.getElementById('roomToggleProtectedBtn');
     var roomDeleteBtn = document.getElementById('roomDeleteBtn');
     var roomMuteNotificationsBtn = document.getElementById('roomMuteNotificationsBtn');
-    var roomNotificationMuted = {};  // room_id -> true when muted
     function showRoomContextMenu(x, y, room) {
         if (!room) return;
         roomContextTarget = room;
@@ -1272,7 +1552,7 @@
         if (roomDeleteBtn) roomDeleteBtn.style.display = (!room.is_dm && room.name !== 'general' && !room.is_protected && (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.delete_room))) ? 'block' : 'none';
         if (roomMuteNotificationsBtn) {
             roomMuteNotificationsBtn.style.display = 'block';
-            roomMuteNotificationsBtn.textContent = roomNotificationMuted[room.id] ? 'Unmute notifications' : 'Mute notifications';
+            roomMuteNotificationsBtn.textContent = state.roomNotificationMuted[room.id] ? 'Unmute notifications' : 'Mute notifications';
         }
         roomContextMenuEl.style.left = x + 'px';
         roomContextMenuEl.style.top = y + 'px';
@@ -1450,7 +1730,7 @@
                     hideContextMenu();
                     hideMessageContextMenu();
                     var rid = parseInt(el.getAttribute('data-room-id'), 10);
-                    var room = allRooms.find(function(r) { return r.id === rid; });
+                    var room = state.allRooms.find(function(r) { return r.id === rid; });
                     if (room) showRoomContextMenu(e.clientX, e.clientY, room);
                 }
             });
@@ -1461,7 +1741,7 @@
                 longPressTimer = setTimeout(function() {
                     longPressTimer = null;
                     var rid = parseInt(longPressEl.getAttribute('data-room-id'), 10);
-                    var room = allRooms.find(function(r) { return r.id === rid; });
+                    var room = state.allRooms.find(function(r) { return r.id === rid; });
                     if (room) {
                         var rect = longPressEl.getBoundingClientRect();
                         hideContextMenu();
@@ -1523,16 +1803,16 @@
     });
     if (muteInRoomBtn) muteInRoomBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (contextMenuTarget && currentRoom) {
-            var muted = roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(contextMenuTarget.user_id);
-            socket.emit(muted ? 'unmute_user_in_room' : 'mute_user_in_room', { room_id: currentRoom.id, muted_user_id: contextMenuTarget.user_id });
+        if (contextMenuTarget && state.currentRoom) {
+            var muted = state.roomMutedInRoom[state.currentRoom.id] && state.roomMutedInRoom[state.currentRoom.id].has(contextMenuTarget.user_id);
+            socket.emit(muted ? 'unmute_user_in_room' : 'mute_user_in_room', { room_id: state.currentRoom.id, muted_user_id: contextMenuTarget.user_id });
         }
         hideContextMenu();
     });
     contextMenuEl.querySelector('[data-action="kick-user"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (contextMenuTarget) {
-            var rid = (currentRoom && currentRoom.id) || (allRooms.find(function(r) { return r.name === 'general'; }) || allRooms[0] || {}).id;
+            var rid = (state.currentRoom && state.currentRoom.id) || (state.allRooms.find(function(r) { return r.name === 'general'; }) || state.allRooms[0] || {}).id;
             if (rid) socket.emit('kick_user', { room_id: rid, target_user_id: contextMenuTarget.user_id });
         }
         hideContextMenu();
@@ -1573,8 +1853,8 @@
     });
     messageContextMenuEl.querySelector('[data-action="add-reaction"]').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (messageContextTarget && currentRoom) {
-            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
+        if (messageContextTarget && state.currentRoom) {
+            var msgEl = document.getElementById('msg-' + messageContextTarget.messageId);
             var anchor = msgEl ? (msgEl.querySelector('.msg-reactions') || msgEl.querySelector('.msg-reaction-add')) : null;
             if (anchor) showReactionPicker(messageContextTarget.messageId, anchor);
             else showReactionPicker(messageContextTarget.messageId, messageContextMenuEl);
@@ -1583,7 +1863,7 @@
     });
     messageContextMenuEl.querySelector('[data-action="reply-to-message"]').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (messageContextTarget && currentRoom) {
+        if (messageContextTarget && state.currentRoom) {
             replyToMessageId = messageContextTarget.messageId;
             replyToContent = messageContextTarget.content;
             replyToDisplayName = messageContextTarget.displayName;
@@ -1618,8 +1898,6 @@
         e.stopPropagation();
         if (messageContextTarget) {
             setMessageHidden(messageContextTarget.messageId, true);
-            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
-            if (msgEl) msgEl.classList.add('msg-user-hidden');
         }
         hideMessageContextMenu();
     });
@@ -1627,8 +1905,6 @@
         e.stopPropagation();
         if (messageContextTarget) {
             setMessageHidden(messageContextTarget.messageId, false);
-            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
-            if (msgEl) msgEl.classList.remove('msg-user-hidden');
         }
         hideMessageContextMenu();
     });
@@ -1644,18 +1920,16 @@
     });
     messageContextMenuEl.querySelector('[data-action="mark-unread"]').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (messageContextTarget && currentRoom) {
-            addUnreadMention(currentRoom.id, messageContextTarget.messageId);
-            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + messageContextTarget.messageId + '"]');
-            if (msgEl) msgEl.classList.add('mentioned');
+        if (messageContextTarget && state.currentRoom) {
+            addUnreadMention(state.currentRoom.id, messageContextTarget.messageId);
         }
         hideMessageContextMenu();
     });
     if (muteMsgUserBtn) muteMsgUserBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (messageContextTarget && currentRoom && messageContextTarget.userId !== currentUserId) {
-            var muted = roomMutedInRoom[currentRoom.id] && roomMutedInRoom[currentRoom.id].has(messageContextTarget.userId);
-            socket.emit(muted ? 'unmute_user_in_room' : 'mute_user_in_room', { room_id: currentRoom.id, muted_user_id: messageContextTarget.userId });
+        if (messageContextTarget && state.currentRoom && messageContextTarget.userId !== currentUserId) {
+            var muted = state.roomMutedInRoom[state.currentRoom.id] && state.roomMutedInRoom[state.currentRoom.id].has(messageContextTarget.userId);
+            socket.emit(muted ? 'unmute_user_in_room' : 'mute_user_in_room', { room_id: state.currentRoom.id, muted_user_id: messageContextTarget.userId });
         }
         hideMessageContextMenu();
     });
@@ -1759,8 +2033,8 @@
                     var rid = parseInt(this.dataset.roomId, 10);
                     var mid = parseInt(this.dataset.msgId, 10);
                     hideSearchResultsModal();
-                    if (currentRoom && currentRoom.id === rid) {
-                        var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + mid + '"]');
+                    if (state.currentRoom && state.currentRoom.id === rid) {
+                        var msgEl = document.getElementById('msg-' + mid);
                         if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     } else if (rid) switchRoom(rid);
                 });
@@ -1884,17 +2158,14 @@
 
     function renderAllMessages(history) {
         messagesEl.innerHTML = '';
-        messagesEl.classList.toggle('is-dm', !!(currentRoom && currentRoom.is_dm));
+        messagesEl.classList.toggle('is-dm', !!(state.currentRoom && state.currentRoom.is_dm));
         sendForm.style.display = '';
-        channelTopicEl.style.display = '';
-        renderChannelTopic(currentRoom);
         (history || []).forEach(function(msg) {
             const el = renderMessage(msg, msg.user_id === currentUserId);
             messagesEl.appendChild(el);
         });
-        if (loadMoreWrap) loadMoreWrap.style.display = hasMoreMessages ? 'block' : 'none';
-        if (channelTopicEl) channelTopicEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
-        if (searchBarWrapEl) searchBarWrapEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+        if (loadMoreWrap) loadMoreWrap.style.display = state.hasMoreMessages ? 'block' : 'none';
+        if (searchBarWrapEl) searchBarWrapEl.style.display = (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         requestAnimationFrame(function() {
             messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -1912,9 +2183,9 @@
     }
 
     function setAcroPhase(phase, endTime, acronym) {
-        acroPhase = phase;
-        acroEndTime = endTime;
-        acroAcronym = acronym || null;
+        state.acroPhase = phase;
+        state.acroEndTime = endTime;
+        state.acroAcronym = acronym || null;
         if (acroTimerInterval) { clearInterval(acroTimerInterval); acroTimerInterval = null; }
         if (inputEl) {
             if (phase === 'submitting') {
@@ -1927,116 +2198,33 @@
                 inputEl.removeAttribute('spellcheck');
             }
         }
-        if (!acroTimerEl) return;
         if ((phase === 'submitting' || phase === 'voting') && endTime != null) {
-            acroTimerEl.classList.remove('hidden');
             function tick() {
                 var now = Date.now() / 1000;
-                var sec = Math.max(0, Math.floor(acroEndTime - now));
+                var sec = Math.max(0, Math.floor(state.acroEndTime - now));
                 if (sec <= 0) {
                     if (acroTimerInterval) { clearInterval(acroTimerInterval); acroTimerInterval = null; }
-                    acroPhase = 'idle';
-                    acroEndTime = null;
-                    acroTimerEl.classList.add('hidden');
-                    acroTimerEl.textContent = '';
+                    state.acroPhase = 'idle';
+                    state.acroEndTime = null;
+                    state.acroTimerSeconds = null;
+                    state.acroFormUrgent = false;
                     return;
                 }
-                var label = acroPhase === 'submitting' ? 'Submit' : 'Vote';
-                acroTimerEl.textContent = label + ': ' + sec + 's';
-                var formWrap = document.querySelector('.form-wrap');
-                if (formWrap && currentRoom && currentRoom.name === 'Acrophobia') {
-                    var urgent = (acroPhase === 'submitting' && sec <= 15) || (acroPhase === 'voting' && sec <= 15);
-                    if (urgent) formWrap.classList.add('acro-urgency');
-                    else formWrap.classList.remove('acro-urgency');
-                }
+                state.acroTimerSeconds = sec;
+                state.acroFormUrgent = state.currentRoom && state.currentRoom.name === 'Acrophobia' && ((state.acroPhase === 'submitting' && sec <= 15) || (state.acroPhase === 'voting' && sec <= 15));
             }
             tick();
             acroTimerInterval = setInterval(tick, 1000);
         } else {
-            acroTimerEl.classList.add('hidden');
-            acroTimerEl.textContent = '';
-            var formWrap = document.querySelector('.form-wrap');
-            if (formWrap) formWrap.classList.remove('acro-urgency');
+            state.acroTimerSeconds = null;
+            state.acroFormUrgent = false;
         }
-    }
-
-    function updateTypingIndicator() {
-        if (!typingIndicatorEl) return;
-        var users = Object.keys(typingUsers).map(function(uid) { return typingUsers[uid].username; }).filter(Boolean);
-        if (users.length === 0) {
-            typingIndicatorEl.classList.add('empty');
-            typingIndicatorEl.textContent = '';
-        } else {
-            typingIndicatorEl.classList.remove('empty');
-            typingIndicatorEl.textContent = users.length === 1 ? (users[0] + ' is typing...') : (users.join(', ') + ' are typing...');
-        }
-    }
-
-    function renderStatsView(stats) {
-        messagesEl.innerHTML = '';
-        messagesEl.classList.remove('is-dm');
-        if (loadMoreWrap) loadMoreWrap.style.display = 'none';
-        hasMoreMessages = false;
-        sendForm.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
-        if (channelTopicEl) channelTopicEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
-        if (searchBarWrapEl) searchBarWrapEl.style.display = (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
-        if (searchDrawerEl) searchDrawerEl.classList.remove('open');
-        if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats') renderChannelTopic(currentRoom);
-        if (!stats) return;
-        var div = document.createElement('div');
-        div.className = 'stats-view';
-        var topTypers = stats.top_typers || [];
-        var maxTypers = Math.max(1, Math.max.apply(null, topTypers.map(function(t) { return t.count; })));
-        var html = '<h2>Top 10 typers</h2><p style="color:#71717a;font-size:0.85rem;margin:0 0 0.5rem;">By username (login); nick changes do not split counts.</p><ul>';
-        topTypers.forEach(function(t) {
-            var pct = maxTypers ? (100 * t.count / maxTypers) : 0;
-            html += '<li class="stat-row"><span>' + escapeHtml(t.username) + '</span><span>' + t.count + ' msgs</span><span class="stat-bar-wrap"><span class="stat-bar" style="width:' + pct + '%"></span></span></li>';
-        });
-        html += '</ul><h2>Active hours (messages per hour, by day)</h2>';
-        var activeHoursByDay = stats.active_hours_by_day || [];
-        var dayColors = ['#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f43f5e','#6366f1'];
-        var maxCount = 0;
-        activeHoursByDay.forEach(function(d) {
-            (d.counts || []).forEach(function(c) { if (c > maxCount) maxCount = c; });
-        });
-        maxCount = Math.max(maxCount, 1);
-        html += '<div class="stats-chart-wrap"><div class="stats-chart-y-axis"><span>' + maxCount + '</span><span>0</span></div><div class="stats-chart-bars-wrap">';
-        for (var hour = 0; hour < 24; hour++) {
-            var label = (hour === 0 ? '12' : hour > 12 ? hour - 12 : hour) + (hour < 12 ? 'am' : 'pm');
-            html += '<div class="stats-chart-hour-group" title="' + label + '">';
-            activeHoursByDay.forEach(function(d, di) {
-                var c = (d.counts || [])[hour] || 0;
-                var pct = maxCount ? (100 * c / maxCount) : 0;
-                html += '<div class="stats-chart-bar" style="height:' + pct + '%;background:' + (dayColors[di] || '#6366f1') + ';" title="' + escapeHtml(d.day) + ': ' + c + '"></div>';
-            });
-            html += '</div>';
-        }
-        html += '</div><div class="stats-chart-x-axis">';
-        [0,6,12,18].forEach(function(h) {
-            var lbl = (h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm'));
-            html += '<span class="stats-chart-x-label" style="flex:1;text-align:center;">' + lbl + '</span>';
-        });
-        html += '</div></div><div class="stats-chart-legend">' + activeHoursByDay.map(function(d,i){ return '<span style="color:' + (dayColors[i]||'#6366f1') + '">' + escapeHtml(d.day) + '</span>'; }).join(' · ') + '</div><h2>Favorite words (top typers)</h2>';
-        (stats.favorite_words || []).forEach(function(f) {
-            html += '<p><strong>' + escapeHtml(f.username) + '</strong> <span class="favorite-words">' + (f.words || []).map(function(w) { return escapeHtml(w.word) + ' (' + w.count + ')'; }).join(', ') + '</span></p>';
-        });
-        var acroLeaderboard = stats.acro_leaderboard || [];
-        if (acroLeaderboard.length) {
-            html += '<h2>Acrophobia leaderboard</h2><ul>';
-            acroLeaderboard.forEach(function(a, i) {
-                html += '<li class="stat-row"><span>' + (i + 1) + '. ' + escapeHtml(a.username) + '</span><span>' + a.wins + ' win(s)</span></li>';
-            });
-            html += '</ul>';
-        }
-        div.innerHTML = html;
-        messagesEl.appendChild(div);
     }
 
     function renderSettingsView() {
         messagesEl.innerHTML = '';
         messagesEl.classList.remove('is-dm');
         sendForm.style.display = 'none';
-        if (channelTopicEl) channelTopicEl.style.display = 'none';
         if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         socket.emit('get_acrobot_status');
@@ -2056,8 +2244,8 @@
         html += '<option value="90"' + (messageRetentionDays === 90 ? ' selected' : '') + '>90 days</option>';
         html += '</select></div></div>';
         html += '<h2>Export</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Download messages as JSON or HTML.</p>';
-        if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() !== 'stats') {
-            html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?room_id=' + currentRoom.id + '&format=json" style="font-size:0.9rem;color:#818cf8;">Export this room (JSON)</a><a href="/export?room_id=' + currentRoom.id + '&format=html" style="font-size:0.9rem;color:#818cf8;">Export this room (HTML)</a></div>';
+        if (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats') {
+            html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?room_id=' + state.currentRoom.id + '&format=json" style="font-size:0.9rem;color:#818cf8;">Export this room (JSON)</a><a href="/export?room_id=' + state.currentRoom.id + '&format=html" style="font-size:0.9rem;color:#818cf8;">Export this room (HTML)</a></div>';
         }
         if (isSuperAdmin) {
             html += '<div class="user-row" style="gap:0.5rem;"><a href="/export?format=json" style="font-size:0.9rem;color:#818cf8;">Export all (JSON)</a><a href="/export?format=html" style="font-size:0.9rem;color:#818cf8;">Export all (HTML)</a></div>';
@@ -2077,7 +2265,7 @@
             html += '<h2>Stats</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>';
             html += '<div class="user-row"><button type="button" id="resetStatsDataBtn" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>';
             html += '<h2>Channels</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Surfer Girl can mark any channel protected.</p>';
-            (allRooms || []).forEach(function(r) {
+            (state.allRooms || []).forEach(function(r) {
                 var isProtected = r.is_protected === true;
                 var isGeneral = r.name === 'general';
                 html += '<div class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">' +
@@ -2097,7 +2285,7 @@
                 { value: 'super_admin', label: 'Surfer Girl' }
             ];
             html += '<h2>Users — Rankings</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only Surfer Girls can set user rankings (lowest to highest: Rookie, Bro, Fam, Surfer Girl). Surfer Girls can configure permissions for each role below.</p>';
-            (allUsersWithStatus || []).forEach(function(u) {
+            (state.allUsersWithStatus || []).forEach(function(u) {
                 var me = u.id === currentUserId;
                 var isSystem = u.username === 'AcroBot' || u.username === 'System' || u.username === 'Homer';
                 var canDelete = !me && !isSystem;
@@ -2118,7 +2306,7 @@
             html += '<div id="auditLogSection" class="audit-log-wrap" style="max-height:200px;overflow-y:auto;background:#0f0f12;border:1px solid #27272a;border-radius:8px;padding:0.5rem;font-size:0.85rem;"><p style="color:#71717a;margin:0;">Loading…</p></div>';
             html += '<h2>Default channel</h2><p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Channel users see when they first log in.</p>';
             html += '<div id="defaultChannelSection" class="user-row"><select id="defaultChannelSelect" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">';
-            var channels = (allRooms || []).filter(function(r) { return !r.is_dm; });
+            var channels = (state.allRooms || []).filter(function(r) { return !r.is_dm; });
             channels.forEach(function(r) {
                 html += '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>';
             });
@@ -2165,7 +2353,7 @@
         div.querySelectorAll('input.settings-protect-room').forEach(function(cb) {
             var rid = parseInt(cb.getAttribute('data-room-id'), 10);
             cb.addEventListener('change', function() {
-                var room = allRooms.find(function(r) { return r.id === rid; });
+                var room = state.allRooms.find(function(r) { return r.id === rid; });
                 if (!room) return;
                 socket.emit('update_room', { room_id: rid, name: room.name, is_protected: this.checked });
             });
@@ -2279,22 +2467,6 @@
         else if (theme === 'high-contrast') document.body.classList.add('theme-high-contrast');
     }
 
-    function roomsInOrder() {
-        var byId = {};
-        allRooms.forEach(function(r) { byId[r.id] = r; });
-        var ordered = [];
-        roomOrderIds.forEach(function(rid) {
-            if (byId[rid]) { ordered.push(byId[rid]); delete byId[rid]; }
-        });
-        Object.keys(byId).forEach(function(rid) { ordered.push(byId[rid]); });
-        return ordered;
-    }
-
-    function dmOtherUsername(r) {
-        if (!r || !r.is_dm) return null;
-        return r.created_by_id === currentUserId ? (r.dm_with_username || '?') : (r.created_by_username || '?');
-    }
-
     function applyMessagesSectionHeight() {
         if (messageListItemsEl) {
             messageListItemsEl.style.flex = '0 0 ' + Math.max(40, Math.min(300, messagesSectionHeight)) + 'px';
@@ -2303,172 +2475,23 @@
 
     function renderRoomList(rooms, activeRoom) {
         if (rooms && rooms.length) {
-            allRooms = rooms;
-            if (roomOrderIds.length === 0) roomOrderIds = rooms.map(function(r) { return r.id; });
+            state.allRooms = rooms;
+            if (state.roomOrderIds.length === 0) state.roomOrderIds = rooms.map(function(r) { return r.id; });
         }
-        currentRoom = activeRoom || currentRoom;
-        var ordered = roomsInOrder();
-        var channels = ordered.filter(function(r) { return !r.is_dm; });
-        var dms = ordered.filter(function(r) { return r.is_dm; });
-        function channelItemHtml(r) {
-            var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
-            var isProtected = r.is_protected === true;
-            var canDelete = !isProtected && r.name !== 'general';
-            var isOwner = r.created_by_id === currentUserId;
-            var canEdit = isProtected ? isSuperAdmin : (isSuperAdmin || isOwner || (userPermissions && userPermissions.update_room));
-            var canDeleteRoom = (isSuperAdmin || isOwner || (userPermissions && userPermissions.delete_room)) && canDelete;
-            var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
-            return '<div class="room-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
-                '<span class="room-item-grip" title="Drag to reorder">⋮⋮</span>' +
-                '<span class="room-item-unread-dot" style="display:' + (hasUnread ? 'inline-block' : 'none') + ';" title="Unread"></span>' +
-                '<span class="room-item-name">' + escapeHtml(r.name) + '</span>' +
-                '<span class="room-item-actions">' +
-                (canEdit ? '<button type="button" class="edit" title="Edit">✎</button>' : '') +
-                (canDeleteRoom ? '<button type="button" class="delete" title="Delete">×</button>' : '') +
-                '</span></div>';
-        }
-        function dmItemHtml(r) {
-            var isActive = currentRoom && r.id === currentRoom.id && !showingSettings;
-            var displayName = 'DM: ' + (dmOtherUsername(r) || '?');
-            var hasUnread = unreadRooms[r.id] || (unreadMentions[r.id] && unreadMentions[r.id].size);
-            return '<div class="room-item dm-item' + (isActive ? ' active' : '') + '" draggable="true" data-room-id="' + r.id + '">' +
-                '<span class="room-item-grip" title="Drag to reorder">⋮⋮</span>' +
-                '<span class="room-item-unread-dot" style="display:' + (hasUnread ? 'inline-block' : 'none') + ';" title="Unread"></span>' +
-                '<span class="room-item-name">' + escapeHtml(displayName) + '</span>' +
-                '<span class="room-item-actions"><button type="button" class="delete" title="Delete DM">×</button></span></div>';
-        }
-        roomListItemsEl.innerHTML = channels.length ? channels.map(channelItemHtml).join('') : '<div class="room-item" style="cursor:default;color:#71717a;">No channels</div>';
-        messageListItemsEl.innerHTML = dms.length ? dms.map(dmItemHtml).join('') : '<div class="room-item" style="cursor:default;color:#71717a;">No messages</div>';
-
-        function attachChannelListeners(container, list) {
-            container.querySelectorAll('.room-item[data-room-id]').forEach(function(el) {
-                var rid = parseInt(el.getAttribute('data-room-id'), 10);
-                var room = list.find(function(r) { return r.id === rid; });
-                if (!room) return;
-                var lastTouchTime = 0;
-                function doSelect() {
-                    showingSettings = false;
-                    switchRoom(rid);
-                }
-                el.addEventListener('click', function(ev) {
-                    if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
-                    if (Date.now() - lastTouchTime < 400) return;
-                    doSelect();
-                });
-                el.addEventListener('touchend', function(ev) {
-                    if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
-                    ev.preventDefault();
-                    lastTouchTime = Date.now();
-                    doSelect();
-                }, { passive: false });
-                var editBtn = el.querySelector('button.edit');
-                if (editBtn) editBtn.addEventListener('click', function(e) { e.stopPropagation(); editRoom(rid); });
-                var delBtn = el.querySelector('button.delete');
-                if (delBtn) delBtn.addEventListener('click', function(e) { e.stopPropagation(); deleteRoom(rid); });
-                el.addEventListener('dragstart', function(e) {
-                    e.dataTransfer.setData('text/plain', rid);
-                    e.dataTransfer.effectAllowed = 'move';
-                    el.classList.add('dragging');
-                });
-                el.addEventListener('dragend', function() { el.classList.remove('dragging'); });
-                el.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    container.querySelectorAll('.room-item').forEach(function(x) { x.classList.remove('drag-over'); });
-                    el.classList.add('drag-over');
-                });
-                el.addEventListener('dragleave', function() { el.classList.remove('drag-over'); });
-                el.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    el.classList.remove('drag-over');
-                    var fromId = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                    if (fromId === rid) return;
-                    var channelIds = channels.map(function(r) { return r.id; });
-                    var dmIds = dms.map(function(r) { return r.id; });
-                    var idxFrom = channelIds.indexOf(fromId);
-                    var idxTo = channelIds.indexOf(rid);
-                    if (idxFrom === -1 || idxTo === -1) return;
-                    channelIds.splice(idxFrom, 1);
-                    channelIds.splice(idxTo, 0, fromId);
-                    roomOrderIds = channelIds.concat(dmIds);
-                    socket.emit('save_room_order', { room_ids: roomOrderIds });
-                    renderRoomList(null, currentRoom);
-                });
-            });
-        }
-        function attachDmListeners(container, list) {
-            container.querySelectorAll('.room-item[data-room-id]').forEach(function(el) {
-                var rid = parseInt(el.getAttribute('data-room-id'), 10);
-                var room = list.find(function(r) { return r.id === rid; });
-                if (!room) return;
-                var lastTouchTime = 0;
-                function doSelect() {
-                    showingSettings = false;
-                    switchRoom(rid);
-                }
-                el.addEventListener('click', function(ev) {
-                    if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
-                    if (Date.now() - lastTouchTime < 400) return;
-                    doSelect();
-                });
-                el.addEventListener('touchend', function(ev) {
-                    if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
-                    ev.preventDefault();
-                    lastTouchTime = Date.now();
-                    doSelect();
-                }, { passive: false });
-                var delBtn = el.querySelector('button.delete');
-                if (delBtn) delBtn.addEventListener('click', function(e) { e.stopPropagation(); deleteRoom(rid); });
-                el.addEventListener('dragstart', function(e) {
-                    e.dataTransfer.setData('text/plain', rid);
-                    e.dataTransfer.effectAllowed = 'move';
-                    el.classList.add('dragging');
-                });
-                el.addEventListener('dragend', function() { el.classList.remove('dragging'); });
-                el.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    container.querySelectorAll('.room-item').forEach(function(x) { x.classList.remove('drag-over'); });
-                    el.classList.add('drag-over');
-                });
-                el.addEventListener('dragleave', function() { el.classList.remove('drag-over'); });
-                el.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    el.classList.remove('drag-over');
-                    var fromId = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                    if (fromId === rid) return;
-                    var channelIds = channels.map(function(r) { return r.id; });
-                    var dmIds = dms.map(function(r) { return r.id; });
-                    var idxFrom = dmIds.indexOf(fromId);
-                    var idxTo = dmIds.indexOf(rid);
-                    if (idxFrom === -1 || idxTo === -1) return;
-                    dmIds.splice(idxFrom, 1);
-                    dmIds.splice(idxTo, 0, fromId);
-                    roomOrderIds = channelIds.concat(dmIds);
-                    socket.emit('save_room_order', { room_ids: roomOrderIds });
-                    renderRoomList(null, currentRoom);
-                });
-            });
-        }
-        attachChannelListeners(roomListItemsEl, channels);
-        attachDmListeners(messageListItemsEl, dms);
+        state.currentRoom = activeRoom || state.currentRoom;
     }
 
     function switchRoom(roomId) {
-        if (currentRoom && currentRoom.id === roomId) return;
-        var room = allRooms.find(function(r) { return r.id === roomId; });
+        if (state.currentRoom && state.currentRoom.id === roomId) return;
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (room) {
-            currentRoom = room;
+            state.currentRoom = room;
             clearUnreadForRoom(roomId);
-            renderRoomList(null, currentRoom);
-            updateMobileRoomName(room);
-            messagesEl.innerHTML = '<div class="loading-msgs" style="padding:1.5rem;text-align:center;color:#71717a;font-size:0.9rem;">Loading…</div>';
-            messagesEl.classList.toggle('is-dm', !!(room && room.is_dm));
-            if (channelTopicEl) { channelTopicEl.classList.add('empty'); channelTopicEl.innerHTML = ''; }
-            if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+            renderRoomList(null, state.currentRoom);
+            state.messages = [];
+            if (messagesEl) messagesEl.classList.toggle('is-dm', !!(room && room.is_dm));
             setAcroPhase('idle', null);
-            typingUsers = {};
-            updateTypingIndicator();
+            state.typingUsers = {};
         }
         socket.emit('join_room', { room_id: roomId });
         var rl = document.getElementById('roomList');
@@ -2511,7 +2534,7 @@
     var editRoomCancel = document.getElementById('editRoomCancel');
     var editRoomTargetId = null;
     function showEditRoomModal(roomId) {
-        var room = allRooms.find(function(r) { return r.id === roomId; });
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (!room) return;
         editRoomTargetId = roomId;
         if (editRoomInput) editRoomInput.value = room.name || '';
@@ -2526,12 +2549,12 @@
         if (modalBackdrop) modalBackdrop.style.display = 'none';
     }
     function editRoom(roomId) {
-        var room = allRooms.find(function(r) { return r.id === roomId; });
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (!room) return;
         showEditRoomModal(roomId);
     }
     if (editRoomOk) editRoomOk.addEventListener('click', function() {
-        var room = allRooms.find(function(r) { return r.id === editRoomTargetId; });
+        var room = state.allRooms.find(function(r) { return r.id === editRoomTargetId; });
         var name = editRoomInput ? editRoomInput.value.trim() : '';
         var topic = editRoomTopicInput ? editRoomTopicInput.value.trim() : '';
         if (editRoomTargetId) {
@@ -2554,7 +2577,7 @@
     }
 
     function deleteRoom(roomId) {
-        var room = allRooms.find(function(r) { return r.id === roomId; });
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (!room || room.name === 'general') return;
         if (!confirm('Delete room "' + room.name + '" and all its messages?')) return;
         socket.emit('delete_room', { room_id: roomId });
@@ -2566,31 +2589,32 @@
         socket.emit('create_room', { name: name.trim() });
     }
 
-    function renderUserList(users) {
-        if (!users || !users.length) return;
-        users = users.filter(function(u) { return !u.is_system_user; });  // Hide System (service account)
-        const online = users.filter(function(u) { return u.online; });
-        const offline = users.filter(function(u) { return !u.online; });
-        function itemHtml(u) {
-            const isMe = u.id === currentUserId;
-            var statusCls = u.online ? (u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : u.user_status === 'invisible' ? 'invisible' : 'online') : (u.user_status === 'invisible' && isMe ? 'invisible' : 'offline');
-            const cls = 'user-item ' + statusCls + (isMe ? ' me' : '');
-            var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
-            var label = escapeHtml(displayLabel) + (isMe ? ' (you)' : '');
-            if (u.is_system_user) label = escapeHtml(u.username) + ' <span class="muted">(service)</span>';
-            var presence = '';
-            if (u.online && u.current_room_name && !u.is_system_user && !isMe) presence = '<span class="user-item-presence">in ' + escapeHtml(u.current_room_name) + '</span>';
-            return '<div class="' + cls + '" data-user-id="' + u.id + '" data-username="' + escapeAttr(u.username || '') + '"><span class="user-dot"></span><span class="user-item-name">' + label + '</span>' + presence + '</div>';
-        }
-        userListOnlineItems.innerHTML = online.length ? online.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>';
-        userListOfflineItems.innerHTML = offline.length ? offline.map(itemHtml).join('') : '<div class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>';
-    }
-
     socket = io({ withCredentials: true{% if socket_polling_only %}, transports: ['polling']{% endif %} });
+    function unhideMessage(msgId) { setMessageHidden(msgId, false); }
+    function scrollToMessage(msgId) {
+        var el = document.getElementById('msg-' + msgId);
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('highlight-reply-target'); setTimeout(function() { el.classList.remove('highlight-reply-target'); }, 1500); }
+    }
+    function toggleReaction(msgId, emoji, isOwn) {
+        socket.emit(isOwn ? 'remove_reaction' : 'add_reaction', { message_id: msgId, emoji: emoji });
+    }
+    function replyToMessage(msg) {
+        if (!state.currentRoom) return;
+        var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
+        replyToMessageId = msg.id;
+        replyToContent = msg.content;
+        replyToDisplayName = displayName;
+        var quoted = (replyToContent || '').replace(/\n/g, '\n> ');
+        inputEl.value = '> @' + (displayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
+        setTimeout(function() { if (inputEl) inputEl.focus(); }, 50);
+    }
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, replyToMessage: replyToMessage };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
-        if (statusEl && statusEl.textContent === 'Connecting…') {
+        if (status.value === 'Connecting…') {
             setStatus('Connection taking too long. If on Koyeb or behind a proxy, set CHITCHAT_SOCKET_POLLING_ONLY=1 on the server and reload.');
         }
     }, 12000);
@@ -2603,7 +2627,7 @@
             socketWasDisconnected = false;
             socket.emit('get_rooms');
         }
-        if (currentRoom) socket.emit('join_room', { room_id: currentRoom.id });
+        if (state.currentRoom) socket.emit('join_room', { room_id: state.currentRoom.id });
         else socket.emit('join_room', {});
     });
 
@@ -2614,31 +2638,46 @@
     });
 
     socket.on('room_joined', function(data) {
-        showingSettings = false;
-        currentRoom = data.room || currentRoom;
-        if (currentRoom) clearUnreadForRoom(currentRoom.id);
+        state.showingSettings = false;
+        state.currentRoom = data.room || state.currentRoom;
+        if (state.currentRoom) clearUnreadForRoom(state.currentRoom.id);
         if (data.unread_counts) {
-            Object.keys(unreadRooms).forEach(function(k) { delete unreadRooms[k]; });
+            Object.keys(state.unreadRooms).forEach(function(k) { delete state.unreadRooms[k]; });
             Object.keys(data.unread_counts).forEach(function(rid) {
-                if (data.unread_counts[rid] > 0) unreadRooms[rid] = true;
+                if (data.unread_counts[rid] > 0) state.unreadRooms[rid] = true;
             });
         }
         if (data.room_notification_muted) {
-            roomNotificationMuted = {};
-            data.room_notification_muted.forEach(function(rid) { roomNotificationMuted[rid] = true; });
+            state.roomNotificationMuted = {};
+            data.room_notification_muted.forEach(function(rid) { state.roomNotificationMuted[rid] = true; });
         }
-        if (data.users) allUsersWithStatus = data.users;
+        if (data.users) state.allUsersWithStatus = data.users;
         if (data.rooms) renderRoomList(data.rooms, data.room);
-        if (currentRoom && data.room_muted_in_room) {
-            roomMutedInRoom[currentRoom.id] = new Set(data.room_muted_in_room);
+        if (state.currentRoom && data.room_muted_in_room) {
+            state.roomMutedInRoom[state.currentRoom.id] = new Set(data.room_muted_in_room);
         }
-        hasMoreMessages = data.has_more === true;
-        typingUsers = {};
-        updateTypingIndicator();
-        if (data.stats) renderStatsView(data.stats);
-        else renderAllMessages(data.history || []);
-        if (data.users) renderUserList(data.users);
-        if (currentRoom && currentRoom.name === 'Acrophobia' && data.acrophobia) {
+        state.hasMoreMessages = data.has_more === true;
+        state.typingUsers = {};
+        if (data.stats) {
+            state.stats = data.stats;
+            state.messages = [];
+            if (messagesEl) messagesEl.classList.remove('is-dm');
+            if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+            state.hasMoreMessages = false;
+            sendForm.style.display = (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+            if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
+            if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+        } else {
+            state.messages = data.history || [];
+            messagesEl.classList.toggle('is-dm', !!(state.currentRoom && state.currentRoom.is_dm));
+            sendForm.style.display = '';
+            if (searchBarWrapEl) searchBarWrapEl.style.display = (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
+            if (searchDrawerEl) searchDrawerEl.classList.remove('open');
+            nextTick(function() {
+                if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+            });
+        }
+        if (state.currentRoom && state.currentRoom.name === 'Acrophobia' && data.acrophobia) {
             setAcroPhase(data.acrophobia.phase, data.acrophobia.end_time, data.acrophobia.acronym);
         } else {
             setAcroPhase('idle', null);
@@ -2646,23 +2685,20 @@
     });
 
     socket.on('user_typing', function(data) {
-        if (!currentRoom || data.room_id !== currentRoom.id || data.user_id === currentUserId) return;
-        if (typingUsers[data.user_id] && typingUsers[data.user_id].timeout) clearTimeout(typingUsers[data.user_id].timeout);
-        typingUsers[data.user_id] = {
+        if (!state.currentRoom || data.room_id !== state.currentRoom.id || data.user_id === currentUserId) return;
+        if (state.typingUsers[data.user_id] && state.typingUsers[data.user_id].timeout) clearTimeout(state.typingUsers[data.user_id].timeout);
+        state.typingUsers[data.user_id] = {
             username: data.username || 'Someone',
             timeout: setTimeout(function() {
-                delete typingUsers[data.user_id];
-                updateTypingIndicator();
+                delete state.typingUsers[data.user_id];
             }, 5000)
         };
-        updateTypingIndicator();
     });
 
     socket.on('older_messages', function(data) {
-        if (!currentRoom) return;
-        hasMoreMessages = data.has_more === true;
-        if (loadMoreWrap) loadMoreWrap.style.display = hasMoreMessages ? 'block' : 'none';
-        prependOlderMessages(data.messages || []);
+        if (!state.currentRoom) return;
+        state.hasMoreMessages = data.has_more === true;
+        state.messages = (data.messages || []).concat(state.messages);
     });
 
     socket.on('user_profile', function(data) {
@@ -2674,10 +2710,10 @@
     });
 
     socket.on('kicked_from_room', function(data) {
-        if (data.room_id && currentRoom && currentRoom.id === data.room_id) {
-            var general = allRooms.find(function(r) { return r.name === 'general'; });
+        if (data.room_id && state.currentRoom && state.currentRoom.id === data.room_id) {
+            var general = state.allRooms.find(function(r) { return r.name === 'general'; });
             if (general) switchRoom(general.id);
-            showPingToast('You were kicked from ' + (currentRoom ? currentRoom.name : '') + '.');
+            showPingToast('You were kicked from ' + (state.currentRoom ? state.currentRoom.name : '') + '.');
         }
     });
 
@@ -2689,81 +2725,81 @@
 
     socket.on('rooms_list', function(data) {
         if (data.rooms) {
-            allRooms = data.rooms;
-            roomOrderIds = data.rooms.map(function(r) { return r.id; });
+            state.allRooms = data.rooms;
+            state.roomOrderIds = data.rooms.map(function(r) { return r.id; });
             if (data.unread_counts) {
-                Object.keys(unreadRooms).forEach(function(k) { delete unreadRooms[k]; });
+                Object.keys(state.unreadRooms).forEach(function(k) { delete state.unreadRooms[k]; });
                 Object.keys(data.unread_counts).forEach(function(rid) {
-                    if (data.unread_counts[rid] > 0) unreadRooms[rid] = true;
+                    if (data.unread_counts[rid] > 0) state.unreadRooms[rid] = true;
                 });
             }
             if (data.room_notification_muted) {
-                roomNotificationMuted = {};
-                data.room_notification_muted.forEach(function(rid) { roomNotificationMuted[rid] = true; });
+                state.roomNotificationMuted = {};
+                data.room_notification_muted.forEach(function(rid) { state.roomNotificationMuted[rid] = true; });
             }
-            renderRoomList(null, currentRoom);
+            renderRoomList(null, state.currentRoom);
         }
     });
 
     socket.on('room_notification_mute_updated', function(data) {
         if (data && data.room_id !== undefined) {
-            if (data.muted) roomNotificationMuted[data.room_id] = true;
-            else delete roomNotificationMuted[data.room_id];
+            if (data.muted) state.roomNotificationMuted[data.room_id] = true;
+            else delete state.roomNotificationMuted[data.room_id];
             if (data.room_notification_muted) {
-                roomNotificationMuted = {};
-                data.room_notification_muted.forEach(function(rid) { roomNotificationMuted[rid] = true; });
+                state.roomNotificationMuted = {};
+                data.room_notification_muted.forEach(function(rid) { state.roomNotificationMuted[rid] = true; });
             }
-            renderRoomList(null, currentRoom);
+            renderRoomList(null, state.currentRoom);
         }
     });
 
     socket.on('rooms_updated', function(data) {
         if (data.rooms) {
-            allRooms = data.rooms;
-            if (roomOrderIds.length === 0) roomOrderIds = data.rooms.map(function(r) { return r.id; });
+            state.allRooms = data.rooms;
+            if (state.roomOrderIds.length === 0) state.roomOrderIds = data.rooms.map(function(r) { return r.id; });
             else {
                 var existingIds = {};
                 data.rooms.forEach(function(r) { existingIds[r.id] = true; });
-                roomOrderIds = roomOrderIds.filter(function(rid) { return existingIds[rid]; });
+                state.roomOrderIds = state.roomOrderIds.filter(function(rid) { return existingIds[rid]; });
                 data.rooms.forEach(function(r) {
-                    if (roomOrderIds.indexOf(r.id) === -1) roomOrderIds.push(r.id);
+                    if (state.roomOrderIds.indexOf(r.id) === -1) state.roomOrderIds.push(r.id);
                 });
             }
-            if (currentRoom) {
-                var refreshed = data.rooms.find(function(r) { return r.id === currentRoom.id; });
-                if (refreshed) currentRoom = refreshed;
+            if (state.currentRoom) {
+                var refreshed = data.rooms.find(function(r) { return r.id === state.currentRoom.id; });
+                if (refreshed) state.currentRoom = refreshed;
             }
-            renderRoomList(null, currentRoom);
+            renderRoomList(null, state.currentRoom);
         }
     });
 
     socket.on('room_renamed', function(data) {
-        if (data.room && currentRoom && currentRoom.id === data.room_id) currentRoom = data.room;
+        if (data.room && state.currentRoom && state.currentRoom.id === data.room_id) state.currentRoom = data.room;
     });
 
     socket.on('room_created', function(data) {
         if (data.room) {
-            allRooms = allRooms.concat([data.room]);
-            roomOrderIds.push(data.room.id);
-            renderRoomList(null, currentRoom);
+            state.allRooms = state.allRooms.concat([data.room]);
+            state.roomOrderIds.push(data.room.id);
+            renderRoomList(null, state.currentRoom);
             switchRoom(data.room.id);
         }
     });
 
     socket.on('dm_room', function(data) {
         if (!data.room) return;
-        var existing = allRooms.find(function(r) { return r.id === data.room.id; });
+        var existing = state.allRooms.find(function(r) { return r.id === data.room.id; });
         if (!existing) {
-            allRooms = allRooms.concat([data.room]);
-            roomOrderIds.push(data.room.id);
+            state.allRooms = state.allRooms.concat([data.room]);
+            state.roomOrderIds.push(data.room.id);
         }
-        renderRoomList(null, currentRoom);
+        renderRoomList(null, state.currentRoom);
         switchRoom(data.room.id);
     });
 
     socket.on('room_history_wiped', function(data) {
-        if (data.room_id && currentRoom && currentRoom.id === data.room_id) {
-            messagesEl.innerHTML = '';
+        if (data.room_id && state.currentRoom && state.currentRoom.id === data.room_id) {
+            state.messages = [];
             var toast = document.createElement('div');
             toast.className = 'ping-toast';
             toast.style.background = '#166534';
@@ -2774,13 +2810,13 @@
     });
 
     socket.on('room_deleted', function(data) {
-        if (data.room_id && currentRoom && currentRoom.id === data.room_id) {
-            var general = allRooms.find(function(r) { return r.name === 'general'; });
+        if (data.room_id && state.currentRoom && state.currentRoom.id === data.room_id) {
+            var general = state.allRooms.find(function(r) { return r.name === 'general'; });
             if (general) switchRoom(general.id);
         }
-        allRooms = allRooms.filter(function(r) { return r.id !== data.room_id; });
-        roomOrderIds = roomOrderIds.filter(function(id) { return id !== data.room_id; });
-        renderRoomList(null, currentRoom);
+        state.allRooms = state.allRooms.filter(function(r) { return r.id !== data.room_id; });
+        state.roomOrderIds = state.roomOrderIds.filter(function(id) { return id !== data.room_id; });
+        renderRoomList(null, state.currentRoom);
     });
 
     socket.on('unread_incremented', function(data) {
@@ -2788,92 +2824,22 @@
     });
 
     socket.on('reaction_updated', function(data) {
-        if (!data || !data.message_id || !currentRoom || data.room_id !== currentRoom.id) return;
-        var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
-        if (!msgEl) return;
-        var reactionsEl = msgEl.querySelector('.msg-reactions');
-        if (!reactionsEl) return;
-        var rx = data.reactions || [];
-        var h = '';
-        rx.forEach(function(r) {
-            var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
-            var tip = (r.usernames && r.usernames.length) ? (r.emoji + ' — ' + r.usernames.join(', ')) : (r.emoji + ' (' + (r.count || 0) + ')');
-            h += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(tip) + '">' + escapeHtml(r.emoji) + ' <span class="msg-reaction-count">' + (r.count || 0) + '</span></span>';
-        });
-        reactionsEl.innerHTML = h;
-        reactionsEl.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
-            el.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var emoji = el.getAttribute('data-emoji');
-                var isOwn = el.classList.contains('own');
-                if (isOwn) socket.emit('remove_reaction', { message_id: data.message_id, emoji: emoji });
-                else socket.emit('add_reaction', { message_id: data.message_id, emoji: emoji });
-            });
-        });
-        var hoverBar = msgEl.querySelector('.msg-hover-bar');
-        if (hoverBar) {
-            var top3 = rx.slice().sort(function(a,b){ return (b.count||0) - (a.count||0); }).slice(0, 3);
-            var barHtml = '';
-            top3.forEach(function(r) {
-                var hasOwn = (r.user_ids || []).indexOf(currentUserId) !== -1;
-                barHtml += '<span class="msg-reaction' + (hasOwn ? ' own' : '') + '" data-emoji="' + escapeAttr(r.emoji) + '" title="' + escapeAttr(r.emoji) + '">' + escapeHtml(r.emoji) + '</span>';
-            });
-            barHtml += '<span class="msg-reaction msg-reaction-add" title="Add reaction">➕</span>';
-            var isOwnMsg = parseInt(msgEl.getAttribute('data-user-id'), 10) === currentUserId;
-            if (isOwnMsg) barHtml += '<button type="button" class="msg-hover-btn msg-hover-edit" title="Edit">✎</button>';
-            barHtml += '<button type="button" class="msg-hover-btn msg-hover-reply" title="Reply">↩</button>';
-            hoverBar.innerHTML = barHtml;
-            hoverBar.querySelectorAll('.msg-reaction[data-emoji]').forEach(function(el) {
-                el.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    var emoji = el.getAttribute('data-emoji');
-                    var isOwn = el.classList.contains('own');
-                    if (isOwn) socket.emit('remove_reaction', { message_id: data.message_id, emoji: emoji });
-                    else socket.emit('add_reaction', { message_id: data.message_id, emoji: emoji });
-                });
-            });
-            hoverBar.querySelectorAll('.msg-reaction-add').forEach(function(el) {
-                el.addEventListener('click', function(e) { e.stopPropagation(); showReactionPicker(data.message_id, el); });
-            });
-            hoverBar.querySelectorAll('.msg-hover-edit').forEach(function(el) {
-                el.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    var contentEl = msgEl.querySelector('.msg-content');
-                    if (contentEl) showEditMessageModal(data.message_id, contentEl.textContent);
-                });
-            });
-            hoverBar.querySelectorAll('.msg-hover-reply').forEach(function(el) {
-                el.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    var contentEl = msgEl.querySelector('.msg-content');
-                    var headerEl = msgEl.querySelector('.msg-username');
-                    var displayName = headerEl ? headerEl.textContent.trim() : '?';
-                    var content = contentEl ? contentEl.textContent : '';
-                    replyToMessageId = data.message_id;
-                    replyToContent = content;
-                    replyToDisplayName = displayName;
-                    var quoted = (content || '').replace(/\n/g, '\n> ');
-                    inputEl.value = '> @' + (displayName || '?') + ':\n' + (quoted ? '> ' + quoted + '\n' : '') + '\n';
-                    inputEl.style.height = 'auto';
-                    inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
-                    setTimeout(function() { inputEl.focus(); }, 50);
-                });
-            });
-        }
+        if (!data || !data.message_id || !state.currentRoom || data.room_id !== state.currentRoom.id) return;
+        var m = state.messages.find(function(x) { return x.id === data.message_id; });
+        if (m) m.reactions = data.reactions || [];
     });
 
     socket.on('user_list_updated', function(data) {
         if (data.users) {
-            allUsersWithStatus = data.users;
-            renderUserList(data.users);
-            if (showingSettings) renderSettingsView();
+            state.allUsersWithStatus = data.users;
+            if (state.showingSettings) renderSettingsView();
         }
     });
 
     socket.on('profile_updated', function(data) {
         if (data.status_line !== undefined) currentUserStatusLine = data.status_line || '';
         if (data.away_message !== undefined) currentUserAwayMessage = data.away_message || '';
-        var me = allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
+        var me = state.allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
         if (me) {
             if (data.status_line !== undefined) me.status_line = data.status_line || null;
             if (data.away_message !== undefined) me.away_message = data.away_message || null;
@@ -2883,11 +2849,10 @@
 
     socket.on('topic_updated', function(data) {
         if (data.room_id && data.room) {
-            var idx = allRooms.findIndex(function(r) { return r.id === data.room_id; });
-            if (idx !== -1) allRooms[idx] = data.room;
-            if (currentRoom && currentRoom.id === data.room_id) {
-                currentRoom = data.room;
-                renderChannelTopic(currentRoom);
+            var idx = state.allRooms.findIndex(function(r) { return r.id === data.room_id; });
+            if (idx !== -1) state.allRooms[idx] = data.room;
+            if (state.currentRoom && state.currentRoom.id === data.room_id) {
+                state.currentRoom = data.room;
             }
             showTopicToast(data.set_by_username);
         }
@@ -2994,69 +2959,46 @@
         el.textContent = 'Stats data reset. ' + n + ' message(s) deleted.';
         document.body.appendChild(el);
         setTimeout(function() { el.remove(); }, 5000);
-        if (currentRoom && currentRoom.name && currentRoom.name.toLowerCase() === 'stats') {
-            socket.emit('join_room', { room_id: currentRoom.id });
+        if (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') {
+            socket.emit('join_room', { room_id: state.currentRoom.id });
         }
     });
 
     socket.on('new_message', function(msg) {
-        if (currentRoom && msg.room_id !== currentRoom.id) {
+        if (state.currentRoom && msg.room_id !== state.currentRoom.id) {
             addUnreadForRoom(msg.room_id);
             return;
         }
         if (!msg.message_type) msg.message_type = 'chat';
-        if (msg.room_id == null && currentRoom) msg.room_id = currentRoom.id;
-        const el = renderMessage(msg, msg.user_id === currentUserId);
-        messagesEl.appendChild(el);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (msg.room_id == null && state.currentRoom) msg.room_id = state.currentRoom.id;
+        state.messages.push(msg);
+        nextTick(function() {
+            if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+        });
         if (messageMentionsMe(msg.content) && msg.user_id !== currentUserId) {
             startMentionTabFlash();
         }
     });
 
     socket.on('message_edited', function(msg) {
-        if (!currentRoom || msg.room_id !== currentRoom.id) return;
-        var el = messagesEl.querySelector('.msg[data-msg-id="' + msg.id + '"]');
-        if (el) {
-            var contentEl = el.querySelector('.msg-content');
-            if (contentEl) {
-                var raw = msg.content || '';
-                var contentHtml = typeof marked !== 'undefined' ? marked.parse(raw) : escapeHtml(raw);
-                contentHtml = contentHtml.replace(/(https?:\/\/[^\s<>"']+)/g, function(match) {
-                    var offset = arguments[arguments.length - 2];
-                    var fullStr = arguments[arguments.length - 1];
-                    if (offset > 0 && fullStr[offset - 1] === '"') return match;
-                    return '<a href="' + escapeAttr(match) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(match) + '</a>';
-                });
-                contentEl.innerHTML = contentHtml;
-            }
-            var editedWrap = el.querySelector('.msg-edited');
-            if (msg.edited_at) {
-                if (!editedWrap) {
-                    editedWrap = document.createElement('div');
-                    editedWrap.className = 'msg-edited';
-                    var after = el.querySelector('.msg-content');
-                    if (after) after.parentNode.insertBefore(editedWrap, after.nextSibling);
-                    else el.appendChild(editedWrap);
-                }
-                editedWrap.textContent = 'edited ' + formatTime(msg.edited_at);
-                editedWrap.style.display = '';
-            } else if (editedWrap) editedWrap.style.display = 'none';
+        if (!state.currentRoom || msg.room_id !== state.currentRoom.id) return;
+        var m = state.messages.find(function(x) { return x.id === msg.id; });
+        if (m) {
+            m.content = msg.content;
+            m.edited_at = msg.edited_at;
         }
     });
 
     socket.on('message_deleted', function(data) {
-        if (!currentRoom || data.room_id !== currentRoom.id) return;
-        var el = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
-        if (el) el.remove();
+        if (!state.currentRoom || data.room_id !== state.currentRoom.id) return;
+        var idx = state.messages.findIndex(function(m) { return m.id === data.message_id; });
+        if (idx !== -1) state.messages.splice(idx, 1);
     });
 
     socket.on('messages_deleted', function(data) {
-        if (!data || !data.room_id || !data.message_ids || !currentRoom || data.room_id !== currentRoom.id) return;
-        (data.message_ids || []).forEach(function(msgId) {
-            var el = messagesEl.querySelector('.msg[data-msg-id="' + msgId + '"]');
-            if (el) el.remove();
-        });
+        if (!data || !data.room_id || !data.message_ids || !state.currentRoom || data.room_id !== state.currentRoom.id) return;
+        var ids = new Set(data.message_ids || []);
+        state.messages = state.messages.filter(function(m) { return !ids.has(m.id); });
     });
 
     socket.on('my_messages_deleted', function(data) {
@@ -3072,13 +3014,6 @@
         addUnreadMention(data.room_id, data.message_id);
         var roomEl = document.querySelector('.room-item[data-room-id="' + data.room_id + '"]');
         if (roomEl) roomEl.classList.add('mentioned');
-        if (currentRoom && currentRoom.id === data.room_id) {
-            var msgEl = messagesEl.querySelector('.msg[data-msg-id="' + data.message_id + '"]');
-            if (msgEl) {
-                msgEl.classList.add('mentioned');
-                msgEl.classList.add('msg-mention-pulse');
-            }
-        }
         showPingToast((data.from_username || 'Someone') + ' mentioned you');
         startMentionTabFlash();
     });
@@ -3098,20 +3033,14 @@
 
     socket.on('room_muted_updated', function(data) {
         if (data.room_id) {
-            roomMutedInRoom[data.room_id] = new Set(data.room_muted_in_room || []);
-            if (currentRoom && currentRoom.id === data.room_id) {
-                messagesEl.querySelectorAll('.msg[data-user-id]').forEach(function(el) {
-                    var uid = parseInt(el.getAttribute('data-user-id'), 10);
-                    el.classList.toggle('hidden', roomMutedInRoom[data.room_id].has(uid));
-                });
-            }
+            state.roomMutedInRoom[data.room_id] = new Set(data.room_muted_in_room || []);
         }
     });
 
     socket.on('error', function(data) { setStatus('Error: ' + (data.message || 'Unknown')); });
 
     socket.on('acrophobia_phase', function(data) {
-        if (!currentRoom || currentRoom.name !== 'Acrophobia') return;
+        if (!state.currentRoom || state.currentRoom.name !== 'Acrophobia') return;
         setAcroPhase(data.phase, data.end_time, data.acronym);
     });
 
@@ -3148,18 +3077,18 @@
     }
     var typingEmitTimer = null;
     inputEl.addEventListener('input', function() {
-        if (!currentRoom || currentRoom.name && currentRoom.name.toLowerCase() === 'stats') return;
+        if (!state.currentRoom || state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') return;
         if (typingEmitTimer) clearTimeout(typingEmitTimer);
         typingEmitTimer = setTimeout(function() {
-            socket.emit('user_typing', { room_id: currentRoom.id });
+            socket.emit('user_typing', { room_id: state.currentRoom.id });
             typingEmitTimer = null;
         }, 400);
     });
 
     function sendMessageWithAttachment() {
         var content = inputEl.value.trim();
-        if ((!content && !pendingAttachment) || !currentRoom) return;
-        var payload = { room_id: currentRoom.id, content: content || '' };
+        if ((!content && !pendingAttachment) || !state.currentRoom) return;
+        var payload = { room_id: state.currentRoom.id, content: content || '' };
         if (replyToMessageId) payload.parent_id = replyToMessageId;
         if (pendingAttachment) {
             payload.attachment_url = pendingAttachment.url;
@@ -3267,18 +3196,17 @@
     }
 
     if (loadMoreBtn) loadMoreBtn.addEventListener('click', function() {
-        if (!currentRoom || !hasMoreMessages) return;
-        var firstMsg = messagesEl.querySelector('.msg[data-msg-id]');
-        var beforeId = firstMsg ? parseInt(firstMsg.getAttribute('data-msg-id'), 10) : 0;
-        if (beforeId) socket.emit('load_more_messages', { room_id: currentRoom.id, before_id: beforeId });
+        if (!state.currentRoom || !state.hasMoreMessages) return;
+        var beforeId = state.messages.length ? state.messages[0].id : 0;
+        if (beforeId) socket.emit('load_more_messages', { room_id: state.currentRoom.id, before_id: beforeId });
     });
 
     if (newRoomBtn) newRoomBtn.addEventListener('click', showNewRoomPrompt);
 
     function showSettings() {
-        showingSettings = true;
-        currentRoom = null;
-        renderRoomList(allRooms.length ? allRooms : null, null);
+        state.showingSettings = true;
+        state.currentRoom = null;
+        renderRoomList(state.allRooms.length ? state.allRooms : null, null);
         renderSettingsView();
     }
     if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
@@ -3290,7 +3218,7 @@
     function getFilteredRoomsForSwitcher() {
         var q = (roomSwitcherInput && roomSwitcherInput.value || '').trim().toLowerCase();
         var rooms = [];
-        allRooms.forEach(function(r) {
+        state.allRooms.forEach(function(r) {
             var label = r.is_dm ? (r.dm_with_username || r.name || 'DM') : r.name;
             if (!q || label.toLowerCase().indexOf(q) !== -1) rooms.push(r);
         });
@@ -3371,7 +3299,7 @@
             var query = searchInput.value.trim();
             if (!query) return;
             var payload = { query: query };
-            if (currentRoom) payload.room_id = currentRoom.id;
+            if (state.currentRoom) payload.room_id = state.currentRoom.id;
             socket.emit('search_messages', payload);
         });
     }
@@ -3473,7 +3401,7 @@
                 var query = mobileSearchInput.value.trim();
                 if (!query) return;
                 var payload = { query: query };
-                if (currentRoom) payload.room_id = currentRoom.id;
+                if (state.currentRoom) payload.room_id = state.currentRoom.id;
                 socket.emit('search_messages', payload);
                 if (mobileSearchOverlay) {
                     mobileSearchOverlay.classList.remove('visible');
@@ -3520,7 +3448,7 @@
             document.body.style.userSelect = 'none';
         });
     })();
-})();
+chitchatApp.mount('#app');
     </script>
 </body>
 </html>
