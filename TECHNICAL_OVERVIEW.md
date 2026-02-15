@@ -26,7 +26,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 | **Async/WSGI** | eventlet | 0.40+; used as SocketIO async mode and for Acrophobia timers |
 | **ORM / DB** | Flask-SQLAlchemy | 3.1+; SQLite (dev) / PostgreSQL/Neon (prod) |
 | **Auth** | Session + cookie | Flask session; optional “remember me” with signed cookie (itsdangerous, via Flask) and disk fallback for standalone window |
-| **Frontend** | Vanilla JS | No React/Vue; single-page chat UI in one template |
+| **Frontend** | Vue 3 (CDN) | Composition API, reactive state; single template `chat.html` |
 | **Socket client** | Socket.IO (client) | 4.7.2 (CDN in template) |
 | **Standalone UI** | pywebview | 4.4+; optional native window wrapper |
 
@@ -210,7 +210,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.0.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.1.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 
@@ -225,7 +225,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **join_room** on load (no explicit room_id → server uses default channel from Settings; Surfer Girl configures this in Settings → Default channel).
   - **room_joined**: Renders room list, user list, and either message history or stats view; applies room-mute filter (messages from muted users get class `hidden`).
   - **new_message**: Appends to messages div; scrolls to bottom; ignores if message room ≠ current room.
-  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`. Only Surfer Girl can rename protected channels.
+  - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`. Only Surfer Girl can rename protected channels. Non–Surfer Girl users editing a protected channel see an alert instead of the name input but can still edit the topic.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
   - **Context menu**: Right-click (or long-press on mobile) on username (in messages or user list) → **Edit profile** (self only: status, away message), Whois, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only). Right-click on channel → Edit channel (name and topic). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
   - **Settings**: Rendered in place of chat when “Settings” is open: AcroBot toggle, Homer toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only), **Theme** (Dark/Light buttons). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
@@ -267,7 +267,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 2.0.0); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 2.1.0); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, AcroScore, AppSetting, IgnoreList (legacy); to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |

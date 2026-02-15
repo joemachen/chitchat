@@ -2103,7 +2103,8 @@ def register_socket_handlers(socketio):
                 room_id = dm_room.id
                 db.session.delete(dm_room)
                 socketio.emit("room_deleted", {"room_id": room_id})
-            # Cascade delete: reports by user, reports of user's messages, ignore list, room refs
+            # Cascade delete: reactions by user, reactions on user's messages, reports, ignore list, room refs
+            MessageReaction.query.filter_by(user_id=target_id).delete(synchronize_session=False)
             msg_ids = [r[0] for r in db.session.query(Message.id).filter_by(user_id=target_id).all()]
             if msg_ids:
                 MessageReaction.query.filter(MessageReaction.message_id.in_(msg_ids)).delete(synchronize_session=False)

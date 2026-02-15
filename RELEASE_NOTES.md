@@ -1,5 +1,18 @@
 # Release notes
 
+## v2.1.0 — Protected channels, delete user fix, chat history
+
+**Protected channel editing**
+- **Name edit restricted** — Non–Surfer Girl users editing a protected channel see "Protected channel names cannot be edited, sucka." instead of the name input. They can still edit the topic.
+
+**Delete user**
+- **MessageReaction fix** — Delete user now removes reactions by the deleted user before deletion, fixing the `user_id` null violation on `message_reactions`.
+
+**Chat history**
+- **All users** — Settings → General → Chat history (Delete all my messages, Auto-delete) is available to all users; no role restriction.
+
+---
+
 ## v2.0.0 — Deploy announcements, unread dot, DB pooling
 
 **System Events**

@@ -511,63 +511,79 @@
         <button type="button" data-action="message-send-message" id="messageContextSendMessage" style="display:none;">Send message</button>
         <button type="button" data-action="message-whois">Whois</button>
     </div>
-    <div id="profileModal" class="profile-modal" style="display: none;">
-        <h3 id="profileUsername">—</h3>
-        <p id="profileMemberSince"></p>
-        <button type="button" class="close" id="profileModalClose">Close</button>
+    <div v-if="state.profileModalUser" class="profile-modal">
+        <h3>{{ state.profileModalUser.username || '—' }}</h3>
+        <p>{{ state.profileModalUser.created_at ? 'Member since ' + formatProfileDate(state.profileModalUser.created_at) : '' }}</p>
+        <button type="button" class="close" @click="hideProfileModal">Close</button>
     </div>
-    <div id="whoisModal" class="profile-modal" style="display: none;">
-        <h3 id="whoisUsername">—</h3>
-        <p id="whoisDisplayName" style="display:none;"></p>
-        <p id="whoisCreated"></p>
-        <p id="whoisOnline"></p>
-        <p id="whoisLastSeen" style="display:none;"></p>
-        <p id="whoisStatus" style="display:none;"></p>
-        <p id="whoisIp"></p>
-        <p id="whoisConnected"></p>
-        <p id="whoisSharedRooms" style="display:none;"></p>
-        <button type="button" class="close" id="whoisModalClose">Close</button>
+    <div v-if="state.whoisModalData" class="profile-modal">
+        <h3>{{ state.whoisModalData.error ? 'Whois' : (state.whoisModalData.username || '—') }}</h3>
+        <p v-if="state.whoisModalData.error">{{ state.whoisModalData.error }}</p>
+        <template v-else>
+            <p v-if="state.whoisModalData.display_name && state.whoisModalData.display_name.trim()">Display name: {{ state.whoisModalData.display_name }}</p>
+            <p>{{ state.whoisModalData.created_at ? 'Account created: ' + formatProfileDate(state.whoisModalData.created_at) : '' }}</p>
+            <p>Online: {{ state.whoisModalData.online ? 'Yes' : 'No' }}</p>
+            <p v-if="state.whoisModalData.last_seen && !state.whoisModalData.online">Last seen: {{ formatWhoisDate(state.whoisModalData.last_seen) }}</p>
+            <p v-if="state.whoisModalData.status_line && state.whoisModalData.status_line.trim()">Status: {{ state.whoisModalData.status_line }}</p>
+            <p>IP: {{ state.whoisModalData.ip || '—' }}</p>
+            <p v-if="state.whoisModalData.online">Connected: {{ formatWhoisConnected(state.whoisModalData.connected_at, state.whoisModalData.connected_seconds) }}</p>
+            <p v-if="state.whoisModalData.shared_rooms && state.whoisModalData.shared_rooms.length">Shared rooms: {{ state.whoisModalData.shared_rooms.join(', ') }}</p>
+        </template>
+        <button type="button" class="close" @click="hideWhoisModal">Close</button>
     </div>
-    <div id="modalBackdrop" class="modal-backdrop" style="display: none;"></div>
-    <div id="searchResultsModal" class="search-results-modal" style="display: none;">
-        <h3 id="searchResultsTitle">Search results</h3>
-        <div class="search-results-list" id="searchResultsList"></div>
-        <button type="button" class="close" id="searchResultsClose" style="margin-top:0.75rem;">Close</button>
+    <div v-if="hasAnyModalOpen" class="modal-backdrop" @click="hideAllModals"></div>
+    <div v-if="state.searchResultsModal" class="search-results-modal">
+        <h3>Search: "{{ state.searchResultsModal.query }}" ({{ (state.searchResultsModal.messages || []).length }} results)</h3>
+        <div class="search-results-list">
+            <div v-for="msg in (state.searchResultsModal.messages || [])" :key="msg.id" class="search-result-item" @click="onSearchResultClick(msg)">
+                <div class="sr-header">{{ (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?') }} {{ msg.created_at ? formatTime(msg.created_at) : '' }}{{ msg.room_name ? ' · ' + msg.room_name : '' }}</div>
+                <div class="sr-content">{{ (msg.content || '').slice(0, 120) }}{{ (msg.content || '').length > 120 ? '…' : '' }}</div>
+            </div>
+            <div v-if="!state.searchResultsModal.messages || !state.searchResultsModal.messages.length" class="search-result-item" style="cursor:default;color:#71717a;">No messages found.</div>
+        </div>
+        <button type="button" class="close" style="margin-top:0.75rem;" @click="hideSearchResultsModal">Close</button>
     </div>
-    <div id="editMessageModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit message" aria-modal="true">
-        <h3 id="editMessageTitle">Edit message</h3>
-        <textarea id="editMessageInput" placeholder="Edit your message…" rows="6"></textarea>
+    <div v-if="state.editMessageModal" class="edit-message-modal" role="dialog" aria-label="Edit message" aria-modal="true">
+        <h3>Edit message</h3>
+        <textarea ref="editMessageInputRef" v-model="state.editMessageModal.content" placeholder="Edit your message…" rows="6" @keydown="onEditMessageKeydown"></textarea>
         <p class="edit-message-hint">Shift+Enter for new line</p>
         <div class="edit-message-actions">
-            <button type="button" id="editMessageOk" class="edit-message-ok">OK</button>
-            <button type="button" id="editMessageCancel" class="edit-message-cancel">Cancel</button>
+            <button type="button" class="edit-message-ok" @click="saveEditMessage">OK</button>
+            <button type="button" class="edit-message-cancel" @click="hideEditMessageModal">Cancel</button>
         </div>
     </div>
-    <div id="editProfileModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit profile" aria-modal="true">
-        <h3 id="editProfileTitle">Edit profile</h3>
+    <div v-if="state.editProfileModalOpen" class="edit-message-modal" role="dialog" aria-label="Edit profile" aria-modal="true">
+        <h3>Edit profile</h3>
         <label for="editProfileStatusInput" class="edit-profile-label">Status (shown in whois)</label>
-        <input type="text" id="editProfileStatusInput" placeholder="e.g. Working from home" maxlength="120" class="edit-room-input" aria-label="Status">
+        <input type="text" id="editProfileStatusInput" ref="editProfileStatusRef" v-model="state.editProfileDraft.status" placeholder="e.g. Working from home" maxlength="120" class="edit-room-input" aria-label="Status" @keydown="onEditProfileKeydown">
         <label for="editProfileAwayInput" class="edit-profile-label">Away message (auto-replies to DMs)</label>
-        <textarea id="editProfileAwayInput" placeholder="e.g. Out for lunch, back soon" rows="3" class="edit-room-input" aria-label="Away message"></textarea>
+        <textarea id="editProfileAwayInput" v-model="state.editProfileDraft.away" placeholder="e.g. Out for lunch, back soon" rows="3" class="edit-room-input" aria-label="Away message"></textarea>
         <div class="edit-message-actions">
-            <button type="button" id="editProfileOk" class="edit-message-ok">OK</button>
-            <button type="button" id="editProfileCancel" class="edit-message-cancel">Cancel</button>
+            <button type="button" class="edit-message-ok" @click="saveEditProfile">OK</button>
+            <button type="button" class="edit-message-cancel" @click="hideEditProfileModal">Cancel</button>
         </div>
     </div>
-    <div id="editRoomModal" class="edit-message-modal" style="display: none;" role="dialog" aria-label="Edit channel" aria-modal="true">
-        <h3 id="editRoomTitle">Edit channel</h3>
-        <label for="editRoomInput" class="edit-profile-label">Channel name</label>
-        <input type="text" id="editRoomInput" placeholder="Room name…" class="edit-room-input" aria-label="Room name">
+    <div v-if="state.editRoomModal" class="edit-message-modal" role="dialog" aria-label="Edit channel" aria-modal="true">
+        <h3>Edit channel</h3>
+        <template v-if="state.editRoomModal.is_protected && !isSuperAdmin">
+            <p class="edit-profile-label" style="color:#f87171;margin:0 0 0.75rem;">Protected channel names cannot be edited, sucka.</p>
+        </template>
+        <template v-else>
+            <label for="editRoomInput" class="edit-profile-label">Channel name</label>
+            <input type="text" id="editRoomInput" ref="editRoomNameRef" v-model="state.editRoomModal.name" placeholder="Room name…" class="edit-room-input" aria-label="Room name" @keydown="onEditRoomKeydown">
+        </template>
         <label for="editRoomTopicInput" class="edit-profile-label">Topic</label>
-        <textarea id="editRoomTopicInput" placeholder="Channel topic…" rows="3" class="edit-room-input" aria-label="Topic"></textarea>
+        <textarea id="editRoomTopicInput" v-model="state.editRoomModal.topic" placeholder="Channel topic…" rows="3" class="edit-room-input" aria-label="Topic"></textarea>
         <div class="edit-message-actions">
-            <button type="button" id="editRoomOk" class="edit-message-ok">OK</button>
-            <button type="button" id="editRoomCancel" class="edit-message-cancel">Cancel</button>
+            <button type="button" class="edit-message-ok" @click="saveEditRoom">OK</button>
+            <button type="button" class="edit-message-cancel" @click="hideEditRoomModal">Cancel</button>
         </div>
     </div>
-    <div id="roomSwitcherModal" class="room-switcher-modal" style="display: none;" role="dialog" aria-label="Switch room">
-        <input type="text" id="roomSwitcherInput" placeholder="Type to filter rooms…" autocomplete="off" aria-label="Filter rooms">
-        <div class="room-switcher-list" id="roomSwitcherList" role="listbox"></div>
+    <div v-if="state.roomSwitcherOpen" class="room-switcher-modal" role="dialog" aria-label="Switch room">
+        <input type="text" ref="roomSwitcherInputRef" v-model="state.roomSwitcherFilter" placeholder="Type to filter rooms…" autocomplete="off" aria-label="Filter rooms" @keydown="onRoomSwitcherKeydown">
+        <div class="room-switcher-list" role="listbox">
+            <div v-for="r in roomSwitcherFiltered" :key="r.id" class="room-switcher-item" :class="{ selected: state.roomSwitcherHighlightId === r.id }" @click="onRoomSwitcherSelect(r.id)">{{ r.is_dm ? ('DM: ' + (r.dm_with_username || r.created_by_username || '?')) : r.name }}</div>
+        </div>
         <p class="room-switcher-hint">↑↓ to navigate, Enter to select, Esc to close</p>
     </div>
     <div class="header" id="header">
@@ -938,7 +954,22 @@ const state = reactive({
     rolePermissions: {},
     defaultChannelId: null,
     theme: (typeof localStorage !== 'undefined' ? localStorage.getItem('chitchatTheme') : null) || 'dark',
-    bgColor: (typeof localStorage !== 'undefined' ? localStorage.getItem('chatBgColor') : null) || '#0f0f12'
+    bgColor: (typeof localStorage !== 'undefined' ? localStorage.getItem('chatBgColor') : null) || '#0f0f12',
+    profileModalUser: null,
+    whoisModalData: null,
+    editMessageModal: null,
+    editProfileModalOpen: false,
+    editProfileDraft: { status: '', away: '' },
+    editRoomModal: null,
+    searchResultsModal: null,
+    roomSwitcherOpen: false,
+    roomSwitcherFilter: '',
+    roomSwitcherHighlightId: null,
+    toasts: [],
+    contextMenu: null,
+    roomContextMenu: null,
+    messageContextMenu: null,
+    selectionContextMenu: null
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -1132,10 +1163,114 @@ const chitchatApp = createApp({
         function onLinkPreviewMinimize(ev) { var el = ev.target.closest('.msg-link-preview'); if (el) el.classList.add('minimized'); }
         function formatFavoriteWords(f) { var w = f.words || []; return w.map(function(x) { return x.word + ' (' + x.count + ')'; }).join(', '); }
         function formatHourLabel(h) { return h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm'); }
+        function formatProfileDate(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : ''; }
+        function formatWhoisDate(iso) { return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : ''; }
+        function formatWhoisConnected(connectedAt, connectedSeconds) {
+            if (!connectedAt) return '—';
+            var timeStr = new Date(connectedAt * 1000).toLocaleTimeString(undefined, { timeStyle: 'short' });
+            var since = connectedSeconds != null ? (connectedSeconds < 60 ? connectedSeconds + 's' : Math.floor(connectedSeconds / 60) + ' min') : '';
+            return 'Connected since: ' + timeStr + (since ? ' (' + since + ')' : '');
+        }
+        function formatTime(iso) { if (!iso) return ''; return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true }); }
+        const hasAnyModalOpen = computed(function() {
+            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen);
+        });
+        const roomSwitcherFiltered = computed(function() {
+            var rooms = roomsInOrder.value || [];
+            var q = (state.roomSwitcherFilter || '').toLowerCase().trim();
+            if (!q) return rooms;
+            return rooms.filter(function(r) {
+                var name = r.is_dm ? ((r.dm_with_username || r.created_by_username || '') + ' dm') : (r.name || '');
+                return name.toLowerCase().indexOf(q) !== -1;
+            });
+        });
+        function hideProfileModal() { state.profileModalUser = null; }
+        function hideWhoisModal() { state.whoisModalData = null; }
+        function hideAllModals() {
+            state.profileModalUser = null;
+            state.whoisModalData = null;
+            state.editMessageModal = null;
+            state.editProfileModalOpen = false;
+            state.editRoomModal = null;
+            state.searchResultsModal = null;
+            state.roomSwitcherOpen = false;
+            state.contextMenu = null;
+            state.roomContextMenu = null;
+            state.messageContextMenu = null;
+            state.selectionContextMenu = null;
+            if (window.chitchat && window.chitchat.hideAllContextMenus) window.chitchat.hideAllContextMenus();
+        }
+        function hideSearchResultsModal() { state.searchResultsModal = null; }
+        function hideEditMessageModal() { state.editMessageModal = null; }
+        function hideEditProfileModal() { state.editProfileModalOpen = false; }
+        function hideEditRoomModal() { state.editRoomModal = null; }
+        function onSearchResultClick(msg) {
+            hideSearchResultsModal();
+            if (state.currentRoom && state.currentRoom.id === msg.room_id) {
+                nextTick(function() {
+                    var msgEl = document.getElementById('msg-' + msg.id);
+                    if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                });
+            } else if (msg.room_id && window.chitchat && window.chitchat.switchRoom) {
+                window.chitchat.switchRoom(msg.room_id);
+            }
+        }
+        function saveEditMessage() {
+            if (state.editMessageModal && state.editMessageModal.content && state.editMessageModal.id && window.chitchat && window.chitchat.socket) {
+                window.chitchat.socket.emit('edit_message', { message_id: state.editMessageModal.id, content: state.editMessageModal.content.trim() });
+            }
+            hideEditMessageModal();
+        }
+        function saveEditProfile() {
+            if (window.chitchat && window.chitchat.socket) {
+                var draft = state.editProfileDraft || {};
+                window.chitchat.socket.emit('update_profile', {
+                    status_line: (draft.status || '').trim().slice(0, 120) || null,
+                    away_message: (draft.away || '').trim() || null
+                });
+            }
+            hideEditProfileModal();
+        }
+        function saveEditRoom() {
+            if (state.editRoomModal && window.chitchat && window.chitchat.socket) {
+                var room = (state.allRooms || []).find(function(r) { return r.id === state.editRoomModal.roomId; });
+                var payload = { room_id: state.editRoomModal.roomId, topic: (state.editRoomModal.topic || '').trim() };
+                if (!(state.editRoomModal.is_protected && !isSuperAdminFlag)) {
+                    payload.name = (state.editRoomModal.name || '').trim() || (room && room.name) || undefined;
+                }
+                window.chitchat.socket.emit('update_room', payload);
+            }
+            hideEditRoomModal();
+        }
+        function onEditMessageKeydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditMessage(); } }
+        function onEditProfileKeydown(e) { if (e.key === 'Enter') { e.preventDefault(); saveEditProfile(); } }
+        function onEditRoomKeydown(e) { if (e.key === 'Enter') { e.preventDefault(); saveEditRoom(); } }
+        function onRoomSwitcherKeydown(e) {
+            if (e.key === 'Escape') { state.roomSwitcherOpen = false; return; }
+            var list = roomSwitcherFiltered.value;
+            if (e.key === 'ArrowDown' && list.length) {
+                e.preventDefault();
+                var idx = list.findIndex(function(r) { return r.id === state.roomSwitcherHighlightId; });
+                state.roomSwitcherHighlightId = list[Math.min(idx + 1, list.length - 1)].id;
+            } else if (e.key === 'ArrowUp' && list.length) {
+                e.preventDefault();
+                var idx = list.findIndex(function(r) { return r.id === state.roomSwitcherHighlightId; });
+                state.roomSwitcherHighlightId = list[Math.max((idx < 0 ? list.length : idx) - 1, 0)].id;
+            } else if (e.key === 'Enter' && list.length) {
+                e.preventDefault();
+                var id = state.roomSwitcherHighlightId || list[0].id;
+                if (window.chitchat && window.chitchat.switchRoom) window.chitchat.switchRoom(id);
+                state.roomSwitcherOpen = false;
+            }
+        }
+        function onRoomSwitcherSelect(roomId) {
+            if (window.chitchat && window.chitchat.switchRoom) window.chitchat.switchRoom(roomId);
+            state.roomSwitcherOpen = false;
+        }
         function setTheme(theme) { if (window.chitchat && window.chitchat.setTheme) window.chitchat.setTheme(theme); }
         function setBgColor(val) { if (window.chitchat && window.chitchat.setBgColor) window.chitchat.setBgColor(val); }
         function deleteUser(userId, username) { if (window.chitchat && window.chitchat.settingsDeleteUser) window.chitchat.settingsDeleteUser(userId, username); }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, deleteUser };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, deleteUser };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -1185,32 +1320,18 @@ chitchatApp.mount('#app');
         if (!state.unreadMentions[roomId]) state.unreadMentions[roomId] = new Set();
         state.unreadMentions[roomId].add(msgId);
         updateUnreadBadge();
-        var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
-        if (roomEl) roomEl.classList.add('mentioned');
     }
     function addUnreadForRoom(roomId) {
         if (state.currentRoom && state.currentRoom.id === roomId) return;
         if (state.roomNotificationMuted[roomId]) return;
         state.unreadRooms[roomId] = true;
         updateUnreadBadge();
-        var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
-        if (roomEl) {
-            var dot = roomEl.querySelector('.room-item-unread-dot');
-            if (dot) dot.style.display = 'inline-block';
-        }
     }
     function clearUnreadForRoom(roomId) {
         if (state.unreadMentions[roomId]) { state.unreadMentions[roomId].clear(); delete state.unreadMentions[roomId]; }
         delete state.unreadRooms[roomId];
         lastReadByRoom[roomId] = true;
         updateUnreadBadge();
-        var roomEl = document.querySelector('.room-item[data-room-id="' + roomId + '"]');
-        if (roomEl) {
-            roomEl.classList.remove('mentioned');
-            var dot = roomEl.querySelector('.room-item-unread-dot');
-            if (dot) dot.style.display = 'none';
-        }
-        if (state.currentRoom && state.currentRoom.id === roomId) { /* mentioned class reactive via isMessageMentioned */ }
     }
     function isMessageUnread(roomId, msgId) {
         return state.unreadMentions[roomId] && state.unreadMentions[roomId].has(msgId);
@@ -1924,183 +2045,78 @@ chitchatApp.mount('#app');
         hideMessageContextMenu();
     });
 
-    var profileModal = document.getElementById('profileModal');
-    var profileUsername = document.getElementById('profileUsername');
-    var profileMemberSince = document.getElementById('profileMemberSince');
-    var modalBackdrop = document.getElementById('modalBackdrop');
     function showProfileModal(user) {
-        profileUsername.textContent = user.username || '—';
-        profileMemberSince.textContent = user.created_at ? 'Member since ' + new Date(user.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '';
-        profileModal.style.display = 'block';
-        modalBackdrop.style.display = 'block';
+        state.profileModalUser = user;
     }
-    function hideProfileModal() {
-        profileModal.style.display = 'none';
-        modalBackdrop.style.display = 'none';
-    }
-    document.getElementById('profileModalClose').addEventListener('click', hideProfileModal);
 
-    var editMessageModal = document.getElementById('editMessageModal');
-    var editMessageInput = document.getElementById('editMessageInput');
-    var editMessageOk = document.getElementById('editMessageOk');
-    var editMessageCancel = document.getElementById('editMessageCancel');
-    var editMessageTargetId = null;
     function showEditMessageModal(messageId, content) {
-        editMessageTargetId = messageId;
-        editMessageInput.value = content || '';
-        editMessageInput.style.height = 'auto';
-        editMessageInput.style.height = Math.min(editMessageInput.scrollHeight, 280) + 'px';
-        editMessageModal.style.display = 'block';
-        modalBackdrop.style.display = 'block';
-        setTimeout(function() {
-            editMessageInput.focus();
-        }, 50);
+        state.editMessageModal = { id: messageId, content: content || '' };
     }
-    function hideEditMessageModal() {
-        editMessageModal.style.display = 'none';
-        editMessageTargetId = null;
-        modalBackdrop.style.display = 'none';
+
+    function showSearchResultsModal(messages, query) {
+        state.searchResultsModal = { messages: messages || [], query: query || '' };
     }
-    if (editMessageOk) editMessageOk.addEventListener('click', function() {
-        var content = editMessageInput.value.trim();
-        if (content && editMessageTargetId) {
-            socket.emit('edit_message', { message_id: editMessageTargetId, content: content });
-        }
-        hideEditMessageModal();
-    });
-    if (editMessageCancel) editMessageCancel.addEventListener('click', hideEditMessageModal);
-    if (editMessageInput) {
-        editMessageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (editMessageOk) editMessageOk.click();
-            }
+
+    function showWhoisModal(data) {
+        state.whoisModalData = data;
+    }
+
+    function hideAllModalsFromIIFE() {
+        state.profileModalUser = null;
+        state.whoisModalData = null;
+        state.editMessageModal = null;
+        state.editProfileModalOpen = false;
+        state.editRoomModal = null;
+        state.searchResultsModal = null;
+        state.roomSwitcherOpen = false;
+        hideContextMenu();
+        hideMessageContextMenu();
+        hideRoomContextMenu();
+        hideSelectionContextMenu();
+    }
+
+    function showEditProfileModal() {
+        state.editProfileDraft = { status: typeof currentUserStatusLine === 'string' ? currentUserStatusLine : '', away: typeof currentUserAwayMessage === 'string' ? currentUserAwayMessage : '' };
+        state.editProfileModalOpen = true;
+    }
+
+    function hideEditProfileModalFromIIFE() {
+        state.editProfileModalOpen = false;
+    }
+
+    function showEditRoomModal(roomId) {
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
+        if (!room) return;
+        state.editRoomModal = { roomId: roomId, name: room.name || '', topic: room.topic || '', is_protected: !!room.is_protected };
+    }
+
+    function hideEditRoomModalFromIIFE() {
+        state.editRoomModal = null;
+    }
+
+    function getRoomSwitcherList() {
+        var q = (state.roomSwitcherFilter || '').toLowerCase().trim();
+        var byId = {};
+        (state.allRooms || []).forEach(function(r) { byId[r.id] = r; });
+        var rooms = [];
+        (state.roomOrderIds || []).forEach(function(rid) { if (byId[rid]) { rooms.push(byId[rid]); delete byId[rid]; } });
+        Object.keys(byId).forEach(function(rid) { rooms.push(byId[rid]); });
+        if (!q) return rooms;
+        return rooms.filter(function(r) {
+            var name = r.is_dm ? ((r.dm_with_username || r.created_by_username || '') + ' dm') : (r.name || '');
+            return name.toLowerCase().indexOf(q) !== -1;
         });
     }
-
-    function hideAllModals() {
-        hideProfileModal();
-        hideWhoisModal();
-        hideSearchResultsModal();
-        if (editMessageModal && editMessageModal.style.display === 'block') hideEditMessageModal();
-        if (editProfileModal && editProfileModal.style.display === 'block') hideEditProfileModal();
-        if (editRoomModal && editRoomModal.style.display === 'block') hideEditRoomModal();
-        if (selectionContextMenuEl && selectionContextMenuEl.style.display === 'block') hideSelectionContextMenu();
+    function openRoomSwitcher() {
+        state.roomSwitcherFilter = '';
+        state.roomSwitcherOpen = true;
+        var list = getRoomSwitcherList();
+        state.roomSwitcherHighlightId = list.length ? list[0].id : null;
+        setTimeout(function() {
+            var inp = document.querySelector('.room-switcher-modal input');
+            if (inp) inp.focus();
+        }, 50);
     }
-    modalBackdrop.addEventListener('click', hideAllModals);
-
-    var searchResultsModal = document.getElementById('searchResultsModal');
-    var searchResultsTitle = document.getElementById('searchResultsTitle');
-    var searchResultsList = document.getElementById('searchResultsList');
-    function showSearchResultsModal(messages, query) {
-        searchResultsTitle.textContent = 'Search: "' + escapeHtml(query) + '" (' + (messages ? messages.length : 0) + ' results)';
-        searchResultsList.innerHTML = '';
-        if (messages && messages.length) {
-            messages.forEach(function(msg) {
-                var displayName = (msg.display_name && msg.display_name.trim()) ? msg.display_name : (msg.username || '?');
-                var roomLabel = msg.room_name ? ' · ' + escapeHtml(msg.room_name) : '';
-                var contentSnippet = (msg.content || '').slice(0, 120) + ((msg.content || '').length > 120 ? '…' : '');
-                var el = document.createElement('div');
-                el.className = 'search-result-item';
-                el.dataset.msgId = msg.id;
-                el.dataset.roomId = msg.room_id;
-                el.innerHTML = '<div class="sr-header">' + escapeHtml(displayName) + ' ' + (msg.created_at ? formatTime(msg.created_at) : '') + roomLabel + '</div><div class="sr-content">' + escapeHtml(contentSnippet) + '</div>';
-                el.addEventListener('click', function() {
-                    var rid = parseInt(this.dataset.roomId, 10);
-                    var mid = parseInt(this.dataset.msgId, 10);
-                    hideSearchResultsModal();
-                    if (state.currentRoom && state.currentRoom.id === rid) {
-                        var msgEl = document.getElementById('msg-' + mid);
-                        if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    } else if (rid) switchRoom(rid);
-                });
-                searchResultsList.appendChild(el);
-            });
-        } else {
-            searchResultsList.innerHTML = '<div class="search-result-item" style="cursor:default;color:#71717a;">No messages found.</div>';
-        }
-        searchResultsModal.style.display = 'block';
-        modalBackdrop.style.display = 'block';
-    }
-    function hideSearchResultsModal() {
-        searchResultsModal.style.display = 'none';
-        modalBackdrop.style.display = (profileModal.style.display === 'block' || whoisModal.style.display === 'block') ? 'block' : 'none';
-    }
-    document.getElementById('searchResultsClose').addEventListener('click', hideSearchResultsModal);
-
-    var whoisModal = document.getElementById('whoisModal');
-    var whoisUsername = document.getElementById('whoisUsername');
-    var whoisCreated = document.getElementById('whoisCreated');
-    var whoisOnline = document.getElementById('whoisOnline');
-    var whoisIp = document.getElementById('whoisIp');
-    var whoisConnected = document.getElementById('whoisConnected');
-    var whoisDisplayName = document.getElementById('whoisDisplayName');
-    var whoisLastSeen = document.getElementById('whoisLastSeen');
-    var whoisStatus = document.getElementById('whoisStatus');
-    var whoisSharedRooms = document.getElementById('whoisSharedRooms');
-    function showWhoisModal(data) {
-        if (data.error) {
-            whoisUsername.textContent = 'Whois';
-            whoisCreated.textContent = data.error;
-            whoisOnline.style.display = 'none';
-            whoisIp.style.display = 'none';
-            whoisConnected.style.display = 'none';
-            whoisDisplayName.style.display = 'none';
-            whoisLastSeen.style.display = 'none';
-            whoisStatus.style.display = 'none';
-            whoisSharedRooms.style.display = 'none';
-        } else {
-            whoisUsername.textContent = data.username || '—';
-            whoisCreated.textContent = data.created_at ? 'Account created: ' + new Date(data.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '';
-            whoisOnline.textContent = 'Online: ' + (data.online ? 'Yes' : 'No');
-            whoisOnline.style.display = '';
-            if (data.display_name && data.display_name.trim()) {
-                whoisDisplayName.textContent = 'Display name: ' + data.display_name;
-                whoisDisplayName.style.display = '';
-            } else {
-                whoisDisplayName.style.display = 'none';
-            }
-            if (data.last_seen && !data.online) {
-                whoisLastSeen.textContent = 'Last seen: ' + new Date(data.last_seen).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-                whoisLastSeen.style.display = '';
-            } else {
-                whoisLastSeen.style.display = 'none';
-            }
-            if (data.status_line && data.status_line.trim()) {
-                whoisStatus.textContent = 'Status: ' + data.status_line;
-                whoisStatus.style.display = '';
-            } else {
-                whoisStatus.style.display = 'none';
-            }
-            if (data.shared_rooms && data.shared_rooms.length) {
-                whoisSharedRooms.textContent = 'Rooms with messages: ' + data.shared_rooms.join(', ');
-                whoisSharedRooms.style.display = '';
-            } else {
-                whoisSharedRooms.style.display = 'none';
-            }
-            if (data.online && data.ip) {
-                whoisIp.textContent = 'IP: ' + data.ip;
-                whoisIp.style.display = '';
-            } else {
-                whoisIp.style.display = data.online ? '' : 'none';
-                whoisIp.textContent = data.online ? 'IP: —' : '';
-            }
-            if (data.online && data.connected_at != null) {
-                var since = data.connected_seconds != null ? (data.connected_seconds < 60 ? data.connected_seconds + 's' : Math.floor(data.connected_seconds / 60) + ' min') : '';
-                whoisConnected.textContent = 'Connected since: ' + new Date(data.connected_at * 1000).toLocaleTimeString(undefined, { timeStyle: 'short' }) + (since ? ' (' + since + ')' : '');
-                whoisConnected.style.display = '';
-            } else {
-                whoisConnected.style.display = 'none';
-            }
-        }
-        whoisModal.style.display = 'block';
-        modalBackdrop.style.display = 'block';
-    }
-    function hideWhoisModal() {
-        whoisModal.style.display = 'none';
-        modalBackdrop.style.display = 'none';
-    }
-    document.getElementById('whoisModalClose').addEventListener('click', hideWhoisModal);
 
     function escapeHtml(s) {
         const el = document.createElement('div');
@@ -2297,80 +2313,10 @@ chitchatApp.mount('#app');
         if (ov) ov.classList.remove('visible');
     }
 
-    var editProfileModal = document.getElementById('editProfileModal');
-    var editProfileStatusInput = document.getElementById('editProfileStatusInput');
-    var editProfileAwayInput = document.getElementById('editProfileAwayInput');
-    var editProfileOk = document.getElementById('editProfileOk');
-    var editProfileCancel = document.getElementById('editProfileCancel');
-    function showEditProfileModal() {
-        if (editProfileStatusInput) editProfileStatusInput.value = typeof currentUserStatusLine === 'string' ? currentUserStatusLine : '';
-        if (editProfileAwayInput) editProfileAwayInput.value = typeof currentUserAwayMessage === 'string' ? currentUserAwayMessage : '';
-        if (editProfileModal) editProfileModal.style.display = 'block';
-        if (modalBackdrop) modalBackdrop.style.display = 'block';
-        setTimeout(function() { if (editProfileStatusInput) editProfileStatusInput.focus(); }, 50);
-    }
-    function hideEditProfileModal() {
-        if (editProfileModal) editProfileModal.style.display = 'none';
-        if (modalBackdrop) modalBackdrop.style.display = 'none';
-    }
-    if (editProfileOk) editProfileOk.addEventListener('click', function() {
-        var statusLine = editProfileStatusInput ? editProfileStatusInput.value.trim().slice(0, 120) : '';
-        var awayMessage = editProfileAwayInput ? editProfileAwayInput.value.trim() : '';
-        socket.emit('update_profile', { status_line: statusLine || null, away_message: awayMessage || null });
-        hideEditProfileModal();
-    });
-    if (editProfileCancel) editProfileCancel.addEventListener('click', hideEditProfileModal);
-    if (editProfileStatusInput) editProfileStatusInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); if (editProfileOk) editProfileOk.click(); }
-    });
-
-    var editRoomModal = document.getElementById('editRoomModal');
-    var editRoomInput = document.getElementById('editRoomInput');
-    var editRoomTopicInput = document.getElementById('editRoomTopicInput');
-    var editRoomOk = document.getElementById('editRoomOk');
-    var editRoomCancel = document.getElementById('editRoomCancel');
-    var editRoomTargetId = null;
-    function showEditRoomModal(roomId) {
-        var room = state.allRooms.find(function(r) { return r.id === roomId; });
-        if (!room) return;
-        editRoomTargetId = roomId;
-        if (editRoomInput) editRoomInput.value = room.name || '';
-        if (editRoomTopicInput) editRoomTopicInput.value = room.topic || '';
-        if (editRoomModal) editRoomModal.style.display = 'block';
-        if (modalBackdrop) modalBackdrop.style.display = 'block';
-        setTimeout(function() { if (editRoomInput) editRoomInput.focus(); }, 50);
-    }
-    function hideEditRoomModal() {
-        if (editRoomModal) editRoomModal.style.display = 'none';
-        editRoomTargetId = null;
-        if (modalBackdrop) modalBackdrop.style.display = 'none';
-    }
     function editRoom(roomId) {
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (!room) return;
         showEditRoomModal(roomId);
-    }
-    if (editRoomOk) editRoomOk.addEventListener('click', function() {
-        var room = state.allRooms.find(function(r) { return r.id === editRoomTargetId; });
-        var name = editRoomInput ? editRoomInput.value.trim() : '';
-        var topic = editRoomTopicInput ? editRoomTopicInput.value.trim() : '';
-        if (editRoomTargetId) {
-            socket.emit('update_room', {
-                room_id: editRoomTargetId,
-                name: name || (room && room.name) || undefined,
-                topic: topic
-            });
-        }
-        hideEditRoomModal();
-    });
-    if (editRoomCancel) editRoomCancel.addEventListener('click', hideEditRoomModal);
-    if (editRoomInput) {
-        editRoomInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (editRoomOk) editRoomOk.click();
-            }
-        });
     }
 
     function deleteRoom(roomId) {
@@ -2407,7 +2353,13 @@ chitchatApp.mount('#app');
         inputEl.style.height = Math.min(inputEl.scrollHeight, 128) + 'px';
         setTimeout(function() { if (inputEl) inputEl.focus(); }, 50);
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
+    function hideAllContextMenus() {
+        hideContextMenu();
+        hideMessageContextMenu();
+        hideRoomContextMenu();
+        hideSelectionContextMenu();
+    }
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -2955,70 +2907,14 @@ chitchatApp.mount('#app');
     }
     if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
 
-    var roomSwitcherModal = document.getElementById('roomSwitcherModal');
-    var roomSwitcherInput = document.getElementById('roomSwitcherInput');
-    var roomSwitcherList = document.getElementById('roomSwitcherList');
-    var roomSwitcherSelectedIdx = 0;
-    function getFilteredRoomsForSwitcher() {
-        var q = (roomSwitcherInput && roomSwitcherInput.value || '').trim().toLowerCase();
-        var rooms = [];
-        state.allRooms.forEach(function(r) {
-            var label = r.is_dm ? (r.dm_with_username || r.name || 'DM') : r.name;
-            if (!q || label.toLowerCase().indexOf(q) !== -1) rooms.push(r);
-        });
-        return rooms;
-    }
-    function showRoomSwitcher() {
-        if (!roomSwitcherModal || !roomSwitcherList) return;
-        if (roomSwitcherInput) { roomSwitcherInput.value = ''; roomSwitcherInput.focus(); }
-        roomSwitcherSelectedIdx = 0;
-        renderRoomSwitcherList();
-        roomSwitcherModal.style.display = 'block';
-    }
-    function hideRoomSwitcher() {
-        if (roomSwitcherModal) roomSwitcherModal.style.display = 'none';
-        if (inputEl) inputEl.focus();
-    }
-    function renderRoomSwitcherList() {
-        var rooms = getFilteredRoomsForSwitcher();
-        roomSwitcherList.innerHTML = '';
-        rooms.forEach(function(r, i) {
-            var label = r.is_dm ? (r.dm_with_username || r.name || 'DM') : r.name;
-            var el = document.createElement('div');
-            el.className = 'room-switcher-item' + (i === roomSwitcherSelectedIdx ? ' selected' : '');
-            el.setAttribute('role', 'option');
-            el.dataset.roomId = r.id;
-            el.textContent = label;
-            el.addEventListener('click', function() { switchRoom(r.id); hideRoomSwitcher(); });
-            roomSwitcherList.appendChild(el);
-        });
-    }
-    function selectRoomInSwitcher() {
-        var rooms = getFilteredRoomsForSwitcher();
-        if (rooms.length && roomSwitcherSelectedIdx >= 0 && roomSwitcherSelectedIdx < rooms.length) {
-            switchRoom(rooms[roomSwitcherSelectedIdx].id);
-            hideRoomSwitcher();
-        }
-    }
-    if (roomSwitcherInput) {
-        roomSwitcherInput.addEventListener('input', function() { roomSwitcherSelectedIdx = 0; renderRoomSwitcherList(); });
-        roomSwitcherInput.addEventListener('keydown', function(e) {
-            var rooms = getFilteredRoomsForSwitcher();
-            if (e.key === 'ArrowDown') { e.preventDefault(); roomSwitcherSelectedIdx = Math.min(roomSwitcherSelectedIdx + 1, rooms.length - 1); renderRoomSwitcherList(); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); roomSwitcherSelectedIdx = Math.max(roomSwitcherSelectedIdx - 1, 0); renderRoomSwitcherList(); }
-            else if (e.key === 'Enter') { e.preventDefault(); selectRoomInSwitcher(); }
-            else if (e.key === 'Escape') { e.preventDefault(); hideRoomSwitcher(); }
-        });
-    }
-
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (roomSwitcherModal && roomSwitcherModal.style.display === 'block') hideRoomSwitcher();
+            if (state.roomSwitcherOpen) state.roomSwitcherOpen = false;
             else {
                 hideContextMenu();
                 hideMessageContextMenu();
                 hideRoomContextMenu();
-                hideAllModals();
+                hideAllModalsFromIIFE();
                 if (searchDrawerEl) searchDrawerEl.classList.remove('open');
                 var mso = document.getElementById('mobileSearchOverlay');
                 if (mso) mso.classList.remove('visible');
@@ -3026,7 +2922,7 @@ chitchatApp.mount('#app');
         }
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            showRoomSwitcher();
+            openRoomSwitcher();
         }
     });
 

@@ -212,8 +212,8 @@ CDN-based Vue 3 (Composition API), no build step. Flask backend unchanged.
 ## Implementation Order
 
 1. **Phase 2 first**: Add Vue CDN, create app with reactive state, wire Socket.IO to update state. Keep existing DOM initially; verify state updates correctly. ✅ **DONE**
-2. **Phase 3 incrementally**: Replace one section at a time (e.g. RoomList → MessageList → MessageItem) with Vue templates, testing as we go. ✅ **DONE** (TypingIndicator, ChannelTopic, RoomList, UserList)
-3. **Cleanup**: Remove dead code, ensure all event handlers use Vue state.
+2. **Phase 3 incrementally**: Replace one section at a time (e.g. RoomList → MessageList → MessageItem) with Vue templates, testing as we go. ✅ **DONE** (TypingIndicator, ChannelTopic, RoomList, UserList, Messages, Stats, Settings)
+3. **Cleanup**: Remove dead code, ensure all event handlers use Vue state. ✅ **DONE**
 
 ---
 
@@ -221,9 +221,12 @@ CDN-based Vue 3 (Composition API), no build step. Flask backend unchanged.
 
 - **TypingIndicator**: Reactive computed `typingText` from `state.typingUsers`; removed `updateTypingIndicator()`
 - **ChannelTopic**: Computeds `channelTopicHtml`, `channelTopicEmpty`, `mobileRoomName`, `showChannelTopic`; removed `renderChannelTopic()` and `updateMobileRoomName()`
-- **RoomList**: Vue v-for over `channelsInOrder` and `dmsInOrder`; click, edit, delete, drag-and-drop handlers; `renderRoomList()` now only updates state
+- **RoomList**: Vue v-for over `channelsInOrder` and `dmsInOrder`; click, edit, delete, drag-and-drop handlers
 - **UserList**: Vue v-for over `onlineUsers` and `offlineUsers`; removed `renderUserList()`
-- **window.chitchat**: Exposes `switchRoom`, `editRoom`, `deleteRoom`, `socket` for Vue template handlers
+- **Modals (Vue)**: Profile, Whois, Edit Message, Edit Profile, Edit Room, Search Results, Room Switcher — all use `v-if` and reactive state (state.profileModalUser, state.whoisModalData, etc.) instead of imperative DOM
+- **Room Switcher**: Vue v-for over `roomSwitcherFiltered`; keyboard nav (↑↓ Enter Esc); Ctrl+K to open
+- **Unread indicators**: Removed redundant DOM manipulation in addUnreadForRoom/clearUnreadForRoom; Vue reactivity handles display
+- **window.chitchat**: Exposes switchRoom, editRoom, deleteRoom, socket, showProfileModal, showWhoisModal, showSearchResultsModal, showEditMessageModal, showEditProfileModal, openRoomSwitcher, hideAllContextMenus, and settings helpers
 - **App mount**: `chitchatApp.mount('#app')` runs after IIFE so `window.chitchat` is available
 
 ---
@@ -238,7 +241,7 @@ CDN-based Vue 3 (Composition API), no build step. Flask backend unchanged.
 - **Socket handlers** updated to mutate `state.*` and `status.value` instead of local variables
 - **setStatus** / **setConnected** update Vue refs; DOM updates reactively
 - **setAcroPhase** uses state.acroPhase, state.acroEndTime, state.acroAcronym
-- **Render functions** (renderRoomList, renderAllMessages, etc.) still use imperative DOM; they read from `state` and are called when socket events arrive
+- **Modals and Room Switcher**: Converted to Vue v-if templates; show/hide via state updates
 
 ---
 
