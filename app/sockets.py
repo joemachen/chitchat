@@ -979,7 +979,6 @@ def register_socket_handlers(socketio):
                     _broadcast_new_message(room_id, msg.to_dict())
                 return
             if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active() and frink_user:
-            if cmd in ("!help", "!commands", "! help", "! commands") and is_frink_active() and frink_user:
                 help_text = frink_get_help()
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=help_text, message_type="chat")
                 db.session.add(msg)
