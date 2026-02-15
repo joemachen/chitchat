@@ -21,9 +21,11 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 | **!Simpsons** | Homer replies with a random Simpsons quote (when Homer is online). |
 | **/em** &lt;text&gt; or **/me** &lt;text&gt; | Send an emote: “* username text” in italics. |
 
-**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a channel to **Edit channel** (name and topic). Right-click other users for Whois, Message, Mute, etc.
+**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a channel to **Edit channel** (name and topic). Right-click other users for Whois, Message, Mute, etc. Menus stay within the viewport on desktop and mobile.
 
 **Shortcuts** — **Ctrl+K** opens the room switcher; **Esc** closes modals.
+
+**Appearance** — Settings → Appearance: theme (dark/light/high-contrast), chat background color, and font (system default or common system fonts).
 
 **Mobile** — On screens under 768px, a 3-tab bottom bar (Rooms, DMs, Settings) replaces the hamburger menu. Tap Rooms or DMs to open the channel list; tap Settings to open Settings.
 

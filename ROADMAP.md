@@ -11,7 +11,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 - **Stack**: Flask, Flask-SocketIO, eventlet, Flask-SQLAlchemy, SQLite (dev) / PostgreSQL/Neon (prod), Vue 3 (CDN); optional pywebview standalone.
 - **Run**: `run.py` (browser), `run_standalone.py` (native window). Port fallback: if 5000 is in use, tries 5001–5019 automatically.
 - **Production**: Koyeb + Neon Postgres; `Procfile` + `wsgi.py`; gunicorn with eventlet worker.
-- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–017), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
+- **Foundation**: Logging (`logs/app.log`, `logs/errors.log`), migrations (Alembic, 001–018), docs (TECH_STACK, ARCHITECTURE, TECHNICAL_OVERVIEW, ROADMAP).
 
 ### Auth & users
 
@@ -128,9 +128,9 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 3. **Message reactions** — *(done)*
 4. **Unread indicators** — *(done)*
 5. **Search** — Search messages in current room or all rooms *(done — in-room search; mobile: in hamburger)*
-6. **Reconnection + history re-fetch** — Refetch recent messages on reconnect
-7. **Netsplit** — Easter egg: `/netsplit` or random fake netsplit for lols
-8. **Accessibility** — Semantic HTML, keyboard nav, reduced motion, high-contrast
+6. **Reconnection + history re-fetch** — On reconnect, client emits `join_room` and receives `room_joined` with full history *(done)*
+7. **Netsplit** — Easter egg: `/netsplit` posts fake netsplit + reconnection messages *(done)*
+8. **Accessibility** — High-contrast theme and `prefers-reduced-motion` done; room switcher keyboard nav (↑↓ Enter Esc); modal Enter/Esc; semantic HTML (article, role=menu); focus management; toast aria-live; form labels *(done)*
 9. **Rate limits** — Throttle messages per user per minute *(done)*
 10. **Audit log** — Super Admin view of who did what *(done)*
 11. **Voice chat** — 1:1 or small-group (2–4) via WebRTC P2P; long-term

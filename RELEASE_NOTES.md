@@ -1,5 +1,25 @@
 # Release notes
 
+## v2.6.0 — Accessibility, font picker, mobile layout, context menu
+
+**Accessibility**
+- **Toast announcements** — Toasts (pings, reconnected, topic updated, etc.) now use an `aria-live` region so screen readers announce them.
+- **Semantic HTML** — Messages wrapped in `<article>`; context menus use `role="menu"` and `role="menuitem"`; header and modals have proper ARIA.
+- **Focus management** — Modals focus the first focusable element on open and restore focus on close; room switcher arrows move focus between options.
+- **Form labels** — Message input and attach button have `aria-label`; room switcher options have `aria-selected` and `tabindex`.
+
+**Appearance**
+- **Font picker** — Settings → Appearance: choose from system fonts (Segoe UI, Inter, Roboto, Helvetica Neue, Arial, Georgia, Verdana, Times New Roman) or use system default.
+- **Settings/Log out spacing** — Increased gap between Settings link and Log out button in header and room list footer.
+
+**Mobile**
+- **Rooms panel** — Rooms drawer now extends to the bottom of the screen; New room button and Search/Settings/Log out remain visible with safe-area padding.
+
+**Context menus**
+- **Screen boundaries** — Context menus (user, room, message, selection) stay within viewport; on mobile, menus avoid the bottom navigation bar.
+
+---
+
 ## v2.5.0 — Trivia rounds, bot DMs, hot streaks, scrollbars, UX
 
 **Prof Frink trivia**
