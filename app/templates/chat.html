@@ -748,7 +748,13 @@
                         <template v-if="(state.stats && state.stats.acro_leaderboard && state.stats.acro_leaderboard.length)">
                             <h2>Acrophobia leaderboard</h2>
                             <ul>
-                                <li v-for="(a, i) in state.stats.acro_leaderboard" :key="a.user_id" class="stat-row"><span>{{ i + 1 }}. {{ a.username }}</span><span>{{ a.wins }} win(s)</span></li>
+                                <li v-for="(a, i) in state.stats.acro_leaderboard" :key="'acro-'+a.user_id" class="stat-row"><span>{{ i + 1 }}. {{ a.username }}</span><span>{{ a.wins }} win(s)</span></li>
+                            </ul>
+                        </template>
+                        <template v-if="(state.stats && state.stats.trivia_leaderboard && state.stats.trivia_leaderboard.length)">
+                            <h2>Trivia leaderboard</h2>
+                            <ul>
+                                <li v-for="(t, i) in state.stats.trivia_leaderboard" :key="'trivia-'+t.user_id" class="stat-row"><span>{{ i + 1 }}. {{ t.username }}</span><span>{{ t.correct }} correct</span></li>
                             </ul>
                         </template>
                     </div>
@@ -832,6 +838,13 @@
                                     <select :value="state.defaultChannelId || ''" @change="window.chitchat && window.chitchat.settingsSetDefaultChannel && window.chitchat.settingsSetDefaultChannel($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
                                         <option v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" :value="String(r.id)">{{ r.name }}</option>
                                     </select>
+                                </div>
+                                <h2>Bot channels</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Which channels each bot can respond in. Comma-separated names; "all" or empty = all channels.</p>
+                                <div class="user-row" style="flex-direction:column;align-items:stretch;gap:0.5rem;">
+                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">AcroBot:</span><input type="text" :value="(state.botChannels && state.botChannels.acrobot) ? state.botChannels.acrobot.join(', ') : ''" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('acrobot', $event.target.value)" placeholder="Acrophobia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
+                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Homer:</span><input type="text" :value="(state.botChannels && state.botChannels.homer) ? state.botChannels.homer.join(', ') : 'all'" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('homer', $event.target.value)" placeholder="all" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
+                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Prof Frink:</span><input type="text" :value="(state.botChannels && state.botChannels.frink) ? state.botChannels.frink.join(', ') : ''" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('frink', $event.target.value)" placeholder="Trivia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
                                 </div>
                                 <h2>Role Permissions</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Surfer Girl can grant these permissions to Rookie, Bro, or Fam. Surfer Girl always has full access.</p>
@@ -956,6 +969,7 @@ const state = reactive({
     frinkActive: true,
     messageRetentionDays: {{ (message_retention_days|default(none))|tojson }},
     auditLogEntries: [],
+    botChannels: { acrobot: ['Acrophobia'], homer: null, frink: ['Trivia'] },
     rolePermissions: {},
     defaultChannelId: null,
     theme: (typeof localStorage !== 'undefined' ? localStorage.getItem('chitchatTheme') : null) || 'dark',
@@ -2280,6 +2294,14 @@ chitchatApp.mount('#app');
             socket.emit('set_default_room', { room_id: rid });
         }
     }
+    function settingsSetBotChannels(bot, value) {
+        var v = (value || '').trim().toLowerCase();
+        var channels = (v === 'all' || v === '') ? null : value.split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+        var cfg = state.botChannels || { acrobot: ['Acrophobia'], homer: null, frink: ['Trivia'] };
+        cfg[bot] = channels;
+        socket.emit('set_bot_channels', cfg);
+        state.botChannels = cfg;
+    }
     function settingsSetRolePermission(role, permission, allowed) {
         if (!state.rolePermissions[role]) state.rolePermissions[role] = {};
         state.rolePermissions[role][permission] = allowed;
@@ -2372,7 +2394,7 @@ chitchatApp.mount('#app');
         hideRoomContextMenu();
         hideSelectionContextMenu();
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -2639,8 +2661,12 @@ chitchatApp.mount('#app');
 
     socket.on('role_permissions', function(data) {
         if (data.default_room_id != null) state.defaultChannelId = String(data.default_room_id || '');
+        if (data.bot_channels && isSuperAdmin) state.botChannels = data.bot_channels;
         if (!data.permissions || !isSuperAdmin) return;
         state.rolePermissions = data.permissions || {};
+    });
+    socket.on('bot_channels', function(data) {
+        if (data && isSuperAdmin) state.botChannels = data;
     });
 
     socket.on('audit_log', function(data) {

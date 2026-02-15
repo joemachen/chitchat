@@ -21,7 +21,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Rooms & channels
 
-- **Rooms**: general, Stats (stats view, no send form), **Acrophobia** (game bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Protected channels**: Only Surfer Girl can rename protected channels; others see an alert when editing but can still edit the topic. **Default channel**: Surfer Girl can set which channel users see on login (Settings → Default channel).
+- **Rooms**: general, Stats (stats view: top typers, active hours, favorite words, Acrophobia & Trivia leaderboards), **Acrophobia** (game bot), **Trivia** (Prof Frink bot), plus user-created rooms. Full CRUD for channels (Surfer Girl or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Protected channels**: Only Surfer Girl can rename protected channels; others see an alert when editing but can still edit the topic. **Default channel**: Surfer Girl can set which channel users see on login (Settings → Default channel).
 - **Channel topic**: Any user can set with **/topic &lt;content&gt;**. Topic is pinned at top of channel with “Set by &lt;user&gt; on &lt;date/time&gt;”; toast notifies the room when topic is updated.
 
 ### Real-time & commands
@@ -83,7 +83,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 ### Phase 4 — Polish & “best of” features
 
 - **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; **status (online/away/dnd/invisible)** done — right-click own name; rich presence (“in Acrophobia”, “in general”).
-- **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room; more bot channels (trivia, word games) using same pattern.
+- **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room and in Stats; **Prof Frink trivia** done (Trivia room, scoring, leaderboard in Stats); **Bot channel management** done (Surfer Girl configures which channels each bot can respond in).
 - **Reliability**: Optional reconnection with history re-fetch; “last N messages” cache; optional read receipts or “last seen”.
 
 ### Phase 5 — Mobile distribution (long-term, on hold)

@@ -153,6 +153,42 @@ def _get_users_with_online_status():
     return result
 
 
+def _get_bot_channel_config() -> dict:
+    """Return {bot_name: [room_names] or None}. None = all channels."""
+    row = AppSetting.query.filter_by(key="bot_channel_names").first()
+    if not row or not row.value:
+        return {"acrobot": ["Acrophobia"], "homer": None, "frink": ["Trivia"]}
+    try:
+        cfg = json.loads(row.value)
+        defaults = {"acrobot": ["Acrophobia"], "homer": None, "frink": ["Trivia"]}
+        return {k: cfg.get(k, defaults[k]) for k in ("acrobot", "homer", "frink")}
+    except (TypeError, ValueError, KeyError):
+        return {"acrobot": ["Acrophobia"], "homer": None, "frink": ["Trivia"]}
+
+
+def _set_bot_channel_config(cfg: dict) -> None:
+    """Persist bot channel config. cfg: {bot_name: [room_names] or None}."""
+    row = AppSetting.query.filter_by(key="bot_channel_names").first()
+    val = json.dumps(cfg)
+    if row:
+        row.value = val
+    else:
+        db.session.add(AppSetting(key="bot_channel_names", value=val))
+    db.session.commit()
+
+
+def _bot_allowed_in_room(bot_name: str, room_obj) -> bool:
+    """True if bot is allowed to respond in this room. For DMs, room name is 'DM'."""
+    room_name = "DM" if room_obj.dm_with_id else (room_obj.name or "")
+    cfg = _get_bot_channel_config()
+    allowed = cfg.get(bot_name)
+    if allowed is None:
+        return True
+    if not isinstance(allowed, list):
+        return False
+    return room_name.strip() in [a.strip() for a in allowed]
+
+
 def _get_room_mutes_for_user(user_id, room_id):
     """Return set of user_ids that user_id has muted in room_id."""
     records = RoomMute.query.filter_by(room_id=room_id, muted_by_id=user_id).all()
@@ -264,11 +300,23 @@ def _get_stats():
             {"user_id": r.user_id, "username": acro_users.get(r.user_id) or "?", "wins": r.wins}
             for r in acro_rows
         ]
+    # Trivia leaderboard (Trivia room only)
+    trivia_room = Room.query.filter_by(name="Trivia").first()
+    trivia_leaderboard = []
+    if trivia_room:
+        trivia_rows = TriviaScore.query.filter_by(room_id=trivia_room.id).order_by(TriviaScore.correct.desc()).limit(10).all()
+        trivia_user_ids = [r.user_id for r in trivia_rows]
+        trivia_users = {u.id: u.username for u in User.query.filter(User.id.in_(trivia_user_ids)).all()}
+        trivia_leaderboard = [
+            {"user_id": r.user_id, "username": trivia_users.get(r.user_id) or "?", "correct": r.correct}
+            for r in trivia_rows
+        ]
     return {
         "top_typers": top_typers,
         "active_hours_by_day": active_hours_by_day,
         "favorite_words": favorite_words,
         "acro_leaderboard": acro_leaderboard,
+        "trivia_leaderboard": trivia_leaderboard,
     }
 
 
@@ -874,11 +922,11 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "User not found"})
             return
 
-        # Prof Frink — Trivia bot (only in #Trivia channel)
+        # Prof Frink — Trivia bot (channel configurable via Settings)
         trivia_commands = ("!trivia", "! trivia", "!help", "!commands", "! help", "! commands", "!settings", "! settings",
                           "!set-difficulty", "! set-difficulty", "!set-seasons", "! set-seasons", "!daily", "! daily",
                           "!score", "/score", "! score", "/ score")
-        if room_obj.name == "Trivia":
+        if _bot_allowed_in_room("frink", room_obj):
             frink_user = User.query.filter_by(username="Prof Frink").first()
             parts = content.strip().split()
             cmd = parts[0].lower() if parts else ""
@@ -996,9 +1044,9 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message(room_id, winner_msg.to_dict())
 
-        # !Simpsons — Homer says a random Simpsons quote (when Homer is active)
+        # !Simpsons — Homer says a random Simpsons quote (when Homer is active, channel allowed)
         low_content = content.strip().lower()
-        if low_content in ("!simpsons", "! simpsons"):
+        if low_content in ("!simpsons", "! simpsons") and _bot_allowed_in_room("homer", room_obj):
             if is_homer_active():
                 homer_user = User.query.filter_by(username="Homer").first()
                 if homer_user:
@@ -1302,8 +1350,8 @@ def register_socket_handlers(socketio):
             logger.info("User %s set topic in room %s", user.username, room_id)
             return
 
-        # Acrophobia room: game commands and submissions (no user message saved)
-        if room_obj.name == "Acrophobia":
+        # Acrophobia room: game commands and submissions (no user message saved; channel configurable)
+        if room_obj.name == "Acrophobia" and _bot_allowed_in_room("acrobot", room_obj):
             acrobot = User.query.filter_by(username="AcroBot").first()
             if acrobot:
                 result = acrophobia_handle_message(room_id, user_id, user.username, content, from_dm=False)
@@ -2359,13 +2407,13 @@ def register_socket_handlers(socketio):
         """Return role permissions for Settings. Surfer Girl only."""
         user_id = session.get("user_id")
         if not user_id:
-            emit("role_permissions", {"permissions": {}, "default_room_id": None})
+            emit("role_permissions", {"permissions": {}, "default_room_id": None, "bot_channels": None})
             return
         if not _is_super_admin(user_id):
-            emit("role_permissions", {"permissions": {}, "default_room_id": None})
+            emit("role_permissions", {"permissions": {}, "default_room_id": None, "bot_channels": None})
             return
         default_rid = _get_default_room_id()
-        emit("role_permissions", {"permissions": _get_role_permissions_dict(), "default_room_id": default_rid})
+        emit("role_permissions", {"permissions": _get_role_permissions_dict(), "default_room_id": default_rid, "bot_channels": _get_bot_channel_config()})
 
     @socketio.on("get_audit_log")
     def on_get_audit_log(data=None):
@@ -2515,6 +2563,37 @@ def register_socket_handlers(socketio):
         socketio.emit("frink_status", {"active": is_frink_active()})
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
         logger.info("User %s set Prof Frink active=%s", user_id, is_frink_active())
+
+    @socketio.on("get_bot_channels")
+    def on_get_bot_channels(data=None):
+        """Return bot channel config. Surfer Girl only."""
+        user_id = session.get("user_id")
+        if not user_id or not _is_super_admin(user_id):
+            emit("bot_channels", {"acrobot": [], "homer": None, "frink": []})
+            return
+        emit("bot_channels", _get_bot_channel_config())
+
+    @socketio.on("set_bot_channels")
+    def on_set_bot_channels(data):
+        """Set which channels each bot can respond in. Surfer Girl only. {acrobot: [...], homer: null, frink: [...]}."""
+        user_id = session.get("user_id")
+        if not user_id or not _is_super_admin(user_id):
+            emit("error", {"message": "Only Surfer Girls can configure bot channels"})
+            return
+        cfg = data or {}
+        new_cfg = {}
+        for k in ("acrobot", "homer", "frink"):
+            val = cfg.get(k)
+            if val is None:
+                new_cfg[k] = None
+            elif isinstance(val, list):
+                new_cfg[k] = [str(x).strip() for x in val if str(x).strip()]
+            else:
+                new_cfg[k] = _get_bot_channel_config().get(k)
+        _set_bot_channel_config(new_cfg)
+        _audit_log(user_id, "set_bot_channels", None, None, new_cfg)
+        emit("bot_channels", _get_bot_channel_config())
+        logger.info("User %s set bot channels: %s", user_id, new_cfg)
 
     @socketio.on("reset_stats_data")
     def on_reset_stats_data(data):

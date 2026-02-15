@@ -1,5 +1,15 @@
 # Release notes
 
+## v2.4.0 — Bot channel management, trivia in Stats
+
+**Bot channel management**
+- **Surfer Girl config** — Settings → Bot channels: configure which channels AcroBot, Homer, and Prof Frink can respond in. Comma-separated channel names; "all" or empty = all channels. Defaults: AcroBot=Acrophobia, Homer=all, Prof Frink=Trivia.
+
+**Stats channel**
+- **Trivia leaderboard** — Stats view now shows Trivia leaderboard (top 10 by correct answers), alongside Acrophobia leaderboard.
+
+---
+
 ## v2.3.0 — Trivia scoring, leaderboard, first-correct-wins
 
 **Prof Frink trivia**

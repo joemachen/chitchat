@@ -86,7 +86,7 @@ chitchat/
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**; users **AcroBot**, **System**, and **Homer**; and optionally promotes user “Joe” to Surfer Girl.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Surfer Girl.
 
 ### 3.3 Design principles
 
@@ -113,7 +113,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Fields**: `id`, `name`, `created_at`, `created_by_id`, `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id`, `is_protected`.
 - **DM semantics**: If `dm_with_id` is set, the room is a DM between `created_by_id` and `dm_with_id`. Name is stored as `"DM"`; display name (“DM: <other_username>”) is derived on the client from `created_by_id`, `created_by_username`, `dm_with_username`, and current user id.
 - **Relations**: `created_by`, `topic_set_by`, `dm_with`, `messages` (cascade delete).
-- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events** can only be deleted from Settings by Surfer Girl (backend checks `from_settings` on delete).
+- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events**, **Trivia** can only be deleted from Settings by Surfer Girl (backend checks `from_settings` on delete).
 
 ### 4.3 Message
 
@@ -212,11 +212,11 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ### 6.5 Stats
 
 - **Stats room**: When a user joins the room named “Stats”, server emits `room_joined` with `history: []` and `stats: _get_stats()`.
-- **`_get_stats()`**: Aggregates from **Message** table: top 10 typers (message count per user), active hours (messages per hour 0–23), favorite words (top 5 users by message count, top 10 words each, stop words excluded). No separate stats table; “reset Stats data” deletes all messages.
+- **`_get_stats()`**: Aggregates from **Message** table: top 10 typers (message count per user), active hours (messages per hour 0–23), favorite words (top 5 users by message count, top 10 words each, stop words excluded). Also includes **Acrophobia leaderboard** (AcroScore) and **Trivia leaderboard** (TriviaScore). No separate stats table; “reset Stats data” deletes all messages.
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.3.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `2.4.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 
@@ -234,7 +234,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (Surfer Girl) with `from_settings: true`. Only Surfer Girl can rename protected channels. Non–Surfer Girl users editing a protected channel see an alert instead of the name input but can still edit the topic.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
   - **Context menu**: Right-click (or long-press on mobile) on username (in messages or user list) → **Edit profile** (self only: status, away message), Whois, Message (opens/creates DM), Kick (Surfer Girl or kick_user permission; AcroBot/Homer: Surfer Girl only). Right-click on channel → Edit channel (name and topic). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
-  - **Settings**: Rendered in place of chat when “Settings” is open: **Appearance** tab (Theme Dark/Light, high-contrast), **Notifications** tab (room notification mute), **Chat history** (delete all own messages, auto-delete retention 7/30/90 days), AcroBot toggle, Homer toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
+  - **Settings**: Rendered in place of chat when “Settings” is open: **Appearance** tab (Theme Dark/Light, high-contrast), **Notifications** tab (room notification mute), **Chat history** (delete all own messages, auto-delete retention 7/30/90 days), AcroBot toggle, Homer toggle, Prof Frink toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), **Bot channels** (Surfer Girl: which channels each bot can respond in), Role Permissions table (Surfer Girl only), Surfer Girl checkboxes, **Default channel** dropdown (Surfer Girl only). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
 ---

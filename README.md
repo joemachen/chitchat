@@ -1,6 +1,6 @@
 # ChitChat
 
-A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persistent, local-first: run it on your machine and open it in a browser or in a standalone window. Invite-only sign-up, rooms, real-time messages, an Acrophobia game bot, and a Homer bot (!Simpsons).
+A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persistent, local-first: run it on your machine and open it in a browser or in a standalone window. Invite-only sign-up, rooms, real-time messages, an Acrophobia game bot, a Homer bot (!Simpsons), and a Prof Frink trivia bot (#Trivia).
 
 ## Run
 
@@ -39,7 +39,17 @@ Type **/help** or **/msg acrobot help** in that room for full instructions and r
 | **/vote** &lt;N&gt; | During voting, vote for submission N (e.g. /vote 1). |
 | **/score** | Show the in-channel leaderboard (wins). Scores are persisted in the database. |
 
-Surfer Girl (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Surfer Girl (or homer_control permission) can turn Homer on/off ("Homer is online" toggle).
+### In the Trivia channel
+
+| Command | Description |
+|--------|-------------|
+| **!trivia** | Get a Simpsons trivia question. First correct answer in chat wins a point. |
+| **!daily** | (Surfer Girl/frink_control) Toggle automated daily question at 9:00 UTC. |
+| **!set-difficulty** [level] | Set difficulty: beginner, intermediate, advanced, master. |
+| **!set-seasons** [1-20] | Restrict questions to specific seasons. |
+| **!score** or **/score** | Show Trivia leaderboard. |
+
+Surfer Girl (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Surfer Girl (or homer_control permission) can turn Homer on/off ("Homer is online" toggle). Surfer Girl (or frink_control permission) can turn Prof Frink on/off ("Prof Frink is online" toggle). **Bot channels** — Surfer Girl can configure which channels each bot can respond in (Settings → Bot channels).
 
 ## Docs
 
