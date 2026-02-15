@@ -1,5 +1,15 @@
 # Release notes
 
+## v2.7.0 — Mobile navigation redesign, profile home panel
+
+**Mobile navigation**
+- **Content view** — When viewing a room, DM, or Settings, the 3-tab bottom nav is hidden to maximize screen space for chat.
+- **Back button** — Tap the back arrow (←) or "No Homers Club" area in the header to return to the home panel.
+- **Home panel** — Profile-focused view with 3-tab nav visible: edit Nick (display name) and Status, view time connected, member since date, and stats preview (top 5 typers).
+- **Flow** — From home, Rooms/DMs open the channel list; selecting a room or tapping Settings switches to full-screen content view.
+
+---
+
 ## v2.6.0 — Accessibility, font picker, mobile layout, context menu
 
 **Accessibility**

@@ -443,7 +443,25 @@
             body.theme-light .mobile-bottom-nav .nav-item { color: #52525b; }
             body.theme-light .mobile-bottom-nav .nav-item.active { color: #6366f1; }
             .main .chat-area { padding-bottom: 72px; }
+            .mobile-bottom-nav.mobile-nav-hidden { display: none !important; }
+            .mobile-in-content .main .chat-area { padding-bottom: 0; }
         }
+        .mobile-back-btn { display: none; background: none; border: none; color: inherit; font-size: 1.5rem; cursor: pointer; padding: 0.25rem 0.5rem; -webkit-tap-highlight-color: transparent; }
+        @media (max-width: 768px) {
+            .mobile-back-btn { display: inline-flex; align-items: center; justify-content: center; }
+        }
+        .header-brand-tappable { cursor: pointer; }
+        .mobile-home-panel { display: none; padding: 1rem; overflow-y: auto; flex: 1; min-height: 0; }
+        @media (max-width: 768px) {
+            .mobile-home-panel { display: block; }
+        }
+        .mobile-home-panel h2 { font-size: 1rem; margin: 1rem 0 0.5rem; color: #818cf8; }
+        .mobile-home-panel h2:first-child { margin-top: 0; }
+        .mobile-home-panel .profile-field { margin-bottom: 1rem; }
+        .mobile-home-panel .profile-field label { display: block; font-size: 0.85rem; color: #a1a1aa; margin-bottom: 0.25rem; }
+        .mobile-home-panel .profile-field input { width: 100%; padding: 0.5rem 0.75rem; background: #27272a; border: 1px solid #3f3f46; border-radius: 6px; color: #e4e4e7; font-size: 1rem; }
+        .mobile-home-panel .profile-field button { margin-top: 0.5rem; padding: 0.4rem 1rem; background: #6366f1; border: none; border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer; }
+        .mobile-home-panel .profile-stat { font-size: 0.9rem; color: #a1a1aa; margin: 0.5rem 0; }
         .mobile-tab-panel { display: flex; flex-direction: column; width: 100%; min-width: 0; }
         .mobile-tab-panel.mobile-tab-rooms { flex: 1 1 0; min-height: 0; overflow: hidden; }
         .mobile-tab-panel.mobile-tab-rooms .room-list-items { flex: 1 1 0; min-height: 0; overflow-y: auto; width: 100%; min-width: 0; }
@@ -493,7 +511,7 @@
 </head>
 <body>
     <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false" role="status"></div>
-    <div id="app">{% raw %}
+    <div id="app" :class="{ 'mobile-in-content': isMobile && !state.mobileHomeView }">{% raw %}
     <div id="contextMenu" class="context-menu" style="display: none;" role="menu" aria-label="User context menu">
         <button type="button" role="menuitem" data-action="whois">Whois</button>
         <button type="button" role="menuitem" data-action="message-user">Send message</button>
@@ -606,6 +624,7 @@
         <p class="room-switcher-hint">↑↓ to navigate, Enter to select, Esc to close</p>
     </div>
     <header class="header" id="header" role="banner">
+        <button type="button" v-show="isMobile && !state.mobileHomeView" class="mobile-back-btn" aria-label="Back" @click="goToMobileHome">←</button>
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <div class="header-brand">
             <img src="{% endraw %}{{ url_for('static', filename='logo.png') }}{% raw %}" alt="" class="header-logo" aria-hidden="true">
@@ -689,6 +708,28 @@
             </div>
         </nav>
         <section class="chat-area" aria-label="Chat">
+            <div v-show="isMobile && state.mobileHomeView" class="mobile-home-panel">
+                <h2>Profile</h2>
+                <div class="profile-field">
+                    <label>Nick</label>
+                    <input type="text" v-model="state.mobileProfileDraft.nick" placeholder="Display name">
+                    <button type="button" @click="saveMobileNick">Save</button>
+                </div>
+                <div class="profile-field">
+                    <label>Status</label>
+                    <input type="text" v-model="state.mobileProfileDraft.status" placeholder="Status line">
+                    <button type="button" @click="saveMobileStatus">Save</button>
+                </div>
+                <div class="profile-stat" v-if="state.mobileWhoisData && state.mobileWhoisData.connected_seconds != null">Time connected: {{ formatWhoisConnected(state.mobileWhoisData.connected_seconds) }}</div>
+                <div class="profile-stat">Member since {{ userCreatedAtFormatted }}</div>
+                <div v-if="state.stats && (state.stats.top_typers || []).length" class="mobile-home-stats">
+                    <h2>Stats preview</h2>
+                    <ul style="margin:0;padding-left:1.25rem;color:#a1a1aa;font-size:0.9rem;">
+                        <li v-for="t in (state.stats.top_typers || []).slice(0, 5)" :key="t.user_id" class="stat-row">{{ t.username }}: {{ t.count }} msgs</li>
+                    </ul>
+                </div>
+            </div>
+            <div v-show="!isMobile || !state.mobileHomeView" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
             <div class="mobile-room-name" id="mobileRoomName">{{ mobileRoomName }}</div>
             <div class="channel-topic" id="channelTopic" :class="{ empty: channelTopicEmpty }" v-show="showChannelTopic" v-html="channelTopicHtml"></div>
             <div class="search-bar-wrap" id="searchBarWrap">
@@ -917,6 +958,7 @@
                     <button type="submit" id="sendBtn" disabled>Send</button>
                 </form>
             </div>
+            </div>
         </section>
         <aside class="user-list" id="userList" aria-label="Users">
             <div class="user-list-title">Users</div>
@@ -948,7 +990,7 @@
         </aside>
     </main>
 
-    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile navigation">
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" :class="{ 'mobile-nav-hidden': isMobile && !state.mobileHomeView }" aria-label="Mobile navigation">
         <button type="button" class="nav-item active" data-tab="rooms" aria-label="Rooms" aria-current="page">
             <span class="nav-icon" aria-hidden="true">#</span>
             <span>Rooms</span>
@@ -965,7 +1007,7 @@
     {% endraw %}</div><!-- #app -->
 
     <script>
-const { createApp, ref, reactive, computed, nextTick } = Vue;
+const { createApp, ref, reactive, computed, nextTick, onMounted } = Vue;
 function _escapeHtml(s) {
     if (s == null) return '';
     var el = document.createElement('div');
@@ -1017,6 +1059,13 @@ const state = reactive({
     roomSwitcherOpen: false,
     roomSwitcherFilter: '',
     roomSwitcherHighlightId: null,
+    mobileHomeView: false,
+    mobileWhoisData: null,
+    mobileProfileDraft: { nick: '', status: '' },
+    userDisplayName: {{ (user.display_name or '')|tojson }},
+    userStatusLine: {{ (user.status_line or '')|tojson }},
+    userAwayMessage: {{ (user.away_message or '')|tojson }},
+    userCreatedAt: {{ (user.created_at.isoformat() if user.created_at else '')|tojson }},
     toasts: [],
     contextMenu: null,
     roomContextMenu: null,
@@ -1077,6 +1126,45 @@ const chitchatApp = createApp({
         const channelsInOrder = computed(() => (roomsInOrder.value || []).filter(function(r) { return !r.is_dm; }));
         const dmsInOrder = computed(() => (roomsInOrder.value || []).filter(function(r) { return r.is_dm; }));
         const currentUserIdNum = {{ user.id }};
+        const isMobile = ref(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+        onMounted(function() {
+            var mq = window.matchMedia && window.matchMedia('(max-width: 768px)');
+            if (mq && mq.addEventListener) mq.addEventListener('change', function(e) { isMobile.value = e.matches; });
+            function updateAppClass() {
+                var el = document.getElementById('app');
+                if (el) { el.classList.toggle('mobile-in-content', isMobile.value && !state.mobileHomeView); }
+            }
+            watch(function() { return [isMobile.value, state.mobileHomeView]; }, updateAppClass);
+            updateAppClass();
+        });
+        const userCreatedAtFormatted = computed(function() {
+            var s = state.userCreatedAt;
+            if (!s) return '—';
+            try { return new Date(s).toLocaleDateString(undefined, { dateStyle: 'medium' }); } catch (_) { return s; }
+        });
+        function goToMobileHome() {
+            state.mobileHomeView = true;
+            state.mobileProfileDraft.nick = state.userDisplayName || '';
+            state.mobileProfileDraft.status = state.userStatusLine || '';
+            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('get_whois', { user_id: currentUserIdNum });
+            if (window.chitchat && window.chitchat.closeSidebars) window.chitchat.closeSidebars();
+        }
+        function saveMobileNick() {
+            var nick = (state.mobileProfileDraft.nick || '').trim().slice(0, 80);
+            state.userDisplayName = nick;
+            var room = state.currentRoom || (channelsInOrder.value && channelsInOrder.value[0]);
+            if (window.chitchat && window.chitchat.socket && room) {
+                window.chitchat.socket.emit('send_message', { room_id: room.id, content: '/nick ' + nick });
+            }
+        }
+        function saveMobileStatus() {
+            var status = (state.mobileProfileDraft.status || '').trim().slice(0, 120) || null;
+            state.userStatusLine = status;
+            if (window.chitchat && window.chitchat.socket) {
+                var away = state.userAwayMessage || '';
+                window.chitchat.socket.emit('update_profile', { status_line: status, away_message: (away && away.trim()) || null });
+            }
+        }
         const isSuperAdminFlag = {{ 'true' if user.is_super_admin else 'false' }};
         const userPermissionsObj = {{ (user_permissions|default({}))|tojson|safe }};
         function hasUnread(r) {
@@ -1336,7 +1424,7 @@ const chitchatApp = createApp({
         function setBgColor(val) { if (window.chitchat && window.chitchat.setBgColor) window.chitchat.setBgColor(val); }
         function setFont(val) { if (window.chitchat && window.chitchat.setFont) window.chitchat.setFont(val); }
         function deleteUser(userId, username) { if (window.chitchat && window.chitchat.settingsDeleteUser) window.chitchat.settingsDeleteUser(userId, username); }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, saveMobileNick, saveMobileStatus, userCreatedAtFormatted };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -1486,12 +1574,12 @@ chitchatApp.mount('#app');
         updateUnreadBadge();
     }
     var REACTION_EMOJIS = [
-        '\ud83d\udc4d','\ud83d\udc4e','\ud83d\udc4c','\ud83d\udc4a','\u270a','\ud83d\ude4c','\ud83d\udc4f','\ud83d\udc4b','\ud83d\ude4f','\ud83d\udc46','\ud83d\udc47','\u261d\ufe0f','\u270b','\ud83e\udd1a','\ud83e\udd1d',
+        '\ud83e\udd16','\ud83d\udc4d','\ud83d\udc4e','\ud83d\udc4c','\ud83d\udc4a','\u270a','\ud83d\ude4c','\ud83d\udc4f','\ud83d\udc4b','\ud83d\ude4f','\ud83d\udc46','\ud83d\udc47','\u261d\ufe0f','\u270b','\ud83e\udd1a','\ud83e\udd1d',
         '\u2764\ufe0f','\ud83d\udc9b','\ud83d\udc9a','\ud83d\udc99','\ud83d\udc9c','\ud83d\udda4','\ud83d\udc94','\u2763\ufe0f','\ud83d\udc96','\ud83d\udc95','\ud83d\udc97','\ud83d\udc93','\ud83d\udc9e','\ud83d\udc9f',
         '\ud83d\ude00','\ud83d\ude01','\ud83d\ude02','\ud83d\ude03','\ud83d\ude04','\ud83d\ude05','\ud83d\ude06','\ud83d\ude09','\ud83d\ude0a','\ud83d\ude0b','\ud83d\ude0e','\ud83d\ude0d','\ud83d\ude18','\ud83d\ude17','\ud83d\ude19',
         '\ud83d\ude1a','\ud83d\ude1b','\ud83d\ude1c','\ud83d\ude1d','\ud83d\ude12','\ud83d\ude13','\ud83d\ude14','\ud83d\ude15','\ud83d\ude16','\ud83d\ude21','\ud83d\ude22','\ud83d\ude2d','\ud83d\ude2e','\ud83d\ude2f','\ud83d\ude30',
         '\ud83d\ude31','\ud83d\ude32','\ud83d\ude33','\ud83d\ude34','\ud83d\ude35','\ud83d\ude36','\ud83d\ude37','\ud83d\ude08','\ud83d\udc7f','\ud83d\ude3a','\ud83d\ude3b','\ud83d\ude3c','\ud83d\ude3d','\ud83d\ude40','\ud83d\ude3f',
-        '\ud83d\ude16','\ud83d\udc36','\ud83d\udc37','\ud83d\udc31','\ud83d\udc2e','\ud83d\udc39','\ud83d\udc30','\ud83d\udc38','\ud83d\udc35','\ud83d\udc12','\ud83d\udc34','\ud83d\udc0d','\ud83d\udc22','\ud83d\udc0b','\ud83d\udc1b','\ud83d\udc1c',
+        '\ud83e\udd16','\ud83d\udc36','\ud83d\udc37','\ud83d\udc31','\ud83d\udc2e','\ud83d\udc39','\ud83d\udc30','\ud83d\udc38','\ud83d\udc35','\ud83d\udc12','\ud83d\udc34','\ud83d\udc0d','\ud83d\udc22','\ud83d\udc0b','\ud83d\udc1b','\ud83d\udc1c',
         '\ud83d\udc1d','\ud83d\udc1e','\ud83d\udc20','\ud83d\udc1f','\ud83d\udc2c','\ud83d\udc33','\ud83d\udc0c','\ud83d\udc0f','\ud83d\udc26','\ud83d\udc24','\ud83d\udc25','\ud83d\udc23','\ud83d\udc27','\ud83d\udc28','\ud83d\udc2a',
         '\ud83c\udf52','\ud83c\udf54','\ud83c\udf55','\ud83c\udf56','\ud83c\udf57','\ud83c\udf5e','\ud83c\udf5f','\ud83c\udf60','\ud83c\udf61','\ud83c\udf62','\ud83c\udf63','\ud83c\udf64','\ud83c\udf65','\ud83c\udf66','\ud83c\udf67',
         '\u2615','\ud83c\udf75','\ud83c\udf76','\ud83c\udf7a','\ud83c\udf7b','\ud83c\udf78','\ud83c\udf79','\ud83c\udf77','\ud83c\udf7e','\ud83c\udf82','\ud83c\udf89','\ud83c\udf8a','\ud83c\udf8b','\ud83c\udf8e','\ud83c\udf8d',
@@ -1503,7 +1591,7 @@ chitchatApp.mount('#app');
         '\ud83d\udd25','\ud83d\udd50','\ud83d\udd51','\ud83d\udd52','\ud83d\udd53','\ud83d\udd54','\ud83d\udd55','\ud83d\udd56','\ud83d\udd57','\ud83d\udd58','\ud83d\udd59','\ud83d\udd5a','\ud83d\udd5b','\ud83d\udd5c','\ud83d\udd5d',
         '\ud83d\ude80','\ud83d\ude83','\ud83d\ude84','\ud83d\ude85','\ud83d\ude87','\ud83d\ude89','\ud83d\ude8a','\u2708\ufe0f','\ud83d\udd1a','\ud83d\udd1b','\ud83d\udd1c','\ud83d\udd1d','\ud83d\udd1e','\ud83d\udd1f','\ud83d\udd20'
     ];
-    var EMOJI_SEARCH_TERMS = {'\ud83d\udc4d':'thumbs up like','\ud83d\udc4e':'thumbs down','\u2764\ufe0f':'heart love','\ud83d\ude02':'laugh','\ud83c\udf89':'party celebrate','\ud83d\ude2e':'surprise','\ud83d\udc40':'eyes','\ud83d\udd25':'fire hot','\ud83d\ude16':'robot','\ud83d\udc36':'dog','\ud83d\udc31':'cat','\ud83d\ude00':'smile','\ud83d\ude0d':'love','\u2705':'check yes','\u274c':'no','\u2728':'sparkle','\ud83d\udc4f':'clap','\ud83d\udc4c':'ok','\ud83d\udc4a':'fist','\ud83d\ude0a':'smile','\ud83d\ude14':'think','\ud83d\ude22':'cry','\ud83d\ude21':'angry','\u2615':'coffee','\ud83c\udf54':'hamburger','\ud83c\udf55':'pizza','\u26bd':'soccer','\ud83d\ude80':'rocket'};
+    var EMOJI_SEARCH_TERMS = {'\ud83d\udc4d':'thumbs up like','\ud83d\udc4e':'thumbs down','\u2764\ufe0f':'heart love','\ud83d\ude02':'laugh','\ud83c\udf89':'party celebrate','\ud83d\ude2e':'surprise','\ud83d\udc40':'eyes','\ud83d\udd25':'fire hot','\ud83e\udd16':'robot','\ud83d\udc36':'dog','\ud83d\udc31':'cat','\ud83d\ude00':'smile','\ud83d\ude0d':'love','\u2705':'check yes','\u274c':'no','\u2728':'sparkle','\ud83d\udc4f':'clap','\ud83d\udc4c':'ok','\ud83d\udc4a':'fist','\ud83d\ude0a':'smile','\ud83d\ude14':'think','\ud83d\ude22':'cry','\ud83d\ude21':'angry','\u2615':'coffee','\ud83c\udf54':'hamburger','\ud83c\udf55':'pizza','\u26bd':'soccer','\ud83d\ude80':'rocket'};
     function getEmojiUsage() {
         try {
             var s = localStorage.getItem('chitchat_emoji_usage');
@@ -2436,6 +2524,8 @@ chitchatApp.mount('#app');
 
     function switchRoom(roomId) {
         if (state.currentRoom && state.currentRoom.id === roomId) return;
+        state.mobileHomeView = false;
+        if (window.chitchat && window.chitchat.closeSidebars) window.chitchat.closeSidebars();
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (room) {
             state.currentRoom = room;
@@ -2599,7 +2689,12 @@ chitchatApp.mount('#app');
     });
 
     socket.on('whois_result', function(data) {
-        if (data) showWhoisModal(data);
+        if (!data) return;
+        if (data.user_id === currentUserId && state.mobileHomeView) {
+            state.mobileWhoisData = data.error ? null : data;
+        } else {
+            showWhoisModal(data);
+        }
     });
 
     socket.on('kicked_from_room', function(data) {
@@ -2729,12 +2824,16 @@ chitchatApp.mount('#app');
     });
 
     socket.on('user_list_updated', function(data) {
-        if (data.users) state.allUsersWithStatus = data.users;
+        if (data.users) {
+            state.allUsersWithStatus = data.users;
+            var me = data.users.find(function(u) { return u.id === currentUserId; });
+            if (me && me.display_name !== undefined) state.userDisplayName = me.display_name || '';
+        }
     });
 
     socket.on('profile_updated', function(data) {
-        if (data.status_line !== undefined) currentUserStatusLine = data.status_line || '';
-        if (data.away_message !== undefined) currentUserAwayMessage = data.away_message || '';
+        if (data.status_line !== undefined) { currentUserStatusLine = data.status_line || ''; state.userStatusLine = currentUserStatusLine; }
+        if (data.away_message !== undefined) { currentUserAwayMessage = data.away_message || ''; state.userAwayMessage = currentUserAwayMessage; }
         var me = state.allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
         if (me) {
             if (data.status_line !== undefined) me.status_line = data.status_line || null;
@@ -3050,6 +3149,7 @@ chitchatApp.mount('#app');
 
     function showSettings() {
         state.showingSettings = true;
+        state.mobileHomeView = false;
         if (searchBarWrapEl) searchBarWrapEl.style.display = 'none';
         if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         socket.emit('get_acrobot_status');
@@ -3124,6 +3224,7 @@ chitchatApp.mount('#app');
             if (userList) userList.classList.remove('open');
             if (overlay) overlay.classList.remove('visible');
         }
+        if (window.chitchat) window.chitchat.closeSidebars = closeSidebars;
         function openRoomList() {
             closeSidebars();
             if (roomList) roomList.classList.add('open');
