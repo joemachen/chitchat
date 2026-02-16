@@ -1038,12 +1038,13 @@ def register_socket_handlers(socketio):
                     _broadcast_new_message_impl(sock_io, rid, msg.to_dict())
                     if answer:
                         set_active_trivia(rid, answer, msg.id)
+                        expected_msg_id = msg.id  # Only act on timeout if this round is still active (avoids cutting short next round when user answers correctly)
 
                         def _reveal_timeout(app_o, r, frink_id, sio):
                             with app_o.app_context():
                                 from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining, get_trivia_timeout_reply
                                 active = get_active_trivia(r)
-                                if active:
+                                if active and active.get("question_msg_id") == expected_msg_id:
                                     clear_active_trivia(r)
                                     clear_all_trivia_streaks(r)
                                     content = get_trivia_timeout_reply(active["answer"])
@@ -1052,16 +1053,17 @@ def register_socket_handlers(socketio):
                                     db.session.commit()
                                     _broadcast_new_message_impl(sio, r, rev_msg.to_dict())
                                     sio.emit("trivia_phase", {"end_time": None}, room=f"room_{r}")
-                                if get_trivia_rounds_remaining(r) > 0:
-                                    set_trivia_rounds_remaining(r, get_trivia_rounds_remaining(r) - 1)
-                                    gevent.spawn_later(3, _post_next_trivia_round, r, frink_id, sio, app_o)
-                                else:
-                                    clear_trivia_session(r)
+                                    if get_trivia_rounds_remaining(r) > 0:
+                                        set_trivia_rounds_remaining(r, get_trivia_rounds_remaining(r) - 1)
+                                        gevent.spawn_later(3, _post_next_trivia_round, r, frink_id, sio, app_o)
+                                    else:
+                                        clear_trivia_session(r)
 
                         def _trivia_10s_warning(app_o, r, frink_id, sio):
                             with app_o.app_context():
                                 from app.prof_frink import get_active_trivia, format_frink_reply
-                                if get_active_trivia(r):
+                                active = get_active_trivia(r)
+                                if active and active.get("question_msg_id") == expected_msg_id:
                                     warn_msg = Message(room_id=r, user_id=frink_id, content=format_frink_reply("**10 seconds** left! The flux capacitor is winding down! Glavin!"), message_type="chat")
                                     db.session.add(warn_msg)
                                     db.session.commit()
@@ -1069,11 +1071,11 @@ def register_socket_handlers(socketio):
                         gevent.spawn_later(TRIVIA_SECONDS - 10, _trivia_10s_warning, app_obj, rid, fid, sock_io)
                         gevent.spawn_later(TRIVIA_SECONDS, _reveal_timeout, app_obj, rid, fid, sock_io)
 
-            def _reveal_answer_timeout(app_obj, rid, fid, socket_io):
+            def _reveal_answer_timeout(app_obj, rid, fid, socket_io, expected_msg_id):
                 with app_obj.app_context():
                     from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining, get_trivia_timeout_reply
                     active = get_active_trivia(rid)
-                    if active:
+                    if active and active.get("question_msg_id") == expected_msg_id:
                         clear_active_trivia(rid)
                         clear_all_trivia_streaks(rid)
                         content = get_trivia_timeout_reply(active["answer"])
@@ -1082,11 +1084,11 @@ def register_socket_handlers(socketio):
                         db.session.commit()
                         _broadcast_new_message_impl(socket_io, rid, rev_msg.to_dict())
                         socket_io.emit("trivia_phase", {"end_time": None}, room=f"room_{rid}")
-                    if get_trivia_rounds_remaining(rid) > 0:
-                        set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
-                        gevent.spawn_later(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
-                    else:
-                        clear_trivia_session(rid)
+                        if get_trivia_rounds_remaining(rid) > 0:
+                            set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
+                            gevent.spawn_later(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
+                        else:
+                            clear_trivia_session(rid)
 
             # /trivia or /trivia X (X=1-7 consecutive rounds)
             is_trivia_cmd = cmd in ("/trivia", "/ trivia")
@@ -1110,16 +1112,18 @@ def register_socket_handlers(socketio):
                     info = get_trivia_phase_info(room_id)
                     if info:
                         socketio.emit("trivia_phase", info, room=f"room_{room_id}")
+                    first_round_msg_id = msg.id
                     def _trivia_10s_warning_first(app_o, r, frink_id, sio):
                         with app_o.app_context():
                             from app.prof_frink import get_active_trivia, format_frink_reply
-                            if get_active_trivia(r):
+                            active = get_active_trivia(r)
+                            if active and active.get("question_msg_id") == first_round_msg_id:
                                 warn_msg = Message(room_id=r, user_id=frink_id, content=format_frink_reply("**10 seconds** left! The flux capacitor is winding down! Glavin!"), message_type="chat")
                                 db.session.add(warn_msg)
                                 db.session.commit()
                                 _broadcast_new_message_impl(sio, r, warn_msg.to_dict())
                     gevent.spawn_later(TRIVIA_SECONDS - 10, _trivia_10s_warning_first, app_obj, room_id, frink_user.id, socketio)
-                    gevent.spawn_later(TRIVIA_SECONDS, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
+                    gevent.spawn_later(TRIVIA_SECONDS, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio, msg.id)
                 return
             if cmd in ("/score", "/ score") and is_frink_active() and frink_user:
                 leaderboard = get_trivia_leaderboard(room_id, limit=10)
@@ -1162,9 +1166,16 @@ def register_socket_handlers(socketio):
                         db.session.commit()
                         _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
-            if cmd in ("/set-seasons", "/ set-seasons") and len(parts) >= 2:
+            # Accept /set-seasons or /set seasons (space) — e.g. !set-seasons 1 2 3 or /set seasons 1 2 3
+            is_set_seasons = (
+                cmd in ("/set-seasons", "/ set-seasons") and len(parts) >= 2
+            ) or (
+                cmd == "/set" and len(parts) >= 3 and parts[1].lower() == "seasons"
+            )
+            if is_set_seasons:
                 try:
-                    seasons = [int(p) for p in parts[1:] if p.isdigit() and 1 <= int(p) <= 20]
+                    season_parts = parts[2:] if cmd == "/set" else parts[1:]
+                    seasons = [int(p) for p in season_parts if p.isdigit() and 1 <= int(p) <= 20]
                     set_frink_seasons(seasons if seasons else None)
                     frink_user = User.query.filter_by(username="Prof Frink").first()
                     if frink_user and is_frink_active():
@@ -1403,7 +1414,7 @@ def register_socket_handlers(socketio):
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
-                "• In #Trivia: !trivia or !trivia X (X=1–7 rounds), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
+                "• In #Trivia: !trivia or !trivia X (X=1–7 rounds, 45s per question), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
                 "• Right-click message → Reply, Add reaction, Pin/Unpin (Fam+), Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message",
                 "• Right-click user → Whois, Message, Mute, Kick (if permitted); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",
                 "• Right-click room → Move up, Move down, Mute notifications, Edit room, Unmute users (if muted); long-press on mobile",

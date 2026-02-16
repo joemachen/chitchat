@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, !daily, !set-difficulty, !set-seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
@@ -65,7 +65,7 @@ chitchat/
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
 │   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
 │   ├── homer.py           # Homer bot (!Simpsons trigger, random quotes, online/offline toggle)
-│   ├── prof_frink.py      # Prof Frink trivia bot (!trivia, !daily, !set-difficulty, !set-seasons)
+│   ├── prof_frink.py      # Prof Frink trivia bot (!trivia, !daily, !set-difficulty, !set-seasons / /set seasons)
 │   ├── link_preview.py    # OG metadata and YouTube oEmbed for URL previews
 │   ├── version.py         # VERSION from CHITCHAT_VERSION env (deploy announcements)
 │   ├── templates/         # login, register, reset_password, delete_account, chat.html
@@ -285,7 +285,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
 | `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting, L'il Bro/Homey nicknames), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
 | `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote, get_homer_dm_reply; !Simpsons trigger in any room; DM replies. |
-| `app/prof_frink.py` | Prof Frink trivia bot: !trivia, !daily, !set-difficulty, !set-seasons, !settings; hot streaks; DM replies. |
+| `app/prof_frink.py` | Prof Frink trivia bot: !trivia (45s per question), !daily, !set-difficulty, !set-seasons / /set seasons, !settings; hot streaks; DM replies. |
 | `app/link_preview.py` | get_previews_for_message_content; OG metadata and YouTube oEmbed for link previews. |
 | `app/templates/chat.html` | Full chat UI (Vue 3): room list, messages, user list, context menu, Settings view, socket listeners, modals (profile, whois, edit message/room, search, room switcher Ctrl+K). |
 

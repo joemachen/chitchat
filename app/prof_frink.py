@@ -5,7 +5,7 @@ Responds only in the #Trivia channel. Fetches trivia from simpsons-trivia.com or
 import random
 import time
 
-TRIVIA_SECONDS = 30  # Time limit to answer each question
+TRIVIA_SECONDS = 45  # Time limit to answer each question
 from dataclasses import dataclass
 from typing import Optional
 
@@ -847,7 +847,7 @@ def get_help_text() -> str:
         "**Prof Frink — Trivia Bot** " + _random_frinkism(),
         "",
         "**Commands** (in #Trivia or configured channels; ! and / both work):",
-        "• **!trivia** or **!trivia X** (X=1–7) — Fetch one or X consecutive Simpsons trivia questions (first correct answer wins; 30s per question, 400+ questions)",
+        "• **!trivia** or **!trivia X** (X=1–7) — Fetch one or X consecutive Simpsons trivia questions (first correct answer wins; 45s per question, 400+ questions)",
         "• **!daily** — Toggle daily automated trivia post (admin or frink_control)",
         "• **!set-difficulty [beginner|intermediate|advanced|master]** — Filter by difficulty",
         "• **!set-seasons [1-20]** — Filter by season(s), e.g. !set-seasons 1 2 3",

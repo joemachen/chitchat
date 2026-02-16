@@ -49,10 +49,10 @@ Type **/help** or **/msg acrobot help** in that room for full instructions and r
 
 | Command | Description |
 |--------|-------------|
-| **!trivia** or **!trivia X** (X=1–7) | Get one or X consecutive Simpsons trivia questions. First correct answer wins a point. |
+| **!trivia** or **!trivia X** (X=1–7) | Get one or X consecutive Simpsons trivia questions (45s per question). First correct answer wins a point. |
 | **!daily** | (admin/frink_control) Toggle automated daily question at 9:00 UTC. |
 | **!set-difficulty** [level] | Set difficulty: beginner, intermediate, advanced, master. |
-| **!set-seasons** [1-20] | Restrict questions to specific seasons. |
+| **!set-seasons** or **/set seasons** [1-20] | Restrict questions to specific seasons (e.g. !set-seasons 1 2 3 or /set seasons 1 2 3). |
 | **!score** or **/score** | Show Trivia leaderboard. |
 
 Admins (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Admins (or homer_control permission) can turn Homer on/off ("Homer is online" toggle). Admins (or frink_control permission) can turn Prof Frink on/off ("Prof Frink is online" toggle). **Bot rooms** — admins can configure which rooms each bot can respond in (Settings → Bot rooms).

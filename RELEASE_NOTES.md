@@ -1,5 +1,14 @@
 # Release notes
 
+## v3.4.0 — Prof Frink trivia fixes, set-seasons alias
+
+**Prof Frink trivia**
+- **Answer period** — Trivia questions now allow 45 seconds to answer (was 30).
+- **Multi-round timeout fix** — When a user answered correctly in a multi-round game, the previous round's timeout could fire and prematurely end the next round. Each round now gets the full 45 seconds.
+- **!set-seasons alias** — `!set seasons 1 2 3` and `/set seasons 1 2 3` now work as aliases for `!set-seasons` (space instead of dash).
+
+---
+
 ## v3.3.0 — Koyeb deployment fixes, gevent, migration robustness
 
 **Deployment (Koyeb)**
