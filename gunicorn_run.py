@@ -29,16 +29,31 @@ if __name__ == "__main__":
             if os.environ.get("CHITCHAT_SKIP_MIGRATIONS") == "1":
                 print("[gunicorn_run] skipping migrations (CHITCHAT_SKIP_MIGRATIONS=1)", flush=True)
             else:
-                print("[gunicorn_run] running migrations...", flush=True)
+                print("[gunicorn_run] running migrations (45s timeout)...", flush=True)
                 try:
-                    upgrade()
-                    print("[gunicorn_run] migrations OK", flush=True)
+                    # Run migrations in subprocess with timeout - avoids blocking/hang killing startup
+                    result = subprocess.run(
+                        [sys.executable, "-c", (
+                            "from run import app; "
+                            "from flask_migrate import upgrade; "
+                            "app.app_context().push(); "
+                            "upgrade(); "
+                            "print(\"[gunicorn_run] migrations OK\", flush=True)"
+                        )],
+                        env=dict(os.environ),
+                        capture_output=True,
+                        text=True,
+                        timeout=45,
+                    )
+                    if result.returncode != 0:
+                        print(f"[gunicorn_run] MIGRATION FAILED: {result.stderr or result.stdout}", flush=True)
+                    else:
+                        print(result.stdout or "[gunicorn_run] migrations OK", flush=True)
+                except subprocess.TimeoutExpired:
+                    print("[gunicorn_run] MIGRATION TIMEOUT (45s) - continuing; run /run-migrations later", flush=True)
                 except Exception as mig_err:
-                    print(f"[gunicorn_run] MIGRATION FAILED (continuing anyway): {mig_err}", flush=True)
+                    print(f"[gunicorn_run] MIGRATION FAILED (continuing): {mig_err}", flush=True)
                     traceback.print_exc()
-                    sys.stdout.flush()
-                    sys.stderr.flush()
-                    # Don't exit - start gunicorn so we can see if app works; user can fix migrations
             print("[gunicorn_run] seeding...", flush=True)
             _seed_default_data(app)
             _run_message_retention_cleanup(app)
