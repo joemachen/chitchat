@@ -2,12 +2,14 @@
 Gunicorn launcher: run gevent.monkey.patch_all() before any other imports.
 Runs migrations and seed BEFORE starting gunicorn so the app responds to health checks quickly.
 """
+import sys
+print("[gunicorn_run] starting", flush=True)
+
+import os
 import gevent.monkey
 gevent.monkey.patch_all()
 
-import os
 import subprocess
-import sys
 import traceback
 
 if __name__ == "__main__":
@@ -17,6 +19,7 @@ if __name__ == "__main__":
     # Run maintenance before web starts so app is ready for health checks immediately
     os.environ["CHITCHAT_MAINTENANCE_DONE"] = "1"
     try:
+        print("[gunicorn_run] running maintenance...", flush=True)
         from run import app
         with app.app_context():
             from flask_migrate import upgrade
@@ -25,10 +28,12 @@ if __name__ == "__main__":
             _seed_default_data(app)
             _run_message_retention_cleanup(app)
             _post_deploy_announcement(app)
+        print("[gunicorn_run] maintenance done, starting gunicorn...", flush=True)
     except Exception as e:
-        print(f"FATAL: maintenance failed: {e}", file=sys.stderr)
+        print(f"FATAL: maintenance failed: {e}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         sys.stderr.flush()
+        sys.stdout.flush()
         sys.exit(1)
 
     # Run gunicorn via subprocess with explicit args - no argv/env can override
