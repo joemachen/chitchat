@@ -1,5 +1,18 @@
 # Release notes
 
+## v3.2.0 — Pinned messages, sidebar username overflow fix
+
+**Pinned messages**
+- Fam and Super Admin can pin up to 2 messages per room via right-click → Pin (or Unpin).
+- Pinned messages appear in a dedicated section at the top of the room.
+- Pinned section hidden in Stats room.
+
+**Sidebar**
+- Long usernames (e.g. emails) in the user list now truncate with an ellipsis instead of causing horizontal scrollbars.
+- Full name shown on hover via tooltip.
+
+---
+
 ## v3.1.0 — Prof Frink improvements, Acrophobia countdown, trivia expansion
 
 **Prof Frink trivia**

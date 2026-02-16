@@ -55,7 +55,7 @@ from app.prof_frink import (
 )
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
-from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, PinnedMessage, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
 
 logger = get_logger()
 
@@ -721,6 +721,16 @@ def register_socket_handlers(socketio):
         u = User.query.get(user_id)
         return u and getattr(u, "is_super_admin", False)
 
+    def _can_pin_messages(user_id):
+        """Return True if user can pin messages (Fam or Super Admin)."""
+        if _is_super_admin(user_id):
+            return True
+        u = User.query.get(user_id)
+        if not u:
+            return False
+        rank = (getattr(u, "rank", None) or "rookie").lower()
+        return rank in ("fam", "super_admin")
+
     def _has_permission(user_id, permission):
         """Return True if user has permission. Surfer Girl has all; else check RolePermission for user's rank."""
         if _is_super_admin(user_id):
@@ -869,6 +879,7 @@ def register_socket_handlers(socketio):
             emit("room_joined", {
                 "room": room_obj.to_dict(),
                 "history": [],
+                "pinned_messages": [],
                 "stats": _get_stats(),
                 "room_muted_in_room": [],
                 "users": users_with_status,
@@ -889,6 +900,13 @@ def register_socket_handlers(socketio):
             messages = messages[:50]
             messages.reverse()
             history = [m.to_dict() for m in messages]
+            pinned = (
+                PinnedMessage.query.filter_by(room_id=room_id)
+                .order_by(PinnedMessage.pinned_at.desc())
+                .limit(2)
+                .all()
+            )
+            pinned_messages = [p.message.to_dict() for p in pinned if p.message]
             room_muted_in_room = list(_get_room_mutes_for_user(user_id, room_id))
             last_msg_id = messages[-1].id if messages else 0
             urr = UserRoomRead.query.filter_by(user_id=user_id, room_id=room_id).first()
@@ -901,6 +919,7 @@ def register_socket_handlers(socketio):
             payload = {
                 "room": room_obj.to_dict(),
                 "history": history,
+                "pinned_messages": pinned_messages,
                 "room_muted_in_room": room_muted_in_room,
                 "users": users_with_status,
                 "rooms": rooms_dict,
@@ -1381,7 +1400,7 @@ def register_socket_handlers(socketio):
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
                 "• In #Trivia: !trivia or !trivia X (X=1–7 rounds), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
-                "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message",
+                "• Right-click message → Reply, Add reaction, Pin/Unpin (Fam+), Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message",
                 "• Right-click user → Whois, Message, Mute, Kick (if permitted); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",
                 "• Right-click room → Move up, Move down, Mute notifications, Edit room, Unmute users (if muted); long-press on mobile",
                 "• Settings → Profile — nick, status, visibility, away message, bio, avatar color, notification prefs, Log out",
@@ -1812,6 +1831,74 @@ def register_socket_handlers(socketio):
         db.session.commit()
         emit("message_deleted", {"message_id": msg_id, "room_id": room_id}, room=f"room_{room_id}")
         logger.info("Message %s deleted by user %s", msg_id, user_id)
+
+    MAX_PINNED_PER_ROOM = 2
+
+    @socketio.on("pin_message")
+    def on_pin_message(data):
+        """Pin a message in a room. Fam and Super Admin only. Max 2 per room."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _can_pin_messages(user_id):
+            emit("error", {"message": "Only Fam and Super Admin can pin messages"})
+            return
+        msg_id = (data or {}).get("message_id")
+        if not msg_id:
+            emit("error", {"message": "message_id required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        msg = Message.query.get(msg_id)
+        if not msg:
+            emit("error", {"message": "Message not found"})
+            return
+        room_id = msg.room_id
+        existing = PinnedMessage.query.filter_by(room_id=room_id, message_id=msg_id).first()
+        if existing:
+            return
+        count = PinnedMessage.query.filter_by(room_id=room_id).count()
+        if count >= MAX_PINNED_PER_ROOM:
+            emit("error", {"message": "Maximum 2 pinned messages per room"})
+            return
+        pm = PinnedMessage(room_id=room_id, message_id=msg_id)
+        db.session.add(pm)
+        db.session.commit()
+        payload = {"message": msg.to_dict(), "room_id": room_id}
+        socketio.emit("message_pinned", payload, room=f"room_{room_id}")
+        logger.info("Message %s pinned in room %s by user %s", msg_id, room_id, user_id)
+
+    @socketio.on("unpin_message")
+    def on_unpin_message(data):
+        """Unpin a message. Fam and Super Admin only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _can_pin_messages(user_id):
+            emit("error", {"message": "Only Fam and Super Admin can unpin messages"})
+            return
+        msg_id = (data or {}).get("message_id")
+        if not msg_id:
+            emit("error", {"message": "message_id required"})
+            return
+        try:
+            msg_id = int(msg_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid message_id"})
+            return
+        pm = PinnedMessage.query.filter_by(message_id=msg_id).first()
+        if not pm:
+            return
+        room_id = pm.room_id
+        db.session.delete(pm)
+        db.session.commit()
+        socketio.emit("message_unpinned", {"message_id": msg_id, "room_id": room_id}, room=f"room_{room_id}")
+        logger.info("Message %s unpinned in room %s by user %s", msg_id, room_id, user_id)
 
     @socketio.on("add_reaction")
     def on_add_reaction(data):

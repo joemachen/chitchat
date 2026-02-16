@@ -184,6 +184,10 @@
         .stats-chart-x-axis { display: flex; font-size: 0.7rem; color: #71717a; }
         .stats-chart-x-label { text-align: center; }
         .stats-chart-legend { font-size: 0.75rem; color: #71717a; margin-top: 0.25rem; }
+        .pinned-messages-section { padding: 0.5rem 1rem; border-bottom: 1px solid #27272a; background: #1e1e24; }
+        .pinned-messages-header { font-size: 0.75rem; font-weight: 600; color: #71717a; margin-bottom: 0.5rem; }
+        .pinned-messages-section .msg { margin-bottom: 0.5rem; }
+        .pinned-messages-section .msg:last-child { margin-bottom: 0; }
         .msg-content { word-break: break-word; user-select: text; -webkit-user-select: text; }
         .msg-content a { color: #818cf8; text-decoration: none; }
         .msg-content a:hover { text-decoration: underline; }
@@ -339,9 +343,10 @@
             overflow: hidden;
         }
         .user-list-title { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; border-bottom: 1px solid #27272a; }
-        .user-list-section { padding: 0.5rem 0; overflow-y: auto; }
+        .user-list-section { padding: 0.5rem 0; overflow-y: auto; overflow-x: hidden; min-width: 0; }
         .user-list-section .user-list-title { border-bottom: none; padding: 0.5rem 1rem 0.25rem; }
-        .user-item { padding: 0.4rem 1rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+        .user-item { padding: 0.4rem 1rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+        .user-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .user-item.online .user-dot { background: #4ade80; }
         .user-item.away .user-dot { background: #eab308; }
         .user-item.dnd .user-dot { background: #ef4444; }
@@ -617,6 +622,8 @@
         <button type="button" role="menuitem" data-action="copy" id="messageContextCopy" style="display:none;">Copy</button>
         <button type="button" role="menuitem" data-action="reply-to-message">Reply</button>
         <button type="button" role="menuitem" data-action="add-reaction">Add reaction</button>
+        <button type="button" role="menuitem" data-action="pin-message" id="messageContextPinBtn" style="display:none;">Pin</button>
+        <button type="button" role="menuitem" data-action="unpin-message" id="messageContextUnpinBtn" style="display:none;">Unpin</button>
         <button type="button" role="menuitem" data-action="edit-message">Edit</button>
         <button type="button" role="menuitem" data-action="delete-message">Delete</button>
         <button type="button" role="menuitem" data-action="hide-message" id="hideMessageBtn">Hide</button>
@@ -657,7 +664,7 @@
                 <template v-if="onlineUsers.length">
                     <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                         <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
-                        <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                        <span class="user-item-name" :title="userDisplayLabel(u, u.id === currentUserId)">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                     </div>
                 </template>
                 <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>
@@ -667,7 +674,7 @@
                 <template v-if="offlineUsers.length">
                     <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                         <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
-                        <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                        <span class="user-item-name" :title="userDisplayLabel(u, u.id === currentUserId)">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                     </div>
                 </template>
                 <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>
@@ -895,6 +902,21 @@
                 <div class="messages" id="messages" :class="{ 'is-dm': state.currentRoom && state.currentRoom.is_dm }" ref="messagesContainer">
                     <div id="loadMoreSentinel" style="height:1px;visibility:hidden;pointer-events:none;"></div>
                     <div class="load-more-wrap" id="loadMoreWrap" v-show="showMessagesView && state.hasMoreMessages && state.loadMoreAtTop"><button type="button" id="loadMoreBtn">Load older messages</button></div>
+                    <div v-if="showMessagesView && state.pinnedMessages && state.pinnedMessages.length" class="pinned-messages-section">
+                        <div class="pinned-messages-header">📌 Pinned</div>
+                        <article v-for="msg in state.pinnedMessages" :key="'pinned-'+msg.id" :id="'msg-' + msg.id" :class="['msg', 'msg-pinned', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System' }]" :data-msg-id="msg.id" :data-user-id="msg.user_id">
+                            <div class="msg-row">
+                                <div class="msg-avatar" :style="{ backgroundColor: getMessageAvatarColor(msg) }" :aria-hidden="true">{{ getAvatarInitial(getMessageDisplayName(msg)) }}</div>
+                                <div class="msg-body">
+                                    <div class="msg-header"><span class="msg-username" :data-user-id="msg.user_id" :data-username="msg.username || ''">{{ getMessageDisplayName(msg) }}</span> <span class="msg-time">{{ formatMessageTime(msg.created_at) }}</span></div>
+                                    <div class="msg-quote" v-if="msg.parent_id && (msg.parent_content != null || msg.parent_username != null)" :data-parent-id="String(msg.parent_id)" title="Jump to original message" @click="onScrollToMessage(msg.parent_id)"><strong>{{ (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?') }}</strong>: {{ (msg.parent_content || '').slice(0, 200) }}{{ (msg.parent_content || '').length > 200 ? '…' : '' }}</div>
+                                    <div class="msg-content" v-html="getMessageContentHtml(msg)"></div>
+                                    <div class="msg-attachment" v-if="msg.attachment_url"><a v-if="['png','jpg','jpeg','gif','webp','svg'].indexOf((msg.attachment_filename || '').split('.').pop().toLowerCase()) !== -1" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><img :src="msg.attachment_url" :alt="msg.attachment_filename || ''"></a><a v-else class="attachment-file" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer">📎 {{ msg.attachment_filename || 'Attachment' }}</a></div>
+                                    <div class="msg-link-previews" v-if="linkPreviewsForMessage(msg).length"><div v-for="(p, pi) in linkPreviewsForMessage(msg)" :key="pi" class="msg-link-preview" :data-url="p.url || ''"><div class="link-preview-header"><a :href="p.url || ''" target="_blank" rel="noopener noreferrer">{{ (p.url || '').replace(/^https?:\/\//, '') }}</a></div><div class="link-preview-body"><div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div><div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div><img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt=""></div></div></div>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
                     <template v-if="showMessagesView">
                         <article v-for="msg in displayMessages" :key="msg.id" :id="'msg-' + msg.id"
                             :class="['msg', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System', 'msg-mention-pulse': messageMentionsMe(msg.content), hidden: isMessageRoomHidden(msg), 'msg-user-hidden': isMessageUserHidden(msg.id), mentioned: isMessageMentioned(msg) }]"
@@ -1206,7 +1228,7 @@
                     <template v-if="onlineUsers.length">
                         <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                             <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
-                            <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                            <span class="user-item-name" :title="userDisplayLabel(u, u.id === currentUserId)">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                         </div>
                     </template>
                     <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>
@@ -1218,7 +1240,7 @@
                     <template v-if="offlineUsers.length">
                         <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                             <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
-                            <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                            <span class="user-item-name" :title="userDisplayLabel(u, u.id === currentUserId)">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                         </div>
                     </template>
                     <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>
@@ -1320,7 +1342,8 @@ const state = reactive({
     mobilePresenceSheetOpen: false,
     appConfirmModal: null,
     appAlertModal: null,
-    appPromptModal: null
+    appPromptModal: null,
+    pinnedMessages: []
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -1601,7 +1624,8 @@ const chitchatApp = createApp({
             if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('save_room_order', { room_ids: newOrder });
         }
         const currentUsernameVal = {{ user.username|tojson }};
-        const displayMessages = computed(() => state.messages || []);
+        const pinnedMessageIds = computed(() => new Set((state.pinnedMessages || []).map(function(p) { return p.id; })));
+        const displayMessages = computed(() => (state.messages || []).filter(function(m) { return !pinnedMessageIds.value.has(m.id); }));
         const showMessagesView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
         const showStatsView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats');
         const showSettingsView = computed(() => !!state.showingSettings);
@@ -1844,6 +1868,8 @@ chitchatApp.mount('#app');
     var currentUserStatusLine = {{ (user.status_line or '')|tojson }};
     var currentUserAwayMessage = {{ (user.away_message or '')|tojson }};
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
+    const userRank = {{ (user.rank or 'rookie')|tojson }};
+    const canPinMessages = isSuperAdmin || (userRank && ['fam','super_admin'].indexOf(String(userRank).toLowerCase()) !== -1);
     var messageRetentionDays = {{ (message_retention_days|default(none))|tojson }};
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
@@ -2204,6 +2230,12 @@ chitchatApp.mount('#app');
         var msgUserHidden = isMessageUserHidden(messageId);
         if (hideMsgBtn) hideMsgBtn.style.display = msgUserHidden ? 'none' : 'block';
         if (unhideMsgBtn) unhideMsgBtn.style.display = msgUserHidden ? 'block' : 'none';
+        var pinBtn = messageContextMenuEl.querySelector('[data-action="pin-message"]');
+        var unpinBtn = messageContextMenuEl.querySelector('[data-action="unpin-message"]');
+        var inRoom = state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats';
+        var isPinned = state.pinnedMessages && state.pinnedMessages.some(function(p) { return p.id === messageId; });
+        if (pinBtn) pinBtn.style.display = (canPinMessages && inRoom && !isPinned) ? 'block' : 'none';
+        if (unpinBtn) unpinBtn.style.display = (canPinMessages && inRoom && isPinned) ? 'block' : 'none';
         if (muteMsgUserBtn) {
             var inRoom = state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats' && userId !== currentUserId;
             muteMsgUserBtn.style.display = inRoom ? 'block' : 'none';
@@ -2643,6 +2675,16 @@ chitchatApp.mount('#app');
             if (anchor) showReactionPicker(messageContextTarget.messageId, anchor);
             else showReactionPicker(messageContextTarget.messageId, messageContextMenuEl);
         }
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="pin-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget) socket.emit('pin_message', { message_id: messageContextTarget.messageId });
+        hideMessageContextMenu();
+    });
+    messageContextMenuEl.querySelector('[data-action="unpin-message"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (messageContextTarget) socket.emit('unpin_message', { message_id: messageContextTarget.messageId });
         hideMessageContextMenu();
     });
     messageContextMenuEl.querySelector('[data-action="reply-to-message"]').addEventListener('click', function(e) {
@@ -3317,6 +3359,7 @@ chitchatApp.mount('#app');
         if (data.stats) {
             state.stats = data.stats;
             state.messages = [];
+            state.pinnedMessages = [];
             if (messagesEl) messagesEl.classList.remove('is-dm');
             state.hasMoreMessages = false;
             sendForm.style.display = (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
@@ -3324,6 +3367,7 @@ chitchatApp.mount('#app');
             if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         } else {
             state.messages = data.history || [];
+            state.pinnedMessages = data.pinned_messages || [];
             messagesEl.classList.toggle('is-dm', !!(state.currentRoom && state.currentRoom.is_dm));
             sendForm.style.display = '';
             if (searchBarWrapEl) searchBarWrapEl.style.display = (state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats') ? 'none' : '';
@@ -3624,12 +3668,25 @@ chitchatApp.mount('#app');
         if (!state.currentRoom || data.room_id !== state.currentRoom.id) return;
         var idx = state.messages.findIndex(function(m) { return m.id === data.message_id; });
         if (idx !== -1) state.messages.splice(idx, 1);
+        state.pinnedMessages = (state.pinnedMessages || []).filter(function(p) { return p.id !== data.message_id; });
+    });
+    socket.on('message_pinned', function(data) {
+        if (!state.currentRoom || data.room_id !== state.currentRoom.id) return;
+        if (data.message && !state.pinnedMessages.some(function(p) { return p.id === data.message.id; })) {
+            state.pinnedMessages = state.pinnedMessages.concat([data.message]);
+            if (state.pinnedMessages.length > 2) state.pinnedMessages = state.pinnedMessages.slice(-2);
+        }
+    });
+    socket.on('message_unpinned', function(data) {
+        if (!state.currentRoom || data.room_id !== state.currentRoom.id) return;
+        state.pinnedMessages = (state.pinnedMessages || []).filter(function(p) { return p.id !== data.message_id; });
     });
 
     socket.on('messages_deleted', function(data) {
         if (!data || !data.room_id || !data.message_ids || !state.currentRoom || data.room_id !== state.currentRoom.id) return;
         var ids = new Set(data.message_ids || []);
         state.messages = state.messages.filter(function(m) { return !ids.has(m.id); });
+        state.pinnedMessages = (state.pinnedMessages || []).filter(function(p) { return !ids.has(p.id); });
     });
 
     socket.on('my_messages_deleted', function(data) {

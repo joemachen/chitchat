@@ -181,6 +181,20 @@ class Message(db.Model):
         return out
 
 
+class PinnedMessage(db.Model):
+    """Pinned message in a room. Max 2 per room. Fam and Super Admin can pin."""
+    __tablename__ = "pinned_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    message_id = db.Column(db.Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    pinned_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("room_id", "message_id", name="uq_pinned_message"),)
+
+    message = db.relationship("Message", backref=db.backref("pinned_in_rooms", lazy="dynamic", passive_deletes=True))
+
+
 class IgnoreList(db.Model):
     """Legacy. Table retained for cascade delete on user deletion. Ignore UI removed."""
     __tablename__ = "ignore_list"
