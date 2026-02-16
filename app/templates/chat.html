@@ -3035,7 +3035,12 @@ chitchatApp.mount('#app');
     }
 
     function switchRoom(roomId) {
-        if (state.currentRoom && state.currentRoom.id === roomId) return;
+        if (state.currentRoom && state.currentRoom.id === roomId) {
+            // On mobile, still close the rooms panel when tapping current room
+            state.mobileHomeView = false;
+            if (window.chitchat && window.chitchat.closeSidebars) window.chitchat.closeSidebars();
+            return;
+        }
         state.mobileHomeView = false;
         if (window.chitchat && window.chitchat.closeSidebars) window.chitchat.closeSidebars();
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
