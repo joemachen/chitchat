@@ -33,16 +33,24 @@ if __name__ == "__main__":
                 try:
                     # Run migrations in subprocess with timeout - avoids blocking/hang killing startup
                     # Don't capture output - let migration stdout/stderr stream to logs
+                    mig_script = """
+import sys
+print('[mig] starting', flush=True)
+from run import app
+print('[mig] app loaded', flush=True)
+from flask_migrate import upgrade
+app.app_context().push()
+try:
+    upgrade()
+    print('[gunicorn_run] migrations OK', flush=True)
+except Exception as e:
+    import traceback
+    print(f'[mig] ERROR: {e}', flush=True)
+    traceback.print_exc()
+    sys.exit(1)
+"""
                     result = subprocess.run(
-                        [sys.executable, "-c", (
-                            "print('[mig] starting', flush=True); "
-                            "from run import app; "
-                            "print('[mig] app loaded', flush=True); "
-                            "from flask_migrate import upgrade; "
-                            "app.app_context().push(); "
-                            "upgrade(); "
-                            "print('[gunicorn_run] migrations OK', flush=True)"
-                        )],
+                        [sys.executable, "-c", mig_script],
                         env=dict(os.environ),
                         timeout=45,
                     )
