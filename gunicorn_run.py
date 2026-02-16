@@ -40,18 +40,23 @@ from run import app
 print('[mig] app loaded', flush=True)
 from flask_migrate import upgrade
 app.app_context().push()
+print('[mig] calling upgrade()...', flush=True)
 try:
     upgrade()
     print('[gunicorn_run] migrations OK', flush=True)
-except Exception as e:
+except BaseException as e:
     import traceback
-    print(f'[mig] ERROR: {e}', flush=True)
+    print(f'[mig] ERROR: {type(e).__name__}: {e}', flush=True)
     traceback.print_exc()
+    sys.stdout.flush()
+    sys.stderr.flush()
     sys.exit(1)
 """
+                    mig_env = dict(os.environ)
+                    mig_env["PYTHONUNBUFFERED"] = "1"
                     result = subprocess.run(
-                        [sys.executable, "-c", mig_script],
-                        env=dict(os.environ),
+                        [sys.executable, "-u", "-c", mig_script],  # -u = unbuffered
+                        env=mig_env,
                         timeout=45,
                     )
                     if result.returncode != 0:
