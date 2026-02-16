@@ -1604,12 +1604,33 @@ const chitchatApp = createApp({
             }
             var raw = msg.content || '';
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
+            // Replace marked's autolink <a href="GIF_URL">...</a> with inline playing GIF
+            html = html.replace(/<a href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi, function(match, url) {
+                if (isGifUrl(url)) {
+                    var videoUrl = null;
+                    if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url)) {
+                        videoUrl = url.replace(/\.gif(\?|$)/i, '.mp4$1');
+                    }
+                    if (videoUrl) {
+                        return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(videoUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
+                    }
+                    return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
+                }
+                return match;
+            });
             html = html.replace(/(https?:\/\/[^\s<>"']+)(\s*["']?>\s*)?/g, function(match, url, artifact, offset, fullStr) {
                 if (offset > 0 && fullStr[offset - 1] === '"') return match;
                 if (offset > 1 && fullStr.substring(offset - 2, offset) === '">') return match;
                 url = (url || match).replace(/[.,;:)]+$/, '');
                 var isGif = isGifUrl(url);
-                if (isGif) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
+                if (isGif) {
+                    var vUrl = null;
+                    if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url)) {
+                        vUrl = url.replace(/\.gif(\?|$)/i, '.mp4$1');
+                    }
+                    if (vUrl) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(vUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
+                    return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
+                }
                 return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>';
             });
             return html;
