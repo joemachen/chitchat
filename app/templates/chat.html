@@ -124,6 +124,19 @@
         body.theme-light .edit-message-cancel { background: #e4e4e7; color: #52525b; }
         body.theme-light .edit-message-cancel:hover { background: #d4d4d8; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; }
+        .mobile-presence-bar { display: none; padding: 0.5rem 1rem; background: #1c1c1f; border-top: 1px solid #27272a; flex-shrink: 0; align-items: center; gap: 0.5rem; cursor: pointer; min-height: 44px; -webkit-tap-highlight-color: transparent; }
+        .mobile-presence-bar .mobile-presence-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex-shrink: 0; }
+        .mobile-presence-bar .mobile-presence-text { font-size: 0.9rem; color: #a1a1aa; }
+        .mobile-presence-sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 70vh; background: #18181c; border-top-left-radius: 12px; border-top-right-radius: 12px; z-index: 2001; display: flex; flex-direction: column; box-shadow: 0 -4px 24px rgba(0,0,0,0.4); }
+        .mobile-presence-sheet-handle { padding: 20px 24px; margin: 0 auto; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+.mobile-presence-sheet-handle::before { content: ''; width: 36px; height: 4px; background: #3f3f46; border-radius: 2px; }
+        .mobile-presence-sheet-content { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem 0 1.5rem; padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px)); }
+        .mobile-presence-sheet .user-list-section { padding: 0.5rem 0; }
+        .mobile-presence-sheet .user-list-section .user-list-title { padding: 0.5rem 1rem 0.25rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #71717a; }
+        .mobile-presence-sheet .user-item { padding: 0.5rem 1rem; min-height: 44px; }
+        body.theme-light .mobile-presence-bar { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .mobile-presence-bar .mobile-presence-text { color: #52525b; }
+        body.theme-light .mobile-presence-sheet { background: #fafafa; }
         .stats-view { padding: 1rem; user-select: text; -webkit-user-select: text; }
         .stats-view h2 { font-size: 1rem; margin: 1rem 0 0.5rem; color: #818cf8; }
         .stats-view h2:first-child { margin-top: 0; }
@@ -292,7 +305,6 @@
         .user-item.dnd .user-dot { background: #ef4444; }
         .user-item.invisible .user-dot { background: #71717a; }
         .user-item.offline .user-dot { background: #52525b; }
-        .user-item-presence { font-size: 0.75rem; color: #71717a; margin-left: 0.25rem; }
         .user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .user-item.me { color: #818cf8; font-weight: 500; }
         .user-list .muted { color: #71717a; font-size: 0.85rem; }
@@ -477,6 +489,12 @@
             .room-list.open .mobile-tab-panel.active .message-list-items { flex: 1 1 0 !important; min-height: 0; overflow-y: auto; max-height: none; }
         }
         @media (max-width: 768px) {
+            .mobile-presence-bar { display: flex; }
+        }
+        @media (min-width: 769px) {
+            .mobile-presence-bar { display: none !important; }
+        }
+        @media (max-width: 768px) {
             .header { flex-wrap: nowrap; min-height: 48px; height: 48px; padding: 0 0.5rem; }
             .header-settings-logout { display: none !important; }
             .room-list-footer-mobile { display: flex !important; flex-wrap: wrap; gap: 1rem; align-items: center; }
@@ -571,6 +589,31 @@
         <button type="button" class="close" @click="hideWhoisModal">Close</button>
     </div>
     <div v-if="hasAnyModalOpen" class="modal-backdrop" @click="hideAllModals"></div>
+    <div v-if="state.mobilePresenceSheetOpen" class="mobile-presence-sheet" role="dialog" aria-label="Users online and offline" aria-modal="true">
+        <div class="mobile-presence-sheet-handle" aria-hidden="true" role="button" tabindex="0" aria-label="Swipe down or tap to close" title="Swipe down or tap to close" @click="state.mobilePresenceSheetOpen = false" @touchstart="mobilePresenceSheetTouchStart" @touchmove="mobilePresenceSheetTouchMove" @touchend="mobilePresenceSheetTouchEnd"></div>
+        <div class="mobile-presence-sheet-content">
+            <div class="user-list-section">
+                <div class="user-list-title">Online</div>
+                <template v-if="onlineUsers.length">
+                    <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
+                        <span class="user-dot"></span>
+                        <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                    </div>
+                </template>
+                <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>
+            </div>
+            <div class="user-list-section">
+                <div class="user-list-title">Offline</div>
+                <template v-if="offlineUsers.length">
+                    <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
+                        <span class="user-dot"></span>
+                        <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
+                    </div>
+                </template>
+                <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one offline</span></div>
+            </div>
+        </div>
+    </div>
     <div v-if="state.searchResultsModal" class="search-results-modal" role="dialog" aria-label="Search results" aria-modal="true">
         <h3>Search: "{{ state.searchResultsModal.query }}" ({{ (state.searchResultsModal.messages || []).length }} results)</h3>
         <div class="search-results-list">
@@ -1022,6 +1065,10 @@
             </div>
             <div class="typing-indicator" :class="{ empty: !typingText }">{{ typingText }}</div>
             <div class="acro-timer" :class="{ hidden: !state.acroTimerSeconds || state.acroTimerSeconds <= 0 }" id="acroTimer">{{ state.acroPhase === 'submitting' ? 'Submit' : 'Vote' }}: {{ state.acroTimerSeconds || 0 }}s</div>
+            <div v-show="isMobile && !showSettingsView && showMessagesView" class="mobile-presence-bar" role="button" tabindex="0" aria-label="View online users" @click="state.mobilePresenceSheetOpen = true" @keydown.enter="state.mobilePresenceSheetOpen = true">
+                <span class="mobile-presence-dot"></span>
+                <span class="mobile-presence-text">{{ onlineUsers.length }} online</span>
+            </div>
             <div class="form-wrap" :class="{ 'acro-urgency': state.acroFormUrgent }" v-show="!showSettingsView">
                 <form id="sendForm">
                     <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
@@ -1041,7 +1088,6 @@
                         <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                             <span class="user-dot"></span>
                             <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
-                            <span v-if="u.online && u.current_room_name && u.id !== currentUserId" class="user-item-presence">in {{ u.current_room_name }}</span>
                         </div>
                     </template>
                     <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>
@@ -1146,7 +1192,8 @@ const state = reactive({
     contextMenu: null,
     roomContextMenu: null,
     messageContextMenu: null,
-    selectionContextMenu: null
+    selectionContextMenu: null,
+    mobilePresenceSheetOpen: false
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -1460,7 +1507,7 @@ const chitchatApp = createApp({
         }
         function formatTime(iso) { if (!iso) return ''; return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true }); }
         const hasAnyModalOpen = computed(function() {
-            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen);
+            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen || state.mobilePresenceSheetOpen);
         });
         const roomSwitcherFiltered = computed(function() {
             var rooms = roomsInOrder.value || [];
@@ -1482,6 +1529,7 @@ const chitchatApp = createApp({
             state.editRoomModal = null;
             state.searchResultsModal = null;
             state.roomSwitcherOpen = false;
+            state.mobilePresenceSheetOpen = false;
             state.contextMenu = null;
             state.roomContextMenu = null;
             state.messageContextMenu = null;
@@ -1570,7 +1618,11 @@ const chitchatApp = createApp({
         function setBgColor(val) { if (window.chitchat && window.chitchat.setBgColor) window.chitchat.setBgColor(val); }
         function setFont(val) { if (window.chitchat && window.chitchat.setFont) window.chitchat.setFont(val); }
         function deleteUser(userId, username) { if (window.chitchat && window.chitchat.settingsDeleteUser) window.chitchat.settingsDeleteUser(userId, username); }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio };
+        var mobilePresenceSheetTouchStartY = null;
+        function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
+        function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
+        function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -2104,6 +2156,15 @@ chitchatApp.mount('#app');
             if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
         }
     });
+    document.addEventListener('contextmenu', function(e) {
+        var el = e.target.closest('.mobile-presence-sheet .user-item[data-user-id]');
+        if (el) {
+            e.preventDefault();
+            var uid = parseInt(el.getAttribute('data-user-id'), 10);
+            var uname = el.getAttribute('data-username') || '';
+            if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
+        }
+    });
     (function() {
         var longPressTimer = null;
         var longPressEl = null;
@@ -2126,24 +2187,30 @@ chitchatApp.mount('#app');
             headerUsername.addEventListener('touchmove', clearLongPress, { passive: true });
         }
         var ul = document.getElementById('userList');
+        function handleUserItemLongPress(e) {
+            var el = e.target.closest('.user-item[data-user-id]');
+            if (!el) return;
+            longPressEl = el;
+            longPressTimer = setTimeout(function() {
+                longPressTimer = null;
+                var uid = parseInt(longPressEl.getAttribute('data-user-id'), 10);
+                var uname = longPressEl.getAttribute('data-username') || '';
+                if (uid) {
+                    var rect = longPressEl.getBoundingClientRect();
+                    showContextMenu(rect.left + rect.width / 2, rect.top + 20, uid, uname);
+                }
+            }, 500);
+        }
         if (ul) {
-            ul.addEventListener('touchstart', function(e) {
-                var el = e.target.closest('.user-item[data-user-id]');
-                if (!el) return;
-                longPressEl = el;
-                longPressTimer = setTimeout(function() {
-                    longPressTimer = null;
-                    var uid = parseInt(longPressEl.getAttribute('data-user-id'), 10);
-                    var uname = longPressEl.getAttribute('data-username') || '';
-                    if (uid) {
-                        var rect = longPressEl.getBoundingClientRect();
-                        showContextMenu(rect.left + rect.width / 2, rect.top + 20, uid, uname);
-                    }
-                }, 500);
-            }, { passive: true });
+            ul.addEventListener('touchstart', handleUserItemLongPress, { passive: true });
             ul.addEventListener('touchend', clearLongPress, { passive: true });
             ul.addEventListener('touchmove', clearLongPress, { passive: true });
         }
+        document.addEventListener('touchstart', function(e) {
+            if (e.target.closest('.mobile-presence-sheet .user-item[data-user-id]')) handleUserItemLongPress(e);
+        }, { passive: true });
+        document.addEventListener('touchend', clearLongPress, { passive: true });
+        document.addEventListener('touchmove', clearLongPress, { passive: true });
         var rl = document.getElementById('roomList');
         if (rl) {
             rl.addEventListener('contextmenu', function(e) {
@@ -2409,6 +2476,7 @@ chitchatApp.mount('#app');
         state.editRoomModal = null;
         state.searchResultsModal = null;
         state.roomSwitcherOpen = false;
+        state.mobilePresenceSheetOpen = false;
         hideContextMenu();
         hideMessageContextMenu();
         hideRoomContextMenu();

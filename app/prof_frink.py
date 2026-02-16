@@ -19,6 +19,17 @@ FRINKISMS = [
     "Glaaven-glaven!",
     "Ooh, the mathematics of it all!",
     "Yes, yes, the flux capacitor—I mean, the thingamajig!",
+    "Hoyvin-glaven!",
+    "The probability is most favorable!",
+    "Eureka! Well, almost eureka!",
+    "By Jove—I mean, by science!",
+    "The cosmic ballet goes on!",
+    "Fascinating! Absolutely fascinating!",
+    "The thingamajig is operational!",
+    "Ooh, the flux capacitor approves!",
+    "Shabooey-shabooey!",
+    "The mathematics never lie!",
+    "A most scientific occurrence!",
 ]
 
 # Placeholder trivia: (question, answer, difficulty, season)
@@ -52,6 +63,8 @@ _active_trivia: dict[int, dict] = {}
 
 # Multi-round sessions: room_id -> rounds left to post after current (for !trivia X)
 _trivia_rounds_remaining: dict[int, int] = {}
+# Total rounds for current session (for "Round X of Y" prefix)
+_trivia_total_rounds: dict[int, int] = {}
 
 # Hot streaks: (room_id, user_id) -> consecutive correct count
 _trivia_streak: dict[tuple[int, int], int] = {}
@@ -64,6 +77,10 @@ HOT_STREAK_PHRASES = [
     "Five! A pentagon of perfection!",
     "Six! The hex of knowledge!",
     "Seven! A week of wisdom! Shabooey!",
+    "The cosmic ballet of correct answers continues!",
+    "Eureka! The thingamajig is buzzing with approval!",
+    "By science—a most favorable outcome!",
+    "The flux capacitor never lies! Glaaven!",
 ]
 
 
@@ -174,19 +191,44 @@ def get_frink_dm_reply() -> str:
         "Yes, yes! You've reached the lab. The thingamajig is at your service!",
         "Shabooey! Prof Frink here, ready to assist with all matters scientific!",
         "Glaaven! Your message has been received. The probability of a reply is 100%!",
+        "The cosmic ballet of DMs! A most scientific greeting to you!",
+        "Eureka! Well, almost—Prof Frink at your service, glavin!",
+        "By Jove—I mean, by science! Your message has arrived. How may I assist?",
+        "The flux capacitor approves of your correspondence! Hoyvin!",
+        "A message! The mathematics of friendship are most favorable!",
     ]
     return random.choice(dm_replies)
 
 
-def get_trivia_response() -> tuple[str, str]:
+def get_trivia_total_rounds(room_id: int) -> int:
+    """Total rounds for current multi-round session (0 if single round)."""
+    return _trivia_total_rounds.get(room_id, 0)
+
+
+def set_trivia_total_rounds(room_id: int, n: int) -> None:
+    """Set total rounds for multi-round session."""
+    global _trivia_total_rounds
+    if n <= 0:
+        _trivia_total_rounds.pop(room_id, None)
+    else:
+        _trivia_total_rounds[room_id] = n
+
+
+def get_trivia_response(room_id: Optional[int] = None) -> tuple[str, str]:
     """
     Fetch a trivia question and return (question_message, answer_for_later).
-    The question is posted; the answer is revealed when first correct chat message or after timeout.
+    When room_id has a multi-round session (total > 1), prefix with "Round X of Y".
     """
     tq = fetch_trivia_question()
     if not tq:
         return format_frink_reply("The trivia flux capacitor is on the fritz! Try again later, glavin!"), ""
-    msg = format_frink_reply(f"**Trivia time!** {tq.question}")
+    total = get_trivia_total_rounds(room_id) if room_id else 0
+    remaining = get_trivia_rounds_remaining(room_id) if room_id else 0
+    round_prefix = ""
+    if total > 1 and remaining >= 0:
+        current = total - remaining  # 1-based: round 1, 2, 3...
+        round_prefix = f"**Round {current} of {total}** — "
+    msg = format_frink_reply(f"{round_prefix}**Trivia time!** {tq.question}")
     return msg, tq.answer
 
 
@@ -212,13 +254,22 @@ def get_trivia_rounds_remaining(room_id: int) -> int:
     return _trivia_rounds_remaining.get(room_id, 0)
 
 
-def set_trivia_rounds_remaining(room_id: int, n: int) -> None:
-    """Set rounds left for multi-round session."""
-    global _trivia_rounds_remaining
+def set_trivia_rounds_remaining(room_id: int, n: int, total: Optional[int] = None) -> None:
+    """Set rounds left for multi-round session. Optionally set total (for Round X of Y)."""
+    global _trivia_rounds_remaining, _trivia_total_rounds
     if n <= 0:
         _trivia_rounds_remaining.pop(room_id, None)
+        # Keep total until last round is posted (cleared by clear_trivia_session)
     else:
         _trivia_rounds_remaining[room_id] = n
+        if total is not None:
+            _trivia_total_rounds[room_id] = total
+
+
+def clear_trivia_session(room_id: int) -> None:
+    """Clear total rounds when session ends (after last round posted)."""
+    global _trivia_total_rounds
+    _trivia_total_rounds.pop(room_id, None)
 
 
 def _normalize(s: str) -> str:

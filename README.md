@@ -31,7 +31,7 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 
 **Appearance** — Settings → Appearance: theme (dark/light/high-contrast), chat background color, and font (system default or common system fonts).
 
-**Mobile** — On screens under 768px, a 3-tab bottom bar (Rooms, DMs, Settings) replaces the hamburger menu. When viewing a room, DM, or Settings, the nav hides for full-screen content; tap the back arrow (←) to see the full channel list (Rooms + DMs) with the 3-tab nav. Profile (nick, status, away message, bio) is in Settings → Profile.
+**Mobile** — On screens under 768px, a 3-tab bottom bar (Rooms, DMs, Settings) replaces the hamburger menu. When viewing a room, DM, or Settings, the nav hides for full-screen content; tap the back arrow (←) to see the full channel list (Rooms + DMs) with the 3-tab nav. Profile (nick, status, away message, bio) is in Settings → Profile. A compact "X online" presence bar above the message input opens a bottom sheet with Online/Offline users (tap or swipe the handle to dismiss).
 
 ### In the Acrophobia channel
 

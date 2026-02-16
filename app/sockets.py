@@ -33,6 +33,7 @@ from app.prof_frink import (
     award_trivia_point,
     check_trivia_answer,
     clear_all_trivia_streaks,
+    clear_trivia_session,
     format_frink_reply,
     get_frink_settings,
     get_help_text as frink_get_help,
@@ -980,7 +981,7 @@ def register_socket_handlers(socketio):
             def _post_next_trivia_round(rid, fid, sock_io, app_obj):
                 """Post one trivia question and schedule reveal/timeout. Used for follow-up rounds."""
                 with app_obj.app_context():
-                    q_msg, answer = get_trivia_response()
+                    q_msg, answer = get_trivia_response(rid)
                     msg = Message(room_id=rid, user_id=fid, content=q_msg, message_type="chat")
                     db.session.add(msg)
                     db.session.commit()
@@ -1002,6 +1003,8 @@ def register_socket_handlers(socketio):
                                 if get_trivia_rounds_remaining(r) > 0:
                                     set_trivia_rounds_remaining(r, get_trivia_rounds_remaining(r) - 1)
                                     eventlet.spawn_after(3, _post_next_trivia_round, r, frink_id, sio, app_o)
+                                else:
+                                    clear_trivia_session(r)
 
                         eventlet.spawn_after(30, _reveal_timeout, app_obj, rid, fid, sock_io)
 
@@ -1019,6 +1022,8 @@ def register_socket_handlers(socketio):
                     if get_trivia_rounds_remaining(rid) > 0:
                         set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
                         eventlet.spawn_after(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
+                    else:
+                        clear_trivia_session(rid)
 
             # /trivia or /trivia X (X=1-7 consecutive rounds)
             is_trivia_cmd = cmd in ("/trivia", "/ trivia")
@@ -1028,10 +1033,10 @@ def register_socket_handlers(socketio):
                     r = int(parts[1])
                     rounds = max(1, min(7, r))
                 if rounds > 1:
-                    set_trivia_rounds_remaining(room_id, rounds - 1)
+                    set_trivia_rounds_remaining(room_id, rounds - 1, total=rounds)
 
                 # Post first question
-                q_msg, answer = get_trivia_response()
+                q_msg, answer = get_trivia_response(room_id)
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=q_msg, message_type="chat")
                 db.session.add(msg)
                 db.session.commit()
@@ -1128,6 +1133,8 @@ def register_socket_handlers(socketio):
                         set_trivia_rounds_remaining(room_id, get_trivia_rounds_remaining(room_id) - 1)
                         app_obj = current_app._get_current_object()
                         eventlet.spawn_after(3, _post_next_trivia_round, room_id, frink_user.id, socketio, app_obj)
+                    else:
+                        clear_trivia_session(room_id)
 
         # /slap or !slap <nick> — IRC-style slap. If nick not found, Homer mocks for slapping self.
         low_content = content.strip().lower()

@@ -1,5 +1,20 @@
 # Release notes
 
+## v2.8.2 — Mobile presence bar, Prof Frink rounds, user list cleanup
+
+**Mobile: inline presence bar**
+- **Presence bar** — When viewing a room on mobile, a compact "X online" bar appears above the message input. Tap to open a bottom sheet with Online/Offline user list.
+- **Bottom sheet** — Swipe-down or tap the handle to dismiss; 44pt tap targets; right-click/long-press on users for Whois, Message, etc.
+
+**Prof Frink**
+- **Round X of Y** — Multi-round trivia (`!trivia 3`) now prefixes each question with "Round 1 of 3", "Round 2 of 3", etc.
+- **More personality** — Added Frinkisms, hot-streak phrases, and DM replies to keep the bot fresh.
+
+**Desktop**
+- **User list** — Removed "in Lobby" (room) display from the online user list.
+
+---
+
 ## v2.8.1 — Bug fix, cleanup, help updates
 
 **Bug fix**
