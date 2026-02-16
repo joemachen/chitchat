@@ -143,18 +143,18 @@ def _get_users_with_online_status():
             st = getattr(u, "user_status", None) or "online"
             actually_online = u.id in online
             if st == "invisible":
-            result.append({
-                "id": u.id,
-                "username": u.username,
-                "display_name": getattr(u, "display_name", None) or None,
-                "avatar_bg_color": getattr(u, "avatar_bg_color", None) or None,
-                "online": False,
-                "is_super_admin": getattr(u, "is_super_admin", False),
-                "rank": rank,
-                "is_system_user": False,
-                "user_status": "invisible",
-                "current_room_name": None,
-            })
+                result.append({
+                    "id": u.id,
+                    "username": u.username,
+                    "display_name": getattr(u, "display_name", None) or None,
+                    "avatar_bg_color": getattr(u, "avatar_bg_color", None) or None,
+                    "online": False,
+                    "is_super_admin": getattr(u, "is_super_admin", False),
+                    "rank": rank,
+                    "is_system_user": False,
+                    "user_status": "invisible",
+                    "current_room_name": None,
+                })
             else:
                 result.append({
                     "id": u.id,
