@@ -32,10 +32,13 @@ if __name__ == "__main__":
                 print("[gunicorn_run] running migrations...", flush=True)
                 try:
                     upgrade()
+                    print("[gunicorn_run] migrations OK", flush=True)
                 except Exception as mig_err:
-                    print(f"[gunicorn_run] MIGRATION FAILED: {mig_err}", flush=True)
+                    print(f"[gunicorn_run] MIGRATION FAILED (continuing anyway): {mig_err}", flush=True)
                     traceback.print_exc()
-                    raise
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+                    # Don't exit - start gunicorn so we can see if app works; user can fix migrations
             print("[gunicorn_run] seeding...", flush=True)
             _seed_default_data(app)
             _run_message_retention_cleanup(app)
