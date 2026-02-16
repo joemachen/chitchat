@@ -21,7 +21,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Rooms & channels
 
-- **Rooms**: general, Stats (stats view: top typers, active hours, favorite words, Acrophobia & Trivia leaderboards), **Acrophobia** (game bot), **Trivia** (Prof Frink bot), plus user-created rooms. Full CRUD for channels (Super Admin or create_room/update_room/delete_room permission); room order per user (drag-and-drop). **Protected channels**: Only Super Admin can rename protected channels; others see an alert when editing but can still edit the topic. **Default channel**: Super Admin can set which channel users see on login (Settings → Default channel).
+- **Rooms**: general, Stats (stats view: top typers, active hours, favorite words, Acrophobia & Trivia leaderboards), **Acrophobia** (game bot), **Trivia** (Prof Frink bot), plus user-created rooms. Full CRUD for rooms (Super Admin or create_room/update_room/delete_room permission); room order per user (drag-and-drop on desktop; Move up/down in context menu on mobile). **Protected rooms**: Only Super Admin can rename protected rooms; others see an alert when editing but can still edit the topic. **Default room**: Super Admin can set which room users see on login (Settings → Default room).
 - **Channel topic**: Any user can set with **/topic &lt;content&gt;**. Topic is pinned at top of channel with “Set by &lt;user&gt; on &lt;date/time&gt;”; toast notifies the room when topic is updated.
 
 ### Real-time & commands
@@ -38,9 +38,9 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### UX
 
-- **Global features** (all rooms, DMs, Acrophobia): @mention highlights (message pulse, room badge), tab flashing when mentioned and tab is hidden, link previews (OG metadata for URLs; minimize per preview; GIF URLs render inline only, no duplicate preview card). Custom confirm/alert/prompt modals for destructive actions. These apply app-wide, not just in Acrophobia.
+- **Global features** (all rooms, DMs, Acrophobia): @mention highlights (message pulse, room badge), tab flashing when mentioned and tab is hidden, link previews (OG metadata for URLs; minimize per preview; GIF URLs render inline playing with click-to-pause for Giphy/Tenor). Muted rooms show 🔇 emoji. Custom confirm/alert/prompt modals for destructive actions. These apply app-wide, not just in Acrophobia.
 - **Copy/paste**: Message text, channel topic, room names, and stats area are explicitly selectable (user-select: text). Paste in the message input works as usual. **Multi-line input**: Shift+Enter for new line; Enter to send. Edit message uses a styled modal with full message visibility.
-- **Context menu**: Right-click on a username (in messages or user list) shows Whois and Kick (if Super Admin or kick_user permission; AcroBot/Homer: Super Admin only). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible).
+- **Context menu**: Right-click on a username (in messages or user list) shows Whois and Kick (if Super Admin or kick_user permission; AcroBot/Homer: Super Admin only). Right-click your own name to set status (Online, Away, Do Not Disturb, Invisible). Right-click (or long-press on mobile) a room for Move up/down, Mute notifications, Edit room, Unmute users (if muted).
 - **Mobile**: Content view hides 3-tab nav for full-screen chat; back arrow opens channel list (Rooms + DMs) with 3-tab nav. Profile (nick, status, away message, bio, avatar color) is in Settings → Profile. Log out: Settings tab or footer of channel list (Rooms/DMs). Inline presence bar ("X online") above the input opens a bottom sheet with Online/Offline users (tap or swipe handle to dismiss). Single compact header; collapsible info drawer for topic/connection; search in room list; fixed header; chat fills space.
 - **DMs**: Consolidated per user pair (deduplicated); only DMs you participate in are shown.
 - **Homer**: System user; type **!Simpsons** in any room to trigger a random Simpsons quote (when Homer is online). Online/offline toggle in Settings (Super Admin only); homer_control permission. Homer’s status: “It says no HomerS. We're allowed to have one.”

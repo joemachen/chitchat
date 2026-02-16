@@ -15,7 +15,7 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 | Command | Description |
 |--------|-------------|
 | **/help** | Show all commands (slash commands, !Simpsons, context menus, shortcuts). |
-| **/topic** &lt;text&gt; | Set the channel topic (pinned at top; shows who set it and when). |
+| **/topic** &lt;text&gt; | Set the room topic (pinned at top; shows who set it and when). |
 | **/whois** &lt;username&gt; | IRC-style whois: account created, online/offline, IP, time connected, bio (modal to you only). Username case-insensitive. |
 | **/nick** &lt;name&gt; | Set your display name (shown in messages and whois). |
 | **/status** &lt;text&gt; or **/status** | Set or clear your status line (shown in whois). |
@@ -25,13 +25,13 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 | **!Simpsons** | Homer replies with a random Simpsons quote (when Homer is online). |
 | **/em** &lt;text&gt; or **/me** &lt;text&gt; | Send an emote: “* username text” in italics. |
 
-**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a channel to **Edit channel** (name and topic). Right-click other users for Whois, Message, Mute, etc. Menus stay within the viewport on desktop and mobile.
+**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a room to **Edit room** (name, topic), **Move up/down** (reorder), **Mute notifications**, or **Unmute users** (if muted). Right-click other users for Whois, Message, Mute, etc. Menus stay within the viewport on desktop and mobile.
 
 **Shortcuts** — **Ctrl+K** opens the room switcher; **Esc** closes modals.
 
 **Appearance** — Settings → Appearance: theme (dark/light/high-contrast), chat background color, and font (system default or common system fonts).
 
-**Mobile** — On screens under 768px, a 3-tab bottom bar (Rooms, DMs, Settings) replaces the hamburger menu. When viewing a room, DM, or Settings, the nav hides for full-screen content; tap the back arrow (←) to see the full channel list (Rooms + DMs) with the 3-tab nav. Profile (nick, status, away message, bio, avatar color) is in Settings → Profile. **Log out**: Settings tab or footer of the channel list (scroll to bottom when viewing Rooms or DMs). A compact "X online" presence bar above the message input opens a bottom sheet with Online/Offline users (tap or swipe the handle to dismiss).
+**Mobile** — On screens under 768px, a 3-tab bottom bar (Rooms, DMs, Settings) replaces the hamburger menu. When viewing a room, DM, or Settings, the nav hides for full-screen content; tap the back arrow (←) to see the full room list (Rooms + DMs) with the 3-tab nav. **Long-press** a room to open the context menu (Edit, Mute, Move up/down, Unmute users). Profile (nick, status, away message, bio, avatar color) is in Settings → Profile. **Log out**: Settings tab or footer of the room list (scroll to bottom when viewing Rooms or DMs). A compact "X online" presence bar above the message input opens a bottom sheet with Online/Offline users (tap or swipe the handle to dismiss).
 
 ### In the Acrophobia channel
 
@@ -55,7 +55,7 @@ Type **/help** or **/msg acrobot help** in that room for full instructions and r
 | **!set-seasons** [1-20] | Restrict questions to specific seasons. |
 | **!score** or **/score** | Show Trivia leaderboard. |
 
-Admins (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Admins (or homer_control permission) can turn Homer on/off ("Homer is online" toggle). Admins (or frink_control permission) can turn Prof Frink on/off ("Prof Frink is online" toggle). **Bot channels** — admins can configure which channels each bot can respond in (Settings → Bot channels).
+Admins (or acrobot_control permission) can turn the Acrophobia bot on/off in **Settings** (“AcroBot is online” toggle). Admins (or homer_control permission) can turn Homer on/off ("Homer is online" toggle). Admins (or frink_control permission) can turn Prof Frink on/off ("Prof Frink is online" toggle). **Bot rooms** — admins can configure which rooms each bot can respond in (Settings → Bot rooms).
 
 ## Docs
 

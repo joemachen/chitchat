@@ -1,5 +1,27 @@
 # Release notes
 
+## v2.8.6 — Mobile room context menu, reorder, Rooms terminology, GIF autoplay
+
+**Mobile: room context menu**
+- Long-press on a room in the rooms list (home view or sidebar drawer) now opens the room context menu with Edit, Mute/Unmute, Move up, Move down, and Unmute users (if any muted).
+
+**Room reordering**
+- Room context menu (right-click or long-press) now includes **Move up** and **Move down** for reordering rooms without drag-and-drop. Works on desktop and mobile.
+
+**Rooms terminology**
+- User-facing "channel" labels replaced with "Room" throughout the UI (Edit room, Delete room, Room name, Room topic, No rooms, Protected rooms, Default room, Bot rooms, etc.).
+
+**Muted rooms**
+- Muted rooms now show a muted speaker emoji (🔇) instead of the word "mute" before the room name.
+
+**Unmute users**
+- Room context menu shows "Muted in this room" with Unmute options when you've muted users (e.g. System) in that room. Fixes the case where muting the System user in System Events left no way to unmute.
+
+**GIF links**
+- Pasted GIF links (Giphy, Tenor, direct .gif) now render as inline playing GIFs instead of plain links. Giphy/Tenor use video for click-to-pause; others use img.
+
+---
+
 ## v2.8.5 — GIF fixes, code artifacts, mobile logout
 
 **GIF links**

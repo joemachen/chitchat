@@ -593,10 +593,12 @@
     </div>
     <div id="roomContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Room context menu">
         <div id="roomMutedUsersSection" class="context-menu-muted-users" style="display:none;"></div>
+        <button type="button" role="menuitem" data-action="room-move-up" id="roomMoveUpBtn" style="display:none;">Move up</button>
+        <button type="button" role="menuitem" data-action="room-move-down" id="roomMoveDownBtn" style="display:none;">Move down</button>
         <button type="button" role="menuitem" data-action="room-mute-notifications" id="roomMuteNotificationsBtn">Mute notifications</button>
-        <button type="button" role="menuitem" data-action="room-edit">Edit channel</button>
+        <button type="button" role="menuitem" data-action="room-edit">Edit room</button>
         <button type="button" role="menuitem" data-action="room-toggle-protected" id="roomToggleProtectedBtn" style="display:none;">Mark as protected</button>
-        <button type="button" role="menuitem" data-action="room-delete" id="roomDeleteBtn" style="display:none;">Delete channel</button>
+        <button type="button" role="menuitem" data-action="room-delete" id="roomDeleteBtn" style="display:none;">Delete room</button>
     </div>
     <div id="selectionContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Selection context menu">
         <button type="button" role="menuitem" data-action="copy-selection">Copy</button>
@@ -693,18 +695,18 @@
             <button type="button" class="edit-message-cancel" @click="hideEditProfileModal">Cancel</button>
         </div>
     </div>
-    <div v-if="state.editRoomModal" class="edit-message-modal" role="dialog" aria-label="Edit channel" aria-modal="true">
-        <h3>Edit channel</h3>
+    <div v-if="state.editRoomModal" class="edit-message-modal" role="dialog" aria-label="Edit room" aria-modal="true">
+        <h3>Edit room</h3>
         <template v-if="state.editRoomModal.is_protected && !isSuperAdmin">
-            <p class="edit-profile-label" style="color:#f87171;margin:0 0 0.75rem;">Protected channel names cannot be edited.</p>
+            <p class="edit-profile-label" style="color:#f87171;margin:0 0 0.75rem;">Protected room names cannot be edited.</p>
         </template>
         <template v-else>
-        <label for="editRoomInput" class="edit-profile-label">Channel name</label>
+        <label for="editRoomInput" class="edit-profile-label">Room name</label>
             <input type="text" id="editRoomInput" ref="editRoomNameRef" v-model="state.editRoomModal.name" placeholder="Room name…" class="edit-room-input" aria-label="Room name" @keydown="onEditRoomKeydown">
         </template>
-        <label v-if="isSuperAdmin" for="editRoomProtectedInput" class="edit-profile-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="editRoomProtectedInput" v-model="state.editRoomModal.is_protected"> Protect channel</label>
+        <label v-if="isSuperAdmin" for="editRoomProtectedInput" class="edit-profile-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="editRoomProtectedInput" v-model="state.editRoomModal.is_protected"> Protect room</label>
         <label for="editRoomTopicInput" class="edit-profile-label">Topic</label>
-        <textarea id="editRoomTopicInput" v-model="state.editRoomModal.topic" placeholder="Channel topic…" rows="3" class="edit-room-input" aria-label="Topic"></textarea>
+        <textarea id="editRoomTopicInput" v-model="state.editRoomModal.topic" placeholder="Room topic…" rows="3" class="edit-room-input" aria-label="Topic"></textarea>
         <div class="edit-message-actions">
             <button type="button" class="edit-message-ok" @click="saveEditRoom">OK</button>
             <button type="button" class="edit-message-cancel" @click="hideEditRoomModal">Cancel</button>
@@ -712,7 +714,7 @@
     </div>
     <div v-if="state.roomSwitcherOpen" class="room-switcher-modal" role="dialog" aria-label="Switch room" aria-modal="true">
         <input type="text" ref="roomSwitcherInputRef" v-model="state.roomSwitcherFilter" placeholder="Type to filter rooms…" autocomplete="off" aria-label="Filter rooms" @keydown="onRoomSwitcherKeydown">
-        <div class="room-switcher-list" role="listbox" aria-label="Rooms and channels">
+        <div class="room-switcher-list" role="listbox" aria-label="Rooms">
             <div v-for="r in roomSwitcherFiltered" :key="r.id" :id="'room-switcher-opt-' + r.id" class="room-switcher-item" role="option" :aria-selected="state.roomSwitcherHighlightId === r.id" :tabindex="state.roomSwitcherHighlightId === r.id ? 0 : -1" :class="{ selected: state.roomSwitcherHighlightId === r.id }" @click="onRoomSwitcherSelect(r.id)">{{ r.is_dm ? ('DM: ' + (r.dm_with_username || r.created_by_username || '?')) : r.name }}</div>
         </div>
         <p class="room-switcher-hint">↑↓ to navigate, Enter to select, Esc to close</p>
@@ -775,7 +777,7 @@
         </div>
     </div>
     <main class="main" role="main">
-        <nav class="room-list" id="roomList" aria-label="Rooms and channels">
+        <nav class="room-list" id="roomList" aria-label="Rooms">
             <div class="room-list-scroll">
                 <div class="mobile-tab-panel mobile-tab-rooms active" data-tab="rooms">
                     <div class="room-list-title">ROOMS</div>
@@ -784,14 +786,14 @@
                             <div v-for="r in channelsInOrder" :key="r.id" :class="['room-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" draggable="true" :data-room-id="r.id" @click="onRoomClick(r.id, $event)" @dragstart="onRoomDragStart($event, r.id, 'channel')" @dragend="onRoomDragEnd($event)" @dragover.prevent="onRoomDragOver($event, r.id, 'channel')" @dragleave="onRoomDragLeave($event)" @drop.prevent="onRoomDrop($event, r.id, 'channel')">
                                 <span class="room-item-grip" title="Drag to reorder">⋮⋮</span>
                                 <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
-                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? 'mute ' : '' }}{{ r.name }}</span>
+                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? '🔇 ' : '' }}{{ r.name }}</span>
                                 <span class="room-item-actions">
                                     <button v-if="canEditRoom(r)" type="button" class="edit" title="Edit" @click="onEditRoom(r.id, $event)">✎</button>
                                     <button v-if="canDeleteRoom(r)" type="button" class="delete" title="Delete" @click="onDeleteRoom(r.id, $event)">×</button>
                                 </span>
                             </div>
                         </template>
-                        <div v-else class="room-item" style="cursor:default;color:#71717a;">No channels</div>
+                        <div v-else class="room-item" style="cursor:default;color:#71717a;">No rooms</div>
                     </div>
                 </div>
                 <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
@@ -802,7 +804,7 @@
                             <div v-for="r in dmsInOrder" :key="r.id" :class="['room-item', 'dm-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" draggable="true" :data-room-id="r.id" @click="onRoomClick(r.id, $event)" @dragstart="onRoomDragStart($event, r.id, 'dm')" @dragend="onRoomDragEnd($event)" @dragover.prevent="onRoomDragOver($event, r.id, 'dm')" @dragleave="onRoomDragLeave($event)" @drop.prevent="onRoomDrop($event, r.id, 'dm')">
                                 <span class="room-item-grip" title="Drag to reorder">⋮⋮</span>
                                 <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
-                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? 'mute ' : '' }}{{ roomDisplayName(r) }}</span>
+                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? '🔇 ' : '' }}{{ roomDisplayName(r) }}</span>
                                 <span class="room-item-actions"><button type="button" class="delete" title="Delete DM" @click="onDeleteRoom(r.id, $event)">×</button></span>
                             </div>
                         </template>
@@ -834,10 +836,10 @@
                             <div v-for="r in channelsInOrder" :key="r.id" :class="['room-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" :data-room-id="r.id" @click="onRoomClick(r.id, $event)">
                                 <span class="room-item-grip" style="visibility:hidden;">⋮⋮</span>
                                 <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
-                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? 'mute ' : '' }}{{ r.name }}</span>
+                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? '🔇 ' : '' }}{{ r.name }}</span>
                             </div>
                         </template>
-                        <div v-else class="room-item" style="cursor:default;color:#71717a;">No channels</div>
+                        <div v-else class="room-item" style="cursor:default;color:#71717a;">No rooms</div>
                     </div>
                 </div>
                 <div v-show="state.mobileHomeTab === 'dms'" class="mobile-channel-list-section">
@@ -847,7 +849,7 @@
                             <div v-for="r in dmsInOrder" :key="r.id" :class="['room-item', 'dm-item', { active: isRoomActive(r), mentioned: state.unreadMentions[r.id] && state.unreadMentions[r.id].size }]" :data-room-id="r.id" @click="onRoomClick(r.id, $event)">
                                 <span class="room-item-grip" style="visibility:hidden;">⋮⋮</span>
                                 <span class="room-item-unread-dot" :style="{ display: hasUnread(r) ? 'inline-block' : 'none' }" title="Unread"></span>
-                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? 'mute ' : '' }}{{ roomDisplayName(r) }}</span>
+                                <span class="room-item-name">{{ state.roomNotificationMuted[r.id] ? '🔇 ' : '' }}{{ roomDisplayName(r) }}</span>
                             </div>
                         </template>
                         <div v-else class="room-item" style="cursor:default;color:#71717a;">No messages</div>
@@ -1056,19 +1058,19 @@
                             </div>
                             <template v-if="isSuperAdmin">
                                 <h2>AcroBot</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia channel. When offline, the bot will not start rounds or accept votes.</p>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia room. When offline, the bot will not start rounds or accept votes.</p>
                                 <div class="user-row"><label><input type="checkbox" :checked="state.acrobotActive" @change="window.chitchat && window.chitchat.settingsSetAcrobot && window.chitchat.settingsSetAcrobot($event.target.checked)"> <span>AcroBot is online</span></label></div>
                                 <h2>Homer</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Type !Simpsons in any room to get a random Simpsons quote. When offline, Homer will not respond.</p>
                                 <div class="user-row"><label><input type="checkbox" :checked="state.homerActive" @change="window.chitchat && window.chitchat.settingsSetHomer && window.chitchat.settingsSetHomer($event.target.checked)"> <span>Homer is online</span></label></div>
                                 <h2>Prof Frink</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Trivia bot in the Trivia channel. Type !trivia for a question, !help for commands. When offline, Prof Frink will not respond.</p>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Trivia bot in the Trivia room. Type !trivia for a question, !help for commands. When offline, Prof Frink will not respond.</p>
                                 <div class="user-row"><label><input type="checkbox" :checked="state.frinkActive" @change="window.chitchat && window.chitchat.settingsSetFrink && window.chitchat.settingsSetFrink($event.target.checked)"> <span>Prof Frink is online</span></label></div>
                                 <h2>Stats</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats channel. This deletes every message in every channel and cannot be undone.</p>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats room. This deletes every message in every room and cannot be undone.</p>
                                 <div class="user-row"><button type="button" @click="window.chitchat && window.chitchat.settingsResetStats && window.chitchat.settingsResetStats()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>
-                                <h2>Channels</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected channels can only be removed here. Admins can mark any channel protected.</p>
+                                <h2>Rooms</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected rooms can only be removed here. Admins can mark any room protected.</p>
                                 <div v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
                                     <span>{{ r.name }}<span v-if="r.is_protected" style="color:#71717a;"> (protected)</span></span>
                                     <span style="display:flex;gap:0.35rem;align-items:center;">
@@ -1095,15 +1097,15 @@
                                     <p v-if="state.auditLogEntries.length === 0" style="color:#71717a;margin:0;">No audit entries yet.</p>
                                     <div v-for="e in state.auditLogEntries" :key="e.id" style="padding:0.25rem 0;border-bottom:1px solid #27272a;color:#a1a1aa;">{{ e.username }} {{ e.action }} {{ e.target_type }}#{{ e.target_id }} <span style="font-size:0.75rem;color:#52525b;">{{ e.created_at }}</span></div>
                                 </div>
-                                <h2>Default channel</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Channel users see when they first log in.</p>
+                                <h2>Default room</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Room users see when they first log in.</p>
                                 <div class="user-row">
                                     <select :value="state.defaultChannelId || ''" @change="window.chitchat && window.chitchat.settingsSetDefaultChannel && window.chitchat.settingsSetDefaultChannel($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
                                         <option v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" :value="String(r.id)">{{ r.name }}</option>
                                     </select>
                                 </div>
-                                <h2>Bot channels</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Which channels each bot can respond in. Comma-separated names; "all" or empty = all channels.</p>
+                                <h2>Bot rooms</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Which rooms each bot can respond in. Comma-separated names; "all" or empty = all rooms.</p>
                                 <div class="user-row" style="flex-direction:column;align-items:stretch;gap:0.5rem;">
                                     <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">AcroBot:</span><input type="text" :value="(state.botChannels && state.botChannels.acrobot) ? state.botChannels.acrobot.join(', ') : ''" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('acrobot', $event.target.value)" placeholder="Acrophobia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
                                     <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Homer:</span><input type="text" :value="(state.botChannels && state.botChannels.homer) ? state.botChannels.homer.join(', ') : 'all'" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('homer', $event.target.value)" placeholder="all" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
@@ -1114,7 +1116,7 @@
                                 <table style="font-size:0.85rem;border-collapse:collapse;">
                                     <tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th><th style="padding:0.35rem 0.5rem;">Rookie</th><th style="padding:0.35rem 0.5rem;">Bro</th><th style="padding:0.35rem 0.5rem;">Fam</th></tr>
                                     <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','frink_control','reset_stats','export_all']" :key="perm">
-                                        <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create channels', update_room: 'Edit channel names', delete_room: 'Delete channels', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', frink_control: 'Prof Frink on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
+                                        <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create rooms', update_room: 'Edit room names', delete_room: 'Delete rooms', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', frink_control: 'Prof Frink on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
                                         <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;vertical-align:middle;"><label style="display:flex;align-items:center;justify-content:center;cursor:pointer;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></label></td>
                                     </tr>
                                 </table>
@@ -1318,11 +1320,11 @@ const chitchatApp = createApp({
         });
         const channelTopicEmpty = computed(() => !state.currentRoom || !state.currentRoom.topic);
         const mobileRoomName = computed(() => {
-            if (state.mobileHomeView) return 'Channels';
+            if (state.mobileHomeView) return 'Rooms';
             var room = state.currentRoom;
             if (!room) return state.showingSettings ? 'Settings' : '';
             var base = room.is_dm ? ('DM: ' + (_dmOtherUsername(room, {{ user.id }}) || '?')) : ('#' + room.name);
-            return (state.roomNotificationMuted[room.id] ? 'mute ' : '') + base;
+            return (state.roomNotificationMuted[room.id] ? '🔇 ' : '') + base;
         });
         const showChannelTopic = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
         const filteredUsers = computed(() => {
@@ -1423,9 +1425,9 @@ const chitchatApp = createApp({
         const profileMuteSummary = computed(function() {
             var rooms = channelsInOrder.value || [];
             var total = rooms.length;
-            if (total === 0) return 'No channels.';
+            if (total === 0) return 'No rooms.';
             var muted = rooms.filter(function(r) { return state.roomNotificationMuted[r.id]; }).length;
-            return muted + ' of ' + total + ' channels muted';
+            return muted + ' of ' + total + ' rooms muted';
         });
         function loadProfileTab() {
             state.profileDraft.nick = state.userDisplayName || '';
@@ -1557,6 +1559,22 @@ const chitchatApp = createApp({
                 dms.splice(idxTo, 0, fromId);
                 newOrder = channels.concat(dms);
             }
+            state.roomOrderIds = newOrder;
+            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('save_room_order', { room_ids: newOrder });
+        }
+        function moveRoomInOrder(roomId, direction) {
+            var channels = channelsInOrder.value.map(function(r) { return r.id; });
+            var dms = dmsInOrder.value.map(function(r) { return r.id; });
+            var room = state.allRooms.find(function(r) { return r.id === roomId; });
+            if (!room) return;
+            var arr = room.is_dm ? dms : channels;
+            var idx = arr.indexOf(roomId);
+            if (idx === -1) return;
+            var newIdx = direction === 'up' ? idx - 1 : idx + 1;
+            if (newIdx < 0 || newIdx >= arr.length) return;
+            arr.splice(idx, 1);
+            arr.splice(newIdx, 0, roomId);
+            var newOrder = channels.concat(dms);
             state.roomOrderIds = newOrder;
             if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('save_room_order', { room_ids: newOrder });
         }
@@ -2065,7 +2083,7 @@ chitchatApp.mount('#app');
     function showTopicToast(setByUsername) {
         var el = document.createElement('div');
         el.className = 'topic-toast';
-        el.textContent = 'Channel topic updated by ' + (setByUsername || 'someone') + '.';
+        el.textContent = 'Room topic updated by ' + (setByUsername || 'someone') + '.';
         getToastContainer().appendChild(el);
         setTimeout(function() { el.remove(); }, 4000);
     }
@@ -2227,6 +2245,14 @@ chitchatApp.mount('#app');
         if (roomMuteNotificationsBtn) {
             roomMuteNotificationsBtn.style.display = 'block';
             roomMuteNotificationsBtn.textContent = state.roomNotificationMuted[room.id] ? 'Unmute notifications' : 'Mute notifications';
+        }
+        var roomMoveUpBtn = document.getElementById('roomMoveUpBtn');
+        var roomMoveDownBtn = document.getElementById('roomMoveDownBtn');
+        if (roomMoveUpBtn && roomMoveDownBtn) {
+            var arr = room.is_dm ? (state.roomOrderIds ? state.roomOrderIds.filter(function(id) { var r = state.allRooms.find(function(x) { return x.id === id; }); return r && r.is_dm; }) : []) : (state.roomOrderIds ? state.roomOrderIds.filter(function(id) { var r = state.allRooms.find(function(x) { return x.id === id; }); return r && !r.is_dm; }) : []);
+            var idx = arr.indexOf(room.id);
+            roomMoveUpBtn.style.display = idx > 0 ? 'block' : 'none';
+            roomMoveDownBtn.style.display = idx >= 0 && idx < arr.length - 1 ? 'block' : 'none';
         }
         var pos = clampContextMenuPosition(x, y, roomContextMenuEl);
         roomContextMenuEl.style.left = pos.x + 'px';
@@ -2410,6 +2436,25 @@ chitchatApp.mount('#app');
         document.addEventListener('touchstart', function(e) {
             if (e.target.closest('.mobile-presence-sheet .user-item[data-user-id]')) handleUserItemLongPress(e);
         }, { passive: true });
+        function handleRoomItemLongPress(e) {
+            var el = e.target.closest('.room-item[data-room-id]');
+            if (!el) return;
+            longPressEl = el;
+            longPressTimer = setTimeout(function() {
+                longPressTimer = null;
+                var rid = parseInt(longPressEl.getAttribute('data-room-id'), 10);
+                var room = state.allRooms.find(function(r) { return r.id === rid; });
+                if (room) {
+                    var rect = longPressEl.getBoundingClientRect();
+                    hideContextMenu();
+                    hideMessageContextMenu();
+                    showRoomContextMenu(rect.left + rect.width / 2, rect.top + 20, room);
+                }
+            }, 500);
+        }
+        document.addEventListener('touchstart', function(e) {
+            if (e.target.closest('.mobile-channel-list-panel .room-item[data-room-id]')) handleRoomItemLongPress(e);
+        }, { passive: true });
         document.addEventListener('touchend', clearLongPress, { passive: true });
         document.addEventListener('touchmove', clearLongPress, { passive: true });
         var rl = document.getElementById('roomList');
@@ -2426,26 +2471,25 @@ chitchatApp.mount('#app');
                 }
             });
             rl.addEventListener('touchstart', function(e) {
-                var el = e.target.closest('.room-item[data-room-id]');
-                if (!el) return;
-                longPressEl = el;
-                longPressTimer = setTimeout(function() {
-                    longPressTimer = null;
-                    var rid = parseInt(longPressEl.getAttribute('data-room-id'), 10);
-                    var room = state.allRooms.find(function(r) { return r.id === rid; });
-                    if (room) {
-                        var rect = longPressEl.getBoundingClientRect();
-                        hideContextMenu();
-                        hideMessageContextMenu();
-                        showRoomContextMenu(rect.left + rect.width / 2, rect.top + 20, room);
-                    }
-                }, 500);
+                if (e.target.closest('.room-item[data-room-id]')) handleRoomItemLongPress(e);
             }, { passive: true });
             rl.addEventListener('touchend', clearLongPress, { passive: true });
             rl.addEventListener('touchmove', clearLongPress, { passive: true });
         }
     })();
 
+    var roomMoveUpBtn = document.getElementById('roomMoveUpBtn');
+    var roomMoveDownBtn = document.getElementById('roomMoveDownBtn');
+    if (roomMoveUpBtn) roomMoveUpBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (roomContextTarget && window.chitchat && window.chitchat.moveRoomUp) { window.chitchat.moveRoomUp(roomContextTarget.id); }
+        hideRoomContextMenu();
+    });
+    if (roomMoveDownBtn) roomMoveDownBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (roomContextTarget && window.chitchat && window.chitchat.moveRoomDown) { window.chitchat.moveRoomDown(roomContextTarget.id); }
+        hideRoomContextMenu();
+    });
     roomContextMenuEl.querySelector('[data-action="room-mute-notifications"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (roomContextTarget) {
@@ -2470,7 +2514,7 @@ chitchatApp.mount('#app');
         if (roomContextTarget) {
             var target = roomContextTarget;
             hideRoomContextMenu();
-            showConfirm('Delete channel "' + target.name + '" and all its messages?', { destructive: true }).then(function(ok) {
+            showConfirm('Delete room "' + target.name + '" and all its messages?', { destructive: true }).then(function(ok) {
                 if (ok) socket.emit('delete_room', { room_id: target.id });
             });
         } else hideRoomContextMenu();
@@ -2877,7 +2921,7 @@ chitchatApp.mount('#app');
         socket.emit('set_frink_active', { active: checked });
     }
     function settingsResetStats() {
-        showPrompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.', '', { title: 'Reset all message data', placeholder: 'RESET' }).then(function(typed) {
+        showPrompt('Type RESET (all caps) to delete all messages in all rooms. This cannot be undone.', '', { title: 'Reset all message data', placeholder: 'RESET' }).then(function(typed) {
             if (typed !== 'RESET') {
                 if (typed !== null) setStatus('Reset cancelled. You must type RESET exactly.');
                 return;
@@ -2892,7 +2936,7 @@ chitchatApp.mount('#app');
         socket.emit('update_room', { room_id: roomId, name: roomName, is_protected: checked });
     }
     function settingsDeleteRoom(roomId, roomName) {
-        showConfirm('Delete channel "' + roomName + '" and all its messages?', { destructive: true }).then(function(ok) {
+        showConfirm('Delete room "' + roomName + '" and all its messages?', { destructive: true }).then(function(ok) {
             if (ok) socket.emit('delete_room', { room_id: roomId, from_settings: true });
         });
     }
@@ -2993,6 +3037,36 @@ chitchatApp.mount('#app');
         });
     }
 
+    function moveRoomUp(roomId) {
+        var channels = (state.roomOrderIds || []).filter(function(id) { var r = state.allRooms.find(function(x) { return x.id === id; }); return r && !r.is_dm; });
+        var dms = (state.roomOrderIds || []).filter(function(id) { var r = state.allRooms.find(function(x) { return x.id === id; }); return r && r.is_dm; });
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
+        if (!room) return;
+        var arr = room.is_dm ? dms : channels;
+        var idx = arr.indexOf(roomId);
+        if (idx <= 0) return;
+        arr.splice(idx, 1);
+        arr.splice(idx - 1, 0, roomId);
+        var newOrder = channels.concat(dms);
+        state.roomOrderIds = newOrder;
+        socket.emit('save_room_order', { room_ids: newOrder });
+    }
+
+    function moveRoomDown(roomId) {
+        var channels = (state.roomOrderIds || []).filter(function(id) { var r = state.allRooms.find(function(x) { return x.id === id; }); return r && !r.is_dm; });
+        var dms = (state.roomOrderIds || []).filter(function(id) { var r = state.allRooms.find(function(x) { return x.id === id; }); return r && r.is_dm; });
+        var room = state.allRooms.find(function(r) { return r.id === roomId; });
+        if (!room) return;
+        var arr = room.is_dm ? dms : channels;
+        var idx = arr.indexOf(roomId);
+        if (idx < 0 || idx >= arr.length - 1) return;
+        arr.splice(idx, 1);
+        arr.splice(idx + 1, 0, roomId);
+        var newOrder = channels.concat(dms);
+        state.roomOrderIds = newOrder;
+        socket.emit('save_room_order', { room_ids: newOrder });
+    }
+
     function showNewRoomPrompt() {
         showPrompt('New room name:', '', { title: 'Create room', placeholder: 'Room name…' }).then(function(name) {
             if (name !== null && name.trim()) socket.emit('create_room', { name: name.trim() });
@@ -3076,7 +3150,7 @@ chitchatApp.mount('#app');
             });
         });
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
