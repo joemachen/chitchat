@@ -102,6 +102,7 @@
         .context-menu button:first-child { border-radius: 6px 6px 0 0; }
         .context-menu button:last-child { border-radius: 0 0 6px 6px; }
         .context-menu-divider { height: 1px; background: #3f3f46; margin: 0.25rem 0; }
+        .context-menu-muted-label { padding: 4px 12px; font-size: 0.75rem; color: #71717a; }
         .profile-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.5rem; min-width: 280px; max-width: min(480px, calc(100vw - 2rem)); max-height: 85vh; overflow-y: auto; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
         .profile-modal h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
         .profile-modal p { margin: 0; color: #a1a1aa; font-size: 0.9rem; }
@@ -591,6 +592,7 @@
         <button type="button" role="menuitem" data-action="set-status-invisible" id="contextMenuStatusInvisible" style="display:none;">Set status: Invisible</button>
     </div>
     <div id="roomContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Room context menu">
+        <div id="roomMutedUsersSection" class="context-menu-muted-users" style="display:none;"></div>
         <button type="button" role="menuitem" data-action="room-mute-notifications" id="roomMuteNotificationsBtn">Mute notifications</button>
         <button type="button" role="menuitem" data-action="room-edit">Edit channel</button>
         <button type="button" role="menuitem" data-action="room-toggle-protected" id="roomToggleProtectedBtn" style="display:none;">Mark as protected</button>
@@ -2181,9 +2183,40 @@ chitchatApp.mount('#app');
     var roomToggleProtectedBtn = document.getElementById('roomToggleProtectedBtn');
     var roomDeleteBtn = document.getElementById('roomDeleteBtn');
     var roomMuteNotificationsBtn = document.getElementById('roomMuteNotificationsBtn');
+    var roomMutedUsersSection = document.getElementById('roomMutedUsersSection');
     function showRoomContextMenu(x, y, room) {
         if (!room) return;
         roomContextTarget = room;
+        var mutedSet = state.roomMutedInRoom && state.roomMutedInRoom[room.id];
+        var mutedUsers = mutedSet ? Array.from(mutedSet) : [];
+        if (roomMutedUsersSection) {
+            roomMutedUsersSection.innerHTML = '';
+            roomMutedUsersSection.style.display = 'none';
+            if (mutedUsers.length > 0) {
+                var label = document.createElement('div');
+                label.className = 'context-menu-muted-label';
+                label.textContent = 'Muted in this room:';
+                roomMutedUsersSection.appendChild(label);
+                var allUsers = state.allUsersWithStatus || [];
+                mutedUsers.forEach(function(uid) {
+                    var u = allUsers.find(function(x) { return x.id === uid; });
+                    var name = (u && (u.display_name && u.display_name.trim()) ? u.display_name : u.username) || ('User ' + uid);
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.setAttribute('role', 'menuitem');
+                    btn.setAttribute('data-action', 'unmute-user-in-room');
+                    btn.setAttribute('data-user-id', String(uid));
+                    btn.textContent = 'Unmute ' + name;
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        socket.emit('unmute_user_in_room', { room_id: room.id, muted_user_id: uid });
+                        hideRoomContextMenu();
+                    });
+                    roomMutedUsersSection.appendChild(btn);
+                });
+                roomMutedUsersSection.style.display = 'block';
+            }
+        }
         var editBtn = roomContextMenuEl.querySelector('[data-action="room-edit"]');
         if (editBtn) editBtn.style.display = (!room.is_dm && (room.is_protected ? isSuperAdmin : (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.update_room)))) ? 'block' : 'none';
         if (roomToggleProtectedBtn) {
