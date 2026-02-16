@@ -16,7 +16,11 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 |--------|-------------|
 | **/help** | Show all commands (slash commands, !Simpsons, context menus, shortcuts). |
 | **/topic** &lt;text&gt; | Set the channel topic (pinned at top; shows who set it and when). |
-| **/whois** &lt;username&gt; | IRC-style whois: account created, online/offline, IP, time connected (modal to you only). Username case-insensitive. |
+| **/whois** &lt;username&gt; | IRC-style whois: account created, online/offline, IP, time connected, bio (modal to you only). Username case-insensitive. |
+| **/nick** &lt;name&gt; | Set your display name (shown in messages and whois). |
+| **/status** &lt;text&gt; or **/status** | Set or clear your status line (shown in whois). |
+| **/away** &lt;message&gt; or **/away** | Set or clear away message (auto-replies to DMs). |
+| **/slap** &lt;nick&gt; | Post action: "* you slaps nick around a bit with a large trout". Invalid/self: Homer mocks. |
 | **/ping** &lt;username&gt; | Notify that user (they see a “pinged you!” toast). Username case-insensitive. |
 | **!Simpsons** | Homer replies with a random Simpsons quote (when Homer is online). |
 | **/em** &lt;text&gt; or **/me** &lt;text&gt; | Send an emote: “* username text” in italics. |

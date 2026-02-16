@@ -800,10 +800,6 @@ def register_socket_handlers(socketio):
                 result[r.id] = count
         return result
 
-    def _broadcast_new_message(room_id, msg_dict):
-        """Emit new_message to room and unread_incremented to users not viewing it."""
-        _broadcast_new_message_impl(socketio, room_id, msg_dict)
-
     @socketio.on("get_rooms")
     def on_get_rooms(data=None):
         """Return list of all rooms in user's order."""
@@ -1039,7 +1035,7 @@ def register_socket_handlers(socketio):
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=q_msg, message_type="chat")
                 db.session.add(msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 if answer:
                     set_active_trivia(room_id, answer, msg.id)
                     app_obj = current_app._get_current_object()
@@ -1058,14 +1054,14 @@ def register_socket_handlers(socketio):
                     msg = Message(room_id=room_id, user_id=frink_user.id, content=lb_text, message_type="chat")
                     db.session.add(msg)
                     db.session.commit()
-                    _broadcast_new_message(room_id, msg.to_dict())
+                    _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
             if cmd in ("/help", "/commands", "/ help", "/ commands") and is_frink_active() and frink_user:
                 help_text = frink_get_help()
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=help_text, message_type="chat")
                 db.session.add(msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
             if cmd in ("/settings", "/ settings") and is_frink_active() and frink_user:
                 s = get_frink_settings()
@@ -1073,7 +1069,7 @@ def register_socket_handlers(socketio):
                 msg = Message(room_id=room_id, user_id=frink_user.id, content=txt, message_type="chat")
                 db.session.add(msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
             if cmd in ("/set-difficulty", "/ set-difficulty") and len(parts) >= 2:
                 diff = parts[1].lower()
@@ -1084,7 +1080,7 @@ def register_socket_handlers(socketio):
                         msg = Message(room_id=room_id, user_id=frink_user.id, content=f"Difficulty set to **{diff}**, glavin!", message_type="chat")
                         db.session.add(msg)
                         db.session.commit()
-                        _broadcast_new_message(room_id, msg.to_dict())
+                        _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
             if cmd in ("/set-seasons", "/ set-seasons") and len(parts) >= 2:
                 try:
@@ -1096,7 +1092,7 @@ def register_socket_handlers(socketio):
                         msg = Message(room_id=room_id, user_id=frink_user.id, content=f"Seasons filter set to **{disp}**, hoyvin!", message_type="chat")
                         db.session.add(msg)
                         db.session.commit()
-                        _broadcast_new_message(room_id, msg.to_dict())
+                        _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 except (ValueError, TypeError):
                     pass
                 return
@@ -1109,7 +1105,7 @@ def register_socket_handlers(socketio):
                     msg = Message(room_id=room_id, user_id=frink_user.id, content=f"Daily trivia **{status}**! Glavin!", message_type="chat")
                     db.session.add(msg)
                     db.session.commit()
-                    _broadcast_new_message(room_id, msg.to_dict())
+                    _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
             if cmd not in trivia_commands and user.username != "Prof Frink" and content:
                 matched_answer = check_trivia_answer(room_id, content)
@@ -1126,7 +1122,7 @@ def register_socket_handlers(socketio):
                     )
                     db.session.add(winner_msg)
                     db.session.commit()
-                    _broadcast_new_message(room_id, winner_msg.to_dict())
+                    _broadcast_new_message_impl(socketio, room_id, winner_msg.to_dict())
                     # Schedule next round if multi-round session
                     if get_trivia_rounds_remaining(room_id) > 0:
                         set_trivia_rounds_remaining(room_id, get_trivia_rounds_remaining(room_id) - 1)
@@ -1149,7 +1145,7 @@ def register_socket_handlers(socketio):
                 )
                 db.session.add(slap_msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, slap_msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, slap_msg.to_dict())
             else:
                 if _bot_allowed_in_room("homer", room_obj) and is_homer_active():
                     homer_user = User.query.filter_by(username="Homer").first()
@@ -1162,7 +1158,7 @@ def register_socket_handlers(socketio):
                         msg = Message(room_id=room_id, user_id=homer_user.id, content=mock, message_type="chat")
                         db.session.add(msg)
                         db.session.commit()
-                        _broadcast_new_message(room_id, msg.to_dict())
+                        _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             return
 
         # /simpsons — Homer says a random Simpsons quote (when Homer is active, channel allowed)
@@ -1179,7 +1175,7 @@ def register_socket_handlers(socketio):
                     )
                     db.session.add(msg)
                     db.session.commit()
-                    _broadcast_new_message(room_id, msg.to_dict())
+                    _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             return
 
         # /netsplit — Easter egg: fake netsplit message
@@ -1204,7 +1200,7 @@ def register_socket_handlers(socketio):
                     )
                     db.session.add(msg1)
                     db.session.commit()
-                    _broadcast_new_message(room_id, msg1.to_dict())
+                    _broadcast_new_message_impl(socketio, room_id, msg1.to_dict())
                     app = current_app._get_current_object()
                     eventlet.spawn_after(3, _netsplit_reconnect, app, room_id, names, sys_user.id)
                 else:
@@ -1216,7 +1212,7 @@ def register_socket_handlers(socketio):
                     )
                     db.session.add(msg1)
                     db.session.commit()
-                    _broadcast_new_message(room_id, msg1.to_dict())
+                    _broadcast_new_message_impl(socketio, room_id, msg1.to_dict())
                     app = current_app._get_current_object()
                     eventlet.spawn_after(3, _netsplit_reconnect, app, room_id, "Server A and Server B", sys_user.id)
             return
@@ -1243,7 +1239,7 @@ def register_socket_handlers(socketio):
                                 )
                                 db.session.add(msg)
                                 db.session.commit()
-                                _broadcast_new_message(acrophobia_room.id, msg.to_dict())
+                                _broadcast_new_message_impl(socketio, acrophobia_room.id, msg.to_dict())
                         for target_user_id, dm_text in dm_replies:
                             if dm_text:
                                 dm_room = _get_or_create_dm_room(target_user_id, acrobot.id)
@@ -1255,7 +1251,7 @@ def register_socket_handlers(socketio):
                                 )
                                 db.session.add(dm_msg)
                                 db.session.commit()
-                                _broadcast_new_message(dm_room.id, dm_msg.to_dict())
+                                _broadcast_new_message_impl(socketio, dm_room.id, dm_msg.to_dict())
                         # Fall through so the user's message is also saved to the DM (shows their phrase + AcroBot reply)
                     # If not consumed (e.g. not in submit phase), fall through and save message to DM as normal
 
@@ -1302,7 +1298,7 @@ def register_socket_handlers(socketio):
                 )
                 db.session.add(dm_msg)
                 db.session.commit()
-                _broadcast_new_message(dm_room.id, dm_msg.to_dict())
+                _broadcast_new_message_impl(socketio, dm_room.id, dm_msg.to_dict())
                 emit("dm_room", {"room": dm_room.to_dict()})
                 return
 
@@ -1311,10 +1307,10 @@ def register_socket_handlers(socketio):
             help_lines = [
                 "**No Homers Club commands**",
                 "• /help — show this list",
-                "• /away [message] — set away; /dnd — Do Not Disturb; /online — back online",
-                "• /nick <name> — set display name in chat; /nick to clear",
-                "• /status <text> — set status (shown in /whois); /status to clear",
-                "• /whois <username> — user info, last seen, shared rooms",
+                "• /away [message] — set away; /away to clear; /dnd — Do Not Disturb; /online — back online",
+                "• /nick <name> — set display name in chat; /nick (space) to clear",
+                "• /status <text> — set status (shown in /whois); /status (space) to clear",
+                "• /whois <username> — user info, bio, last seen, shared rooms",
                 "• /topic <text> — set channel topic",
                 "• /slap <nick> — slap someone with a large trout (IRC-style)",
                 "• /ping <username> — notify that user",
@@ -1322,9 +1318,10 @@ def register_socket_handlers(socketio):
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
-                "• In #Trivia: !trivia or !trivia X (X=1–7 consecutive rounds), !score (leaderboard), !help, !settings (Prof Frink bot)",
-                "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, View profile, Whois",
-                "• Right-click user → View profile, Message, Kick (if permitted)",
+                "• In #Trivia: !trivia or !trivia X (X=1–7 rounds), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
+                "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message",
+                "• Right-click user → Whois, Message, Mute, Kick (if permitted); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",
+                "• Settings → Profile — nick, status, visibility, away message, bio, notification prefs",
                 "• Ctrl+K — room switcher; Esc — close modals",
                 "",
                 "**In Acrophobia channel**",
@@ -1337,7 +1334,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=help_content, message_type="chat")
             db.session.add(msg)
             db.session.commit()
-            _broadcast_new_message(room_id, msg.to_dict())
+            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             return
 
         # /away [message] — Set away status and message; clear with /away. /dnd and /online set status.
@@ -1354,7 +1351,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            _broadcast_new_message(room_id, msg.to_dict())
+            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
             return
 
@@ -1366,7 +1363,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content="is now Do Not Disturb", message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            _broadcast_new_message(room_id, msg.to_dict())
+            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
             return
 
@@ -1379,7 +1376,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content="is back online", message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            _broadcast_new_message(room_id, msg.to_dict())
+            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
             return
 
@@ -1394,7 +1391,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            _broadcast_new_message(room_id, msg.to_dict())
+            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
             _post_system_event(f"{user.username} changed nick to " + (nick or "(cleared)"))
             return
@@ -1409,7 +1406,7 @@ def register_socket_handlers(socketio):
             msg = Message(room_id=room_id, user_id=user_id, content=emote_content, message_type="emote")
             db.session.add(msg)
             db.session.commit()
-            _broadcast_new_message(room_id, msg.to_dict())
+            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
             return
 
         # /whois <username> — IRC-style whois: user info, last seen, shared rooms. Reply to requester only.
@@ -1496,7 +1493,7 @@ def register_socket_handlers(socketio):
                         )
                         db.session.add(user_dm_msg)
                         db.session.commit()
-                        _broadcast_new_message(dm_room.id, user_dm_msg.to_dict())
+                        _broadcast_new_message_impl(socketio, dm_room.id, user_dm_msg.to_dict())
                     for text in bot_replies:
                         if text:
                             msg = Message(
@@ -1507,7 +1504,7 @@ def register_socket_handlers(socketio):
                             )
                             db.session.add(msg)
                             db.session.commit()
-                            _broadcast_new_message(room_id, msg.to_dict())
+                            _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                     for target_user_id, dm_text in dm_replies:
                         if dm_text:
                             dm_room = _get_or_create_dm_room(target_user_id, acrobot.id)
@@ -1519,7 +1516,7 @@ def register_socket_handlers(socketio):
                             )
                             db.session.add(dm_msg)
                             db.session.commit()
-                            _broadcast_new_message(dm_room.id, dm_msg.to_dict())
+                            _broadcast_new_message_impl(socketio, dm_room.id, dm_msg.to_dict())
                             socketio.emit(
                                 "dm_room_added",
                                 {"room": dm_room.to_dict()},
@@ -1574,7 +1571,7 @@ def register_socket_handlers(socketio):
                 )
                 db.session.add(user_dm_msg)
                 db.session.commit()
-                _broadcast_new_message(dm_room.id, user_dm_msg.to_dict())
+                _broadcast_new_message_impl(socketio, dm_room.id, user_dm_msg.to_dict())
                 return
 
         # /em or /me text — third-person emote (saved as message_type='emote')
@@ -1630,7 +1627,7 @@ def register_socket_handlers(socketio):
         db.session.commit()
 
         payload = msg.to_dict()
-        _broadcast_new_message(room_id, payload)
+        _broadcast_new_message_impl(socketio, room_id, payload)
 
         # DM auto-reply: away message, or DM with Prof Frink/Homer
         if room_obj.dm_with_id is not None:
@@ -1643,7 +1640,7 @@ def register_socket_handlers(socketio):
                 bot_msg = Message(room_id=room_id, user_id=frink_user.id, content=reply, message_type="chat")
                 db.session.add(bot_msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, bot_msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, bot_msg.to_dict())
             # DM with Homer: reply with something Homer-esque
             homer_user = User.query.filter_by(username="Homer").first()
             if homer_user and other_user_id == homer_user.id and is_homer_active():
@@ -1651,7 +1648,7 @@ def register_socket_handlers(socketio):
                 bot_msg = Message(room_id=room_id, user_id=homer_user.id, content=reply, message_type="chat")
                 db.session.add(bot_msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, bot_msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, bot_msg.to_dict())
             # DM with regular user: if they have away_message, post auto-reply
             elif other_user and getattr(other_user, "away_message", None):
                 away_msg = Message(
@@ -1662,7 +1659,7 @@ def register_socket_handlers(socketio):
                 )
                 db.session.add(away_msg)
                 db.session.commit()
-                _broadcast_new_message(room_id, away_msg.to_dict())
+                _broadcast_new_message_impl(socketio, room_id, away_msg.to_dict())
 
         # @mention: parse @nickname and notify mentioned users (page)
         if message_type == "chat":
@@ -1872,12 +1869,15 @@ def register_socket_handlers(socketio):
         payload = data or {}
         status_line = (payload.get("status_line") or "").strip()[:120] or None
         away_message = (payload.get("away_message") or "").strip() or None
-        bio = (payload.get("bio") or "").strip()[:200] or None
         old_away = getattr(user, "away_message", None) or None
         user.status_line = status_line
         user.away_message = away_message
-        if hasattr(user, "bio"):
-            user.bio = bio
+        if "bio" in payload:
+            bio = (payload.get("bio") or "").strip()[:200] or None
+            if hasattr(user, "bio"):
+                user.bio = bio
+        else:
+            bio = getattr(user, "bio", None) or None
         if hasattr(user, "user_status"):
             user.user_status = "away" if away_message else "online"
         db.session.commit()

@@ -96,10 +96,7 @@ def _filter_by_seasons(questions: list[tuple], seasons: Optional[list[int]]) -> 
 def fetch_trivia_question() -> Optional[TriviaQuestion]:
     """
     Fetch one random trivia question.
-    Uses placeholder data until TRIVIA_API_URL is configured.
-    TODO: When simpsons-trivia.com API is available, implement:
-        response = requests.get(TRIVIA_API_URL, params={"difficulty": ..., "season": ...})
-        return TriviaQuestion(**response.json())
+    Uses placeholder data. See PROFFRINK_PROPOSAL.md for API contract when simpsons-trivia.com exposes an endpoint.
     """
     questions = list(PLACEHOLDER_TRIVIA)
     questions = _filter_by_difficulty(questions, _frink_difficulty)
@@ -311,14 +308,14 @@ def get_help_text() -> str:
     return "\n".join([
         "**Prof Frink — Trivia Bot** " + _random_frinkism(),
         "",
-        "**Commands** (only in #Trivia channel):",
+        "**Commands** (in #Trivia or configured channels; ! and / both work):",
         "• **!trivia** or **!trivia X** (X=1–7) — Fetch one or X consecutive Simpsons trivia questions (first correct answer wins a point)",
         "• **!daily** — Toggle daily automated trivia post (admin or frink_control)",
         "• **!set-difficulty [beginner|intermediate|advanced|master]** — Filter by difficulty",
         "• **!set-seasons [1-20]** — Filter by season(s), e.g. !set-seasons 1 2 3",
         "• **!settings** — Show current bot configuration",
-        "• **!score** / **/score** — Show trivia leaderboard",
-        "• **!help** / **!commands** — This message",
+        "• **!score** or **/score** — Show trivia leaderboard",
+        "• **!help** or **!commands** — This message",
         "",
         "The mathematics of knowledge await! Hoyvin-glaven!",
     ])

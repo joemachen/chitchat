@@ -1,5 +1,20 @@
 # Release notes
 
+## v2.8.1 — Bug fix, cleanup, help updates
+
+**Bug fix**
+- **Bio overwrite** — Edit profile modal (right-click name) no longer clears bio when saving only status/away.
+
+**Cleanup**
+- Removed dead code: `get_preview_for_message_content`, `get_submit_end_time`, `get_vote_end_time`; inlined `_broadcast_new_message`; removed prof_frink TODO.
+- Documentation: ROADMAP migrations 001–019, mobile channel list; README /nick, /status, /away, /slap; VUE_REFACTOR_PLAN archived; PROFFRINK_PROPOSAL Integration completed.
+
+**Help messages**
+- `/help` — Added bio to /whois, Settings → Profile, clarified right-click menus and /nick//status clear syntax.
+- Prof Frink help — Channel scope (configured channels), ! and / both work.
+
+---
+
 ## v2.8.0 — Profile tab, bio, away message, mobile channel list
 
 **Mobile: channel list replaces profile panel**

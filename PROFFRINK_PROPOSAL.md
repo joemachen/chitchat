@@ -34,15 +34,15 @@ Config: `TRIVIA_API_URL = "https://simpsons-trivia.com/api/questions"` in `app/c
 
 ---
 
-## 3. Integration TODO (Super Admin Protocol)
+## 3. Integration (Completed)
 
-1. **Seed Trivia room** in `_seed_default_data()`: `Room(name="Trivia", is_protected=True)`
-2. **Add Prof Frink user** in seed (like Homer)
-3. **Socket integration** in `on_send_message`: when `room.name == "Trivia"`, parse `!trivia`, `!daily`, `!set-difficulty`, `!set-seasons`, `!settings`, `!help`
-4. **Channel restriction**: Prof Frink responds **only** in #Trivia (unlike Homer, who responds in any room)
-5. **bot_manager / botPermissions**: Add `state.bot_permissions` or `AppSetting` key `bot_channels` mapping `room_id -> [acrobot, homer, prof_frink]` for Super Admin to toggle which channels each bot can spawn in
-6. **frink_control permission**: Add to `role_permissions` (like `homer_control`); Super Admin toggles Prof Frink in Settings
-7. **Daily trivia**: Cron/scheduler or eventlet timer to post one question per day when `_frink_daily_enabled`
+- [x] **Seed Trivia room** in `_seed_default_data()`: `Room(name="Trivia", is_protected=True)`
+- [x] **Add Prof Frink user** in seed (like Homer)
+- [x] **Socket integration** in `on_send_message`: when `room.name == "Trivia"`, parse `!trivia`, `!daily`, `!set-difficulty`, `!set-seasons`, `!settings`, `!help`
+- [x] **Channel restriction**: Prof Frink responds only in #Trivia (configurable via bot_channels)
+- [x] **bot_channels**: `AppSetting` key for Super Admin to configure which channels each bot can respond in (Settings → Bot channels)
+- [x] **frink_control permission**: Super Admin toggles Prof Frink in Settings
+- [x] **Daily trivia**: eventlet timer posts one question per day at 9:00 UTC when `_frink_daily_enabled`
 
 ---
 

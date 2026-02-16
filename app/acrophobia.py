@@ -361,21 +361,6 @@ def advance_vote_phase(room_id: int) -> tuple[list[str], bool, bool, dict | None
     return replies, False, False, winner_info
 
 
-def get_submit_end_time(room_id: int) -> float | None:
-    """Return end time for submit phase (for timer). None if not in submit phase."""
-    g = _game(room_id)
-    if g["phase"] != "submitting":
-        return None
-    return g["end_time"]
-
-
-def get_vote_end_time(room_id: int) -> float | None:
-    g = _game(room_id)
-    if g["phase"] != "voting":
-        return None
-    return g["end_time"]
-
-
 def get_submit_warning_message(seconds_left: int) -> str:
     """Return warning message for submit phase (30 or 15 seconds left). Adds urgency when <= 15 seconds."""
     if seconds_left <= 15:

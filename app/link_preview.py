@@ -134,14 +134,6 @@ def _extract_all_urls(text: str, max_urls: int = 3) -> list[str]:
     return result
 
 
-def get_preview_for_message_content(content: str) -> dict | None:
-    """Extract first URL from content and return OG preview dict, or None."""
-    url = _extract_first_url(content or "")
-    if not url:
-        return None
-    return fetch_og_preview(url)
-
-
 def get_previews_for_message_content(content: str, max_previews: int = 3) -> list[dict]:
     """Extract all URLs from content and return OG preview dicts (up to max_previews).
     Uses oEmbed for YouTube when OG fetch fails."""

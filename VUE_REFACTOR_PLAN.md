@@ -1,5 +1,7 @@
 # ChitChat Vue 3 Refactor Plan
 
+**Archived** — Vue 3 (Composition API) refactor is complete. This document is kept for reference.
+
 CDN-based Vue 3 (Composition API), no build step. Flask backend unchanged.
 
 ---
