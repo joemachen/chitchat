@@ -6,9 +6,9 @@ import gevent.monkey
 gevent.monkey.patch_all()
 
 import os
+import subprocess
 import sys
 import traceback
-from gunicorn.app.wsgiapp import run
 
 if __name__ == "__main__":
     # Clear GUNICORN_CMD_ARGS so Koyeb/env cannot override our wsgi:app or worker class
@@ -28,8 +28,16 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"FATAL: maintenance failed: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
+        sys.stderr.flush()
         sys.exit(1)
 
-    # Use explicit args only - do NOT append sys.argv[1:] (Koyeb may pass main:app etc)
-    sys.argv = [sys.argv[0], "--worker-class", "gevent", "-w", "1", "wsgi:app"]
-    sys.exit(run())
+    # Run gunicorn via subprocess with explicit args - no argv/env can override
+    port = os.environ.get("PORT", "8000")
+    cmd = [
+        sys.executable, "-m", "gunicorn",
+        "--worker-class", "gevent",
+        "-w", "1",
+        "--bind", f"0.0.0.0:{port}",
+        "wsgi:app",
+    ]
+    sys.exit(subprocess.run(cmd, env=dict(os.environ)).returncode)
