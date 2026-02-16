@@ -4,7 +4,6 @@ Professional logging configuration for ChitChat.
 - logs/errors.log: Full stack traces and local variable context for every exception.
 """
 import logging
-import sys
 import traceback
 from pathlib import Path
 

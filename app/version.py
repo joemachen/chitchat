@@ -2,4 +2,4 @@
 import os
 
 # Set CHITCHAT_VERSION in env (e.g. from CI: git describe --tags) or default
-VERSION = os.environ.get("CHITCHAT_VERSION", "2.8.6")
+VERSION = os.environ.get("CHITCHAT_VERSION", "3.0.0")

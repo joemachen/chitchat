@@ -52,14 +52,6 @@ def _fetch_youtube_preview(url: str) -> dict | None:
         return None
 
 
-def _extract_first_url(text: str) -> str | None:
-    """Return the first http(s) URL in text, or None."""
-    if not text:
-        return None
-    match = re.search(r"https?://[^\s<>\"']+", text)
-    return match.group(0).rstrip(".,;:)") if match else None
-
-
 def fetch_og_preview(url: str) -> dict | None:
     """
     Fetch URL and extract og:title, og:description, og:image. Returns a dict with

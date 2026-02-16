@@ -1,5 +1,22 @@
 # Release notes
 
+## v3.0.0 — Codebase cleanup, documentation refresh
+
+**Dead code removed**
+- `_extract_first_url` in link_preview.py (unused)
+- `get_frink_difficulty`, `get_frink_seasons` in prof_frink.py (redundant with get_frink_settings)
+- Unused `import sys` in logging_config.py
+
+**Documentation**
+- TECHNICAL_OVERVIEW: migration range 001–020, added prof_frink.py, link_preview.py, delete_account.html, routes (/upload, /health, /export, /delete-account)
+- DOC_REVIEW_REPORT: migration count updated
+- IgnoreList model docstring corrected (legacy, cascade delete only)
+
+**Assets**
+- Added placeholder logo.png to fix 404s for favicon and logo references
+
+---
+
 ## v2.8.6 — Mobile room context menu, reorder, Rooms terminology, GIF autoplay
 
 **Mobile: room context menu**

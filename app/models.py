@@ -182,7 +182,7 @@ class Message(db.Model):
 
 
 class IgnoreList(db.Model):
-    """User A ignores User B. Frontend soft-hides B's messages for A."""
+    """Legacy. Table retained for cascade delete on user deletion. Ignore UI removed."""
     __tablename__ = "ignore_list"
 
     id = db.Column(db.Integer, primary_key=True)

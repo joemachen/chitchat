@@ -5,7 +5,7 @@
 
 ## Summary
 
-Several documentation files were outdated. Key gaps addressed: Vue migration reflected in TECH_STACK, ARCHITECTURE, ROADMAP; migration count corrected (001–017); data model completed; socket events table updated; "vanilla JS" references replaced with Vue 3.
+Several documentation files were outdated. Key gaps addressed: Vue migration reflected in TECH_STACK, ARCHITECTURE, ROADMAP; migration count corrected (001–020); data model completed; socket events table updated; "vanilla JS" references replaced with Vue 3.
 
 ---
 
@@ -22,7 +22,7 @@ Several documentation files were outdated. Key gaps addressed: Vue migration ref
 
 | Issue | Current | Should be |
 |-------|---------|-----------|
-| Migrations | "versions/001..013" | versions/001–017 |
+| Migrations | "versions/001..013" | versions/001–020 |
 | chat.html | "Vanilla JS" | Vue 3 |
 | UI section | "Vanilla JS, Socket.IO client, marked.js" | Vue 3 (Composition API), Socket.IO, marked.js |
 | Procfile | "web: python gunicorn_run.py" | ✓ Correct |
@@ -33,7 +33,7 @@ Several documentation files were outdated. Key gaps addressed: Vue migration ref
 
 | Issue | Current | Should be |
 |-------|---------|-----------|
-| Migrations | "001–015" | 001–017 |
+| Migrations | "001–015" | 001–020 |
 | User model | Lists room_order_ids, is_super_admin, away_message only | Add: rank, display_name, status_line, user_status, last_seen, message_retention_days |
 | Room model | Missing is_protected | Add is_protected |
 | Message model | Basic fields only | Add: parent_id, edited_at, attachment_url, attachment_filename, link_previews |
@@ -50,7 +50,7 @@ Several documentation files were outdated. Key gaps addressed: Vue migration ref
 | Issue | Current | Should be |
 |-------|---------|-----------|
 | Stack | "Vanilla JS" | Vue 3 (CDN) |
-| Migrations | "001–015" | 001–017 |
+| Migrations | "001–015" | 001–020 |
 | Phase 2 | "Optional edit/delete own message" | Edit/delete done |
 | Next up #2 | "Keyboard shortcuts — Ctrl+K room switcher, Esc close modals" | Done — mark as *(done)* |
 

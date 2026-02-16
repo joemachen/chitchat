@@ -4,7 +4,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ---
 
-## Current State (as of this update)
+## Current State (v3.0.0)
 
 ### Stack & foundation
 
@@ -66,11 +66,11 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 - **Optional remaining**:
   - Acrophobia: optional /score (in-memory or DB), optional per-round time limits.
   - UX: unread indicators per room.
-  - Quality: light E2E or integration tests; README mention of /help and commands.
+  - README mention of /help and commands.
 
 ### Phase 2 — Richer chat & moderation
 
-- **Chat**: Optional file/image uploads (size limits, instance/ or configurable storage). Optional reply-to-message (threading or inline). Edit/delete own message done.
+- **Chat**: Optional file/image uploads (size limits, instance/ or configurable storage). Optional reply-to-message (inline). Edit/delete own message done.
 - **Moderation**: Optional room roles (e.g. owner); room-level mute; admin controls (invite codes, room create/delete, user list) — partly covered by Super Admin and role permissions today.
 - **Persistence**: Optional message search (by room, user, text); export room history (JSON/HTML).
 
@@ -82,9 +82,9 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ### Phase 4 — Polish & “best of” features
 
-- **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; **status (online/away/dnd/invisible)** done — right-click own name; rich presence (“in Acrophobia”, “in general”).
+- **Discord/mIRC-like**: DMs (1:1 rooms) done; optional server name and branding; themes (light/dark) done; **status (online/away/dnd/invisible)** done — right-click own name.
 - **Acrophobia & bots**: **Persistent Acrophobia scores (DB)** done; leaderboard in-room and in Stats; **Prof Frink trivia** done (Trivia room, scoring, leaderboard in Stats); **Bot channel management** done (Super Admin configures which channels each bot can respond in).
-- **Reliability**: Optional reconnection with history re-fetch; “last N messages” cache; optional read receipts or “last seen”.
+- **Reliability**: Optional reconnection with history re-fetch; “last N messages” cache.
 
 ### Phase 5 — Mobile distribution (long-term, on hold)
 
@@ -100,7 +100,7 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 
 - **Event model & types**: Extend event types (e.g. `chitchat.room.topic`, `chitchat.game.acrophobia.round_start`). Validate event/message bodies (schema + size) before persisting — treat payloads as untrusted.
 - **State vs message events**: Treat topic, membership, ranks as "state events" with a `state_key`; keep messages and emotes as message events. Clear split makes room settings and member power levels easier to add later.
-- **Event graph / depth**: Add a depth (or similar) field so "load older" and threading use a single, well-defined order (e.g. strictly greater than parents). Enables consistent ordering and "messages since depth N" style APIs.
+- **Event graph / depth**: Add a depth (or similar) field so "load older" uses a single, well-defined order (e.g. strictly greater than parents). Enables consistent ordering and "messages since depth N" style APIs.
 - **Private user data**: Key/value store per user for preferences (theme, notification toggles, etc.) without new DB columns per setting. Symmetrical to profile data; stored server-side per account.
 - **Namespacing**: Namespace custom event types (e.g. `chitchat.game.acrophobia.*`) so core, AcroBot, and future features don't collide.
 - **Room aliases**: Optional human-readable aliases (e.g. `#general`, `#acrophobia`) that resolve to room IDs for shareable links and discovery; internal storage stays room_id–based.
@@ -114,7 +114,7 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 
 | Phase | Focus |
 |-------|--------|
-| **1** | Local stability — **done**; optional /score, unread, tests |
+| **1** | Local stability — **done**; optional /score, unread |
 | **2** | Richer chat (files, reply, edit), moderation, search/export — **edit/delete, search done** |
 | **3** | Online: Koyeb + Neon — **done** |
 | **4** | DMs done, themes done, persistent scores done, reactions done, unread done, mobile layout done; more bots, reconnection |
@@ -133,8 +133,6 @@ Ideas from the [Matrix Specification](https://spec.matrix.org/latest/) that fit 
 8. **Accessibility** — High-contrast theme and `prefers-reduced-motion` done; room switcher keyboard nav (↑↓ Enter Esc); modal Enter/Esc; semantic HTML (article, role=menu); focus management; toast aria-live; form labels *(done)*
 9. **Rate limits** — Throttle messages per user per minute *(done)*
 10. **Audit log** — Super Admin view of who did what *(done)*
-11. **Voice chat** — 1:1 or small-group (2–4) via WebRTC P2P; long-term
-12. **Desktop/screen sharing** — 1:1 or small-group; long-term
 | **5** | **Mobile distribution** — long-term, on hold; Report Message & Delete Account in place for store approval |
 
 See **Matrix-inspired / spec-aligned improvements** for event model, state vs message events, private user data, room aliases, and user/device identity (incremental, no federation required).

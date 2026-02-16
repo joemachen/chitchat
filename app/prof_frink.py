@@ -142,18 +142,10 @@ def set_frink_daily_enabled(enabled: bool) -> None:
     _frink_daily_enabled = bool(enabled)
 
 
-def get_frink_difficulty() -> Optional[str]:
-    return _frink_difficulty
-
-
 def set_frink_difficulty(difficulty: Optional[str]) -> None:
     global _frink_difficulty
     if difficulty in ("beginner", "intermediate", "advanced", "master", None):
         _frink_difficulty = difficulty
-
-
-def get_frink_seasons() -> Optional[list[int]]:
-    return _frink_seasons
 
 
 def set_frink_seasons(seasons: Optional[list[int]]) -> None:

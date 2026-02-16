@@ -4,23 +4,12 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ---
 
-## Next up (immediate)
-
-**Message reactions — enhancements:**
-
-1. **Full emoji library** — Add the full library of emojis to message reactions (presently only 7).
-2. **Reaction tooltip** — When hovering over an emoji reaction, show a tooltip listing the users who reacted with that emoji.
-3. **Mobile: long-press for reactions** — On mobile, hide the reaction icon until the user long-presses on the message; then show the emoji picker.
-4. **User chat history control** — Allow users to delete their individual chat history whenever they want, or set it to auto-delete after X days or weeks.
-
----
-
 ## Polish & UX
 
 - **Message reactions** — One-tap emoji reactions on messages (e.g. 👍 😂). *(done)*
-- **Edit / delete own message** — Small “edit” / “delete” on your messages with short time window (e.g. 5 min).
-- **Unread indicators** — Badge or bold room name when there are new messages since last view. *(done)* “mark as read”.
-- **Sound** — Optional ping sound when mentioned or DM’d (excluded for now per your request).
+- **Edit / delete own message** — Small "edit" / "delete" on your messages with short time window (e.g. 5 min).
+- **Unread indicators** — Badge or bold room name when there are new messages since last view. *(done)* "mark as read".
+- **Sound** — Optional ping sound when mentioned or DM'd (excluded for now per your request).
 - **Theme** — Light/dark toggle or accent color in Settings. *(done)*
 - **Keyboard shortcuts** — e.g. Ctrl+K to focus search/room switcher, Esc to close modals. *(done)*
 
@@ -28,26 +17,21 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 ## Social & presence
 
-- **Typing indicators** — “User is typing…” in the current channel or DM.
-- **Read receipts** — “Seen” or “read at” for DMs (optional, privacy-sensitive).
-- **Status** — Beyond away: “busy”, “do not disturb”, custom status line.
-- **Rich presence** — “In Acrophobia”, “In general”, “In DM with X” (for future desktop/embed).
+- **Typing indicators** — "User is typing…" in the current channel or DM.
+- **Status** — Beyond away: "busy", "do not disturb", custom status line.
 
 ---
 
 ## Channels & content
 
-- **Pinned messages** — Pin 1–3 messages per channel; show at top or in a “Pinned” strip.
-- **Threads** — Reply to a message in a thread; thread summary under the message.
 - **Search** — Search messages in current room or all rooms. *(done — in-room search; mobile: in hamburger menu)*
-- **File uploads / images** — **Implemented** (instance/uploads/; ephemeral on redeploy). For persistence: Cloudflare R2, Backblaze B2, or Supabase Storage.
-
+- **File uploads / images** — **Implemented** (instance/uploads/; ephemeral on redeploy). 
 ---
 
 ## Acrophobia & games
 
 - **Acro history** — Last N acronyms in this channel so repeats are less likely (optional).
-- **Timer display** — Countdown in UI for submit/vote phase (e.g. “45s left”).
+- **Timer display** — Countdown in UI for submit/vote phase (e.g. "45s left").
 - **Other minigames** — Trivia, word chain, or a second bot in another channel.
 
 ---
@@ -56,15 +40,12 @@ Quick list of features and polish that could make the app even better. Pick and 
 
 - **Audit log** — Super Admin view: who created/deleted rooms, kicked users, reset stats (store in DB or log file). *(done)*
 - **Rate limits** — Throttle messages per user per minute to avoid spam. *(done)*
-- **Mute** — Mute a user in a channel for X minutes (vs full kick).
 
 ---
 
 ## Dev & ops
 
 - **Health endpoint** — e.g. `GET /health` for uptime checks when you deploy. *(done)*
-- **Backup** — One-click “Export DB” or “Backup messages” from Settings (Super Admin).
-- **Tests** — A few E2E or integration tests for login, send message, Acro round.
 
 ---
 

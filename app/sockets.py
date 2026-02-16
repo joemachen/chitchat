@@ -1323,8 +1323,10 @@ def register_socket_handlers(socketio):
 
         # /help — List all available slash commands (post as one message in channel)
         if content.strip().lower() == "/help":
+            from app.version import VERSION
             help_lines = [
-                "**No Homers Club commands**",
+                f"**No Homers Club v{VERSION}**",
+                "",
                 "• /help — show this list",
                 "• /away [message] — set away; /away to clear; /dnd — Do Not Disturb; /online — back online",
                 "• /nick <name> — set display name in chat; /nick (space) to clear",
