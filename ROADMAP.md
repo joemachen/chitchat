@@ -4,7 +4,7 @@ A Discord/mIRC-style chat app for you and your friends (target: **max 10 people*
 
 ---
 
-## Current State (v3.0.0)
+## Current State (v3.1.0)
 
 ### Stack & foundation
 

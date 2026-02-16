@@ -362,17 +362,13 @@ def advance_vote_phase(room_id: int) -> tuple[list[str], bool, bool, dict | None
 
 
 def get_submit_warning_message(seconds_left: int) -> str:
-    """Return warning message for submit phase (30 or 15 seconds left). Adds urgency when <= 15 seconds."""
-    if seconds_left <= 15:
-        return f"**{seconds_left} seconds** left to submit your phrase! Hurry!"
-    return f"**{seconds_left} seconds** left to submit your phrase!"
+    """Return warning message for submit phase (10-1 countdown)."""
+    return f"**{seconds_left} seconds** left to submit your phrase! Hurry!"
 
 
 def get_vote_countdown_message(seconds_left: int) -> str:
-    """Return countdown message for vote phase. Adds urgency when <= 15 seconds."""
-    if seconds_left <= 15:
-        return f"**{seconds_left} seconds** left to vote! Hurry!"
-    return f"**{seconds_left} seconds** left to vote!"
+    """Return countdown message for vote phase (10-1 countdown)."""
+    return f"**{seconds_left} seconds** left to vote! Hurry!"
 
 
 def get_phase_info(room_id: int) -> dict:

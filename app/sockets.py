@@ -447,7 +447,7 @@ def _acrophobia_emit_bot_messages(app, room_id, replies):
 
 
 def _acrophobia_submit_warning_callback(app, room_id, seconds_left):
-    """Called at 30s and 15s remaining in submit phase."""
+    """Called at 10, 9, … 1 seconds remaining in submit phase."""
     with app.app_context():
         from app.acrophobia import get_phase_info
         info = get_phase_info(room_id)
@@ -457,7 +457,7 @@ def _acrophobia_submit_warning_callback(app, room_id, seconds_left):
 
 
 def _acrophobia_vote_countdown_callback(app, room_id, seconds_left: int):
-    """Called at 10, 9, 8, … 1 seconds remaining in vote phase."""
+    """Called at 10, 9, … 1 seconds remaining in vote phase (same as submit)."""
     with app.app_context():
         from app.acrophobia import get_phase_info
         info = get_phase_info(room_id)
@@ -478,7 +478,7 @@ def _acrophobia_submit_timer_callback(app, room_id, sudden_death: bool = False):
         if info.get("phase") != "voting":
             return  # No submissions; phase went to idle
         vote_sec = SUDDEN_DEATH_VOTE if is_sudden else VOTE_SECONDS
-        for s in range(min(15, vote_sec), 0, -1):
+        for s in range(min(10, vote_sec), 0, -1):
             eventlet.spawn_after(vote_sec - s, _acrophobia_vote_countdown_callback, app, room_id, s)
         eventlet.spawn_after(vote_sec, _acrophobia_vote_timer_callback, app, room_id)
 
@@ -518,18 +518,17 @@ def _acrophobia_vote_timer_callback(app, room_id):
 
 
 def _schedule_acrophobia_submit_timer(room_id):
-    """Schedule 30s/15s warnings, 15-1s countdown (like vote), and advance from submit phase to voting after SUBMIT_SECONDS."""
+    """Schedule 10-1s countdown and advance from submit phase to voting after SUBMIT_SECONDS."""
     app = current_app._get_current_object()
-    eventlet.spawn_after(30, _acrophobia_submit_warning_callback, app, room_id, 30)
-    for s in range(15, 0, -1):
+    for s in range(10, 0, -1):
         eventlet.spawn_after(SUBMIT_SECONDS - s, _acrophobia_submit_warning_callback, app, room_id, s)
     eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id, False)
 
 
 def _schedule_sudden_death_submit_timer(room_id):
-    """Schedule sudden death submit phase (30s) with 15-1s countdown for urgency."""
+    """Schedule sudden death submit phase (30s) with 10-1s countdown and advance."""
     app = current_app._get_current_object()
-    for s in range(min(15, SUDDEN_DEATH_SUBMIT), 0, -1):
+    for s in range(min(10, SUDDEN_DEATH_SUBMIT), 0, -1):
         eventlet.spawn_after(SUDDEN_DEATH_SUBMIT - s, _acrophobia_submit_warning_callback, app, room_id, s)
     eventlet.spawn_after(SUDDEN_DEATH_SUBMIT, _acrophobia_submit_timer_callback, app, room_id, True)
 

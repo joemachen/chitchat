@@ -1,5 +1,19 @@
 # Release notes
 
+## v3.1.0 — Prof Frink improvements, Acrophobia countdown, trivia expansion
+
+**Prof Frink trivia**
+- **Ridicule on timeout** — When nobody gets it right, Frink ridicules the room in character before revealing the answer.
+- **10-second warning** — Frink announces "10 seconds left!" before time runs out.
+- **Timer above input** — Countdown bar (like Acrophobia) shows remaining time in Trivia room; input pulses when ≤10s.
+- **Time in announcement** — Trivia questions now end with "You have 30 seconds!"
+- **Massive trivia pool** — Expanded from 15 to 400+ questions across all difficulties; 200+ focused on seasons 3–9.
+
+**Acrophobia**
+- **Countdown timing** — In-channel countdown announcements (10, 9, 8… 1) now begin at 10 seconds left instead of 15 for both submit and vote phases.
+
+---
+
 ## v3.0.0 — Codebase cleanup, documentation refresh
 
 **Dead code removed**
