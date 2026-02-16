@@ -46,7 +46,8 @@ if __name__ == "__main__":
                         timeout=45,
                     )
                     if result.returncode != 0:
-                        print(f"[gunicorn_run] MIGRATION FAILED: {result.stderr or result.stdout}", flush=True)
+                        err = (result.stderr or result.stdout or "(no output)").strip()
+                        print(f"[gunicorn_run] MIGRATION FAILED (rc={result.returncode}): {err}", flush=True)
                     else:
                         print(result.stdout or "[gunicorn_run] migrations OK", flush=True)
                 except subprocess.TimeoutExpired:

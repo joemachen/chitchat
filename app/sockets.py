@@ -866,7 +866,11 @@ def register_socket_handlers(socketio):
         if room_obj.name.strip().lower() not in ("stats",):
             _user_id_to_room[user_id] = (room_id, room_obj.name)
             # Defer presence broadcast so room_joined reaches the joining user first
-            gevent.spawn_later(0, lambda: socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}))
+            app = current_app._get_current_object()
+            def _broadcast_user_list():
+                with app.app_context():
+                    socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
+            gevent.spawn_later(0, _broadcast_user_list)
         else:
             _user_id_to_room.pop(user_id, None)
 
