@@ -1,5 +1,17 @@
 # Release notes
 
+## v3.3.0 — Koyeb deployment fixes, gevent, migration robustness
+
+**Deployment (Koyeb)**
+- **Gevent** — Switched from eventlet to gevent for SocketIO async mode (eventlet deprecated in Gunicorn 26, RLock issues on Python 3.13).
+- **Gunicorn launcher** — `gunicorn_run.py` now runs gunicorn via subprocess with explicit args to avoid Koyeb/buildpack overrides (`main:app`, `eventlet`).
+- **Migrations** — Run in subprocess with 45s timeout; non-fatal on failure so app can start; optional `CHITCHAT_SKIP_MIGRATIONS=1` for debug.
+- **Migration 022** — Added `022_room_bot_permissions` to fix DB alembic_version mismatch when schema was migrated with a removed revision.
+- **App context** — Fixed "Working outside of application context" when `gevent.spawn_later` deferred user-list broadcast in room join.
+- **DB connect timeout** — Added 30s connect timeout for Neon PostgreSQL.
+
+---
+
 ## v3.2.0 — Pinned messages, sidebar username overflow fix
 
 **Pinned messages**

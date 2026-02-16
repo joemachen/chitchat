@@ -22,8 +22,8 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 |-------|------------|-----------------|
 | **Language** | Python | 3.11+ recommended (type hints, run scripts) |
 | **Web framework** | Flask | 3.x (`requirements.txt`: `flask>=3.0.0`) |
-| **Real-time** | Flask-SocketIO | 5.3+; WebSockets over eventlet |
-| **Async/WSGI** | eventlet | 0.40+; used as SocketIO async mode and for Acrophobia timers |
+| **Real-time** | Flask-SocketIO | 5.3+; WebSockets over gevent |
+| **Async/WSGI** | gevent | 24.2+; used as SocketIO async mode and for Acrophobia timers |
 | **ORM / DB** | Flask-SQLAlchemy | 3.1+; SQLite (dev) / PostgreSQL/Neon (prod) |
 | **Auth** | Session + cookie | Flask session; optional “remember me” with signed cookie (itsdangerous, via Flask) and disk fallback for standalone window |
 | **Frontend** | Vue 3 (CDN) | Composition API, reactive state; single template `chat.html` |
@@ -35,7 +35,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 **Entry points**:
 
 - **Browser**: `run.py` — sets up logging, finds an available port (5000–5019), runs `app.socketio.run(app, host="127.0.0.1", port=port, debug=False, use_reloader=False)`.
-- **Production (Koyeb)**: `wsgi.py`; `Procfile`: `python gunicorn_run.py` (runs eventlet monkey_patch before gunicorn).
+- **Production (Koyeb)**: `wsgi.py`; `Procfile`: `python gunicorn_run.py` (runs gevent monkey_patch, migrations in subprocess, then gunicorn).
 - **Standalone window**: `run_standalone.py` — loads the same app URL in a pywebview window; remember-me token can be stored on disk when cookies are unreliable.
 
 ---
@@ -47,12 +47,12 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 ```
 chitchat/
 ├── run.py                 # Entry point (logging, port fallback, socketio.run)
-├── wsgi.py                # Gunicorn entry; eventlet.monkey_patch before imports
+├── wsgi.py                # Gunicorn entry; gevent.monkey_patch before imports
 ├── Procfile               # Koyeb: python gunicorn_run.py
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–020
+├── migrations/            # Flask-Migrate (Alembic) versions 001–022
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -83,9 +83,9 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–020), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–022), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
   4. Registers HTTP routes via `register_routes(app)`.
-  5. Creates SocketIO app (`async_mode="eventlet"`, loggers disabled).
+  5. Creates SocketIO app (`async_mode="gevent"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
@@ -151,7 +151,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 
 ## 6. Real-time layer (Socket.IO)
 
-**Transport**: Flask-SocketIO with **eventlet** (single process, cooperative multitasking). Rooms are named `room_{room_id}` (integer room id).
+**Transport**: Flask-SocketIO with **gevent** (single process, cooperative multitasking). Rooms are named `room_{room_id}` (integer room id).
 
 ### 6.1 Presence
 
@@ -209,7 +209,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ### 6.4 Acrophobia integration
 
 - **Module**: `app/acrophobia.py`. State is **in-memory**: `_games` (per room: phase, acronym, submissions, votes, end_time, rounds_remaining), `_acrobot_active` (toggle from Settings). **Scores** are persisted in `acro_scores` (AcroScore model).
-- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **eventlet.spawn_after** in `sockets.py`. **Submit phase**: warnings at 30s and 15s remaining; **vote phase**: countdown from 15s down to 1s (urgency when ≤15s). Callbacks call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
+- **Phases**: `idle` → `submitting` (60 s) → `voting` (45 s) → `idle`. Submit and vote timers are scheduled with **gevent.spawn_later** in `sockets.py`. **Submit phase**: warnings at 30s and 15s remaining; **vote phase**: countdown from 15s down to 1s (urgency when ≤15s). Callbacks call `advance_submit_phase` / `advance_vote_phase`, then persist and emit bot messages via `_acrophobia_emit_bot_messages`.
 - **Acronyms**: Random **4- or 5-letter** uppercase string (`random.choices(string.ascii_uppercase, k=4 or 5)`), not a fixed list.
 - **Commands**: `/start` or `/start X` (X=1–7 consecutive rounds), `/vote N`, `/score`, `/help`, `/msg acrobot help` (and variants). User submissions during submit phase are not stored as messages; only bot messages are persisted. **DM voting**: Users can vote via DM with AcroBot; AcroBot acknowledges vote receipt (e.g. "Thanks. I got your vote for this round, L'il Bro."). AcroBot often addresses users as "L'il Bro" or "L'il Homey".
 
@@ -256,7 +256,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ## 9. Known limitations and constraints
 
-- **Single process**: eventlet single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
+- **Single process**: gevent single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
 - **Message edit/delete**: Supported for own messages via styled modal (textarea, Shift+Enter for new lines); bulk delete on reset stats.
 - **File/image uploads**: Supported (instance/uploads/); configurable size limit.
 - **Acrophobia state**: Game state (phase, submissions, votes) is in-memory and lost on restart; scores are persisted in `acro_scores`.
@@ -273,7 +273,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | File | Role |
 |------|------|
 | `run.py` | Logging setup, port 5000–5019 fallback, `create_app()`, `socketio.run()`. |
-| `gunicorn_run.py` | Koyeb launcher; runs eventlet.monkey_patch before gunicorn to fix RLock warning. |
+| `gunicorn_run.py` | Koyeb launcher; runs gevent.monkey_patch, migrations in subprocess (45s timeout), then gunicorn via subprocess. |
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
