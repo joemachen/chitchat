@@ -258,6 +258,14 @@
         .search-form button:hover { background: #3f3f46; }
         .search-results-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem 1.5rem; min-width: 320px; max-width: min(480px, 90vw); max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
         .room-switcher-modal { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem 1.5rem; width: 400px; max-width: min(400px, calc(100vw - 2rem)); max-height: 60vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2002; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .image-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2003; align-items: center; justify-content: center; padding: 2rem; box-sizing: border-box; }
+        .image-lightbox.visible { display: flex; flex-direction: column; }
+        .image-lightbox-close { position: absolute; top: 1rem; right: 1rem; background: #3f3f46; color: #e4e4e7; border: 1px solid #52525b; border-radius: 8px; width: 44px; height: 44px; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1; }
+        .image-lightbox-close:hover { background: #52525b; }
+        .image-lightbox-content { max-width: 100%; max-height: calc(100vh - 8rem); object-fit: contain; flex: 1; }
+        .image-lightbox-actions { padding: 1rem; display: flex; gap: 0.75rem; justify-content: center; flex-shrink: 0; }
+        .image-lightbox-actions a { color: #818cf8; font-size: 0.9rem; }
+        .image-lightbox-actions a:hover { text-decoration: underline; }
         @media (max-width: 768px) {
             .search-results-modal, .room-switcher-modal { min-width: 280px; max-width: calc(100vw - 2rem); }
         }
@@ -289,7 +297,7 @@
         .msg-link-preview .link-preview-body { padding: 0.5rem; }
         .msg-link-preview .link-preview-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
         .msg-link-preview .link-preview-desc { font-size: 0.8rem; color: #a1a1aa; margin-bottom: 0.35rem; }
-        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 80px; width: auto; height: auto; object-fit: cover; border-radius: 4px; display: block; }
+        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 80px; width: auto; height: auto; object-fit: cover; border-radius: 4px; display: block; cursor: pointer; }
         .status { padding: 0.25rem 1rem; font-size: 0.85rem; color: #71717a; }
         .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
         .room-list {
@@ -776,6 +784,14 @@
                 <input type="text" id="mobileSearchInput" placeholder="Search in this room…" autocomplete="off">
                 <button type="submit">Search</button>
             </form>
+        </div>
+    </div>
+    <div class="image-lightbox" id="imageLightbox" role="dialog" aria-modal="true" aria-label="View image" aria-hidden="true">
+        <button type="button" class="image-lightbox-close" title="Close" aria-label="Close" id="imageLightboxClose">×</button>
+        <img class="image-lightbox-content" id="imageLightboxImg" alt="" style="display:none;">
+        <video class="image-lightbox-content" id="imageLightboxVideo" controls loop muted playsinline style="display:none;"></video>
+        <div class="image-lightbox-actions" id="imageLightboxActions">
+            <a href="#" id="imageLightboxOpenTab" target="_blank" rel="noopener noreferrer">Open in new tab</a>
         </div>
     </div>
     <main class="main" role="main">
@@ -2322,12 +2338,21 @@ chitchatApp.mount('#app');
         }
     }
     messagesEl.addEventListener('click', function(e) {
-        if (e.button === 0) {
-            var a = e.target.closest('a[href]');
-            if (a && a.href && (a.target === '_blank' || a.getAttribute('target') === '_blank') && /^https?:\/\//i.test(a.href)) {
-                e.preventDefault();
-                window.open(a.href, '_blank', 'noopener,noreferrer');
-            }
+        if (e.button !== 0) return;
+        var img = e.target.closest('.msg-attachment a img') || e.target.closest('.msg-content a img') || e.target.closest('.msg-content a video');
+        var linkPreviewImg = e.target.closest('.link-preview-img');
+        if (img || linkPreviewImg) {
+            e.preventDefault();
+            e.stopPropagation();
+            var url = img ? (img.src || (img.closest('a') && img.closest('a').href)) : (linkPreviewImg && linkPreviewImg.src);
+            var isVideo = img && img.tagName === 'VIDEO';
+            if (url && window.chitchat && window.chitchat.showImageLightbox) window.chitchat.showImageLightbox(url, isVideo);
+            return;
+        }
+        var a = e.target.closest('a[href]');
+        if (a && a.href && (a.target === '_blank' || a.getAttribute('target') === '_blank') && /^https?:\/\//i.test(a.href)) {
+            e.preventDefault();
+            window.open(a.href, '_blank', 'noopener,noreferrer');
         }
     });
     (function() {
@@ -3187,7 +3212,43 @@ chitchatApp.mount('#app');
             });
         });
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
+    function showImageLightbox(url, isVideo) {
+        if (!url || !/^https?:\/\//i.test(url)) return;
+        var lb = document.getElementById('imageLightbox');
+        var imgEl = document.getElementById('imageLightboxImg');
+        var videoEl = document.getElementById('imageLightboxVideo');
+        var openTabEl = document.getElementById('imageLightboxOpenTab');
+        if (!lb || !imgEl || !videoEl || !openTabEl) return;
+        imgEl.style.display = isVideo ? 'none' : 'block';
+        videoEl.style.display = isVideo ? 'block' : 'none';
+        if (isVideo) {
+            videoEl.src = url;
+            videoEl.play().catch(function() {});
+        } else {
+            imgEl.src = url;
+            imgEl.alt = 'Enlarged image';
+        }
+        openTabEl.href = url;
+        lb.classList.add('visible');
+        lb.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        var closeBtn = document.getElementById('imageLightboxClose');
+        if (closeBtn) closeBtn.focus();
+    }
+    function hideImageLightbox() {
+        var lb = document.getElementById('imageLightbox');
+        var imgEl = document.getElementById('imageLightboxImg');
+        var videoEl = document.getElementById('imageLightboxVideo');
+        if (!lb || !imgEl || !videoEl) return;
+        videoEl.pause();
+        videoEl.src = '';
+        imgEl.src = '';
+        imgEl.alt = '';
+        lb.classList.remove('visible');
+        lb.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -3959,6 +4020,16 @@ chitchatApp.mount('#app');
                 mobileInfoDrawer.setAttribute('aria-hidden', !open);
             });
         }
+    })();
+
+    (function setupImageLightbox() {
+        var lb = document.getElementById('imageLightbox');
+        var closeBtn = document.getElementById('imageLightboxClose');
+        if (closeBtn) closeBtn.addEventListener('click', hideImageLightbox);
+        if (lb) lb.addEventListener('click', function(e) { if (e.target === lb) hideImageLightbox(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && lb && lb.classList.contains('visible')) hideImageLightbox();
+        });
     })();
 
     (function setupPanelResizer() {
