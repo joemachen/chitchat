@@ -1,7 +1,7 @@
 """
-WSGI entry point for gunicorn. gevent.monkey_patch() before any other imports.
+WSGI entry point for gunicorn. eventlet.monkey_patch() before any other imports.
 """
-import gevent.monkey
-gevent.monkey.patch_all()
+import eventlet
+eventlet.monkey_patch()
 
 from run import app
