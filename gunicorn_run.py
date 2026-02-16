@@ -25,5 +25,5 @@ if __name__ == "__main__":
         print(f"FATAL: maintenance failed: {e}", file=sys.stderr)
         sys.exit(1)
 
-    sys.argv = [sys.argv[0], "--worker-class", "eventlet", "-w", "1", "wsgi:app"] + sys.argv[1:]
+    sys.argv = [sys.argv[0], "--worker-class", "eventlet", "-w", "1", "--preload", "wsgi:app"] + sys.argv[1:]
     sys.exit(run())
