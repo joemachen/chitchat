@@ -84,10 +84,14 @@
         .msg.own { background: #27272a; }
         .msg.hidden { display: none; }
         .msg .msg-collapsed-bar { display: none; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; font-size: 0.8rem; color: #71717a; cursor: pointer; }
+        .msg.msg-user-hidden .msg-row { display: none !important; }
         .msg.msg-user-hidden .msg-header, .msg.msg-user-hidden .msg-quote, .msg.msg-user-hidden .msg-content, .msg.msg-user-hidden .msg-attachment, .msg.msg-user-hidden .msg-edited, .msg.msg-user-hidden .msg-link-previews, .msg.msg-user-hidden .msg-actions { display: none !important; }
         .msg.msg-user-hidden .msg-collapsed-bar { display: flex !important; }
         .msg.msg-user-hidden { padding: 0; min-height: auto; }
         .msg.msg-user-hidden .msg-collapsed-bar:hover { color: #a1a1aa; }
+        .msg-row { display: flex; gap: 0.5rem; align-items: flex-start; }
+        .msg-avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 600; color: #fff; text-transform: uppercase; }
+        .msg-body { flex: 1; min-width: 0; }
         .msg-header { font-size: 0.8rem; color: #818cf8; margin-bottom: 0.2rem; }
         .msg-username { cursor: context-menu; padding: 0 2px; border-radius: 2px; }
         .msg-username:hover { background: #27272a; }
@@ -306,6 +310,12 @@
         .user-item.invisible .user-dot { background: #71717a; }
         .user-item.offline .user-dot { background: #52525b; }
         .user-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #fff; text-transform: uppercase; }
+        .user-item.online .user-avatar { border: 2px solid #4ade80; }
+        .user-item.away .user-avatar { border: 2px solid #eab308; }
+        .user-item.dnd .user-avatar { border: 2px solid #ef4444; }
+        .user-item.invisible .user-avatar { border: 2px solid #71717a; }
+        .user-item.offline .user-avatar { border: 2px solid #52525b; }
         .user-item.me { color: #818cf8; font-weight: 500; }
         .user-list .muted { color: #71717a; font-size: 0.85rem; }
         .mobile-room-name { display: none; padding: 0.4rem 1rem; font-size: 0.95rem; font-weight: 600; color: #818cf8; background: #1c1c1f; border-bottom: 1px solid #27272a; }
@@ -596,7 +606,7 @@
                 <div class="user-list-title">Online</div>
                 <template v-if="onlineUsers.length">
                     <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
-                        <span class="user-dot"></span>
+                        <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
                         <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                     </div>
                 </template>
@@ -606,7 +616,7 @@
                 <div class="user-list-title">Offline</div>
                 <template v-if="offlineUsers.length">
                     <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
-                        <span class="user-dot"></span>
+                        <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
                         <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                     </div>
                 </template>
@@ -805,6 +815,9 @@
                             <div class="msg-collapsed-bar" title="Click to unhide" v-show="isMessageUserHidden(msg.id)" @click.stop="onUnhideMessage(msg.id)">
                                 <span aria-hidden="true">👁️‍🗨️</span> Hidden message — click or right-click to unhide
                             </div>
+                            <div class="msg-row">
+                                <div class="msg-avatar" :style="{ backgroundColor: getMessageAvatarColor(msg) }" :aria-hidden="true">{{ getAvatarInitial(getMessageDisplayName(msg)) }}</div>
+                                <div class="msg-body">
                             <div class="msg-header"><span class="msg-username" :data-user-id="msg.user_id" :data-username="msg.username || ''">{{ getMessageDisplayName(msg) }}</span> <span class="msg-time">{{ formatMessageTime(msg.created_at) }}</span></div>
                             <div class="msg-quote" v-if="msg.parent_id && (msg.parent_content != null || msg.parent_username != null)" :data-parent-id="String(msg.parent_id)" title="Jump to original message" @click="onScrollToMessage(msg.parent_id)">
                                 <strong>{{ (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?') }}</strong>: {{ (msg.parent_content || '').slice(0, 200) }}{{ (msg.parent_content || '').length > 200 ? '…' : '' }}
@@ -830,6 +843,8 @@
                                 <span v-for="(r, ri) in (msg.reactions || []).slice().sort((a,b) => (b.count||0) - (a.count||0)).slice(0, 3)" :key="'h'+ri" :class="['msg-reaction', { own: (r.user_ids || []).indexOf(currentUserId) !== -1 }]" :data-emoji="r.emoji" :title="r.emoji" @click.stop="onToggleReaction(msg.id, r.emoji, (r.user_ids || []).indexOf(currentUserId) !== -1)">{{ r.emoji }}</span>
                                 <button v-if="msg.user_id === currentUserId" type="button" class="msg-hover-btn msg-hover-edit" title="Edit" @click.stop="onEditMessage(msg.id, msg.content)">✎</button>
                                 <button type="button" class="msg-hover-btn msg-hover-reply" title="Reply" @click.stop="onReplyToMessage(msg)">↩</button>
+                            </div>
+                                </div>
                             </div>
                         </article>
                     </template>
@@ -917,6 +932,17 @@
                                     <input type="text" v-model="state.profileDraft.bio" placeholder="Short bio (shown in whois)" maxlength="200" style="flex:1;min-width:200px;padding:0.5rem 0.75rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;font-size:1rem;">
                                     <button type="button" @click="saveProfileBio()" style="padding:0.4rem 1rem;background:#6366f1;border:none;border-radius:6px;color:#fff;font-size:0.9rem;cursor:pointer;">Save</button>
                                 </div>
+                            </div>
+                            <div class="profile-field" style="margin-bottom:1rem;">
+                                <label style="display:block;font-size:0.85rem;color:#a1a1aa;margin-bottom:0.25rem;">Avatar color</label>
+                                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                                    <div class="user-avatar" :style="{ backgroundColor: (state.profileDraft.avatarBgColor && state.profileDraft.avatarBgColor.trim()) ? (state.profileDraft.avatarBgColor.startsWith('#') ? state.profileDraft.avatarBgColor : '#' + state.profileDraft.avatarBgColor) : getAvatarBgColor({{ user.id }}, {{ user.username|tojson }}, state.userAvatarBgColor) }" style="width:40px;height:40px;font-size:1rem;">{{ getAvatarInitial(state.userDisplayName || {{ user.username|tojson }}) }}</div>
+                                    <input type="color" :value="(state.profileDraft.avatarBgColor && /^#?[0-9a-fA-F]{6}$/.test(state.profileDraft.avatarBgColor.trim())) ? (state.profileDraft.avatarBgColor.startsWith('#') ? state.profileDraft.avatarBgColor : '#' + state.profileDraft.avatarBgColor) : '#6366f1'" @input="state.profileDraft.avatarBgColor = $event.target.value" title="Pick avatar background color" style="width:48px;height:40px;padding:2px;background:#27272a;border:1px solid #3f3f46;border-radius:6px;cursor:pointer;">
+                                    <input type="text" v-model="state.profileDraft.avatarBgColor" placeholder="#5865F2" maxlength="7" style="width:100px;padding:0.5rem 0.75rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;font-size:0.9rem;font-family:monospace;">
+                                    <button type="button" @click="saveProfileAvatarColor()" style="padding:0.4rem 1rem;background:#6366f1;border:none;border-radius:6px;color:#fff;font-size:0.9rem;cursor:pointer;">Save</button>
+                                    <button type="button" @click="state.profileDraft.avatarBgColor = ''; saveProfileAvatarColor()" style="padding:0.4rem 1rem;background:#3f3f46;border:none;border-radius:6px;color:#e4e4e7;font-size:0.9rem;cursor:pointer;">Reset</button>
+                                </div>
+                                <p style="font-size:0.8rem;color:#71717a;margin:0.25rem 0 0;">Customize the background color of your letter avatar. Leave empty for auto.</p>
                             </div>
                             <div class="profile-stat" style="font-size:0.9rem;color:#a1a1aa;margin:0.5rem 0;">Time connected: {{ profileTimeConnected }}</div>
                             <div class="profile-stat" style="font-size:0.9rem;color:#a1a1aa;margin:0.5rem 0;">Member since {{ userCreatedAtFormatted }}</div>
@@ -1086,7 +1112,7 @@
                 <div id="userListOnlineItems">
                     <template v-if="onlineUsers.length">
                         <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
-                            <span class="user-dot"></span>
+                            <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
                             <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                         </div>
                     </template>
@@ -1098,7 +1124,7 @@
                 <div id="userListOfflineItems">
                     <template v-if="offlineUsers.length">
                         <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
-                            <span class="user-dot"></span>
+                            <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
                             <span class="user-item-name">{{ userDisplayLabel(u, u.id === currentUserId) }}</span>
                         </div>
                     </template>
@@ -1182,11 +1208,12 @@ const state = reactive({
     mobileHomeTab: 'rooms',
     profileWhoisData: null,
     profileUserStats: null,
-    profileDraft: { nick: '', status: '', away: '', bio: '' },
+    profileDraft: { nick: '', status: '', away: '', bio: '', avatarBgColor: '' },
     userDisplayName: {{ (user.display_name or '')|tojson }},
     userStatusLine: {{ (user.status_line or '')|tojson }},
     userAwayMessage: {{ (user.away_message or '')|tojson }},
     userBio: {{ (user_bio|default(''))|tojson }},
+    userAvatarBgColor: {{ (user_avatar_bg_color|default(''))|tojson }},
     userCreatedAt: {{ (user.created_at.isoformat() if user.created_at else '')|tojson }},
     toasts: [],
     contextMenu: null,
@@ -1236,6 +1263,25 @@ const chitchatApp = createApp({
             var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
             var botSuffix = (u.username === 'AcroBot' || u.username === 'Homer' || u.username === 'Prof Frink' || u.username === 'System') ? ' (bot)' : '';
             return displayLabel + botSuffix + (isMe ? ' (you)' : '');
+        }
+        var AVATAR_PALETTE = ['#5865F2','#57F287','#FEE75C','#ED4245','#EB459E','#3BA55D','#FAA61A','#9B59B6'];
+        function getAvatarInitial(name) {
+            var s = (name || '').trim();
+            if (!s) return '?';
+            var first = s[0];
+            return (/[a-zA-Z0-9]/.test(first) ? first : '?').toUpperCase();
+        }
+        function getAvatarBgColor(userId, username, customColor) {
+            if (customColor && /^#?[0-9a-fA-F]{6}$/.test(String(customColor).trim())) {
+                var c = String(customColor).trim();
+                return c.startsWith('#') ? c : '#' + c;
+            }
+            var seed = (userId || 0) * 31 + ((username || '').charCodeAt(0) || 0);
+            return AVATAR_PALETTE[Math.abs(seed) % AVATAR_PALETTE.length];
+        }
+        function getMessageAvatarColor(msg) {
+            var u = (state.allUsersWithStatus || []).find(function(x) { return x.id === msg.user_id; });
+            return getAvatarBgColor(msg.user_id, msg.username, (u && u.avatar_bg_color) || msg.avatar_bg_color);
         }
         const roomsInOrder = computed(() => {
             var byId = {};
@@ -1309,6 +1355,7 @@ const chitchatApp = createApp({
             state.profileDraft.status = state.userStatusLine || '';
             state.profileDraft.away = state.userAwayMessage || '';
             state.profileDraft.bio = state.userBio || '';
+            state.profileDraft.avatarBgColor = state.userAvatarBgColor || '';
             state.profileWhoisData = null;
             state.profileUserStats = null;
             if (window.chitchat && window.chitchat.socket) {
@@ -1352,6 +1399,15 @@ const chitchatApp = createApp({
                 var status = state.profileDraft.status || state.userStatusLine || '';
                 var away = state.profileDraft.away || state.userAwayMessage || '';
                 window.chitchat.socket.emit('update_profile', { status_line: (status && status.trim()) || null, away_message: (away && away.trim()) || null, bio: bio });
+            }
+        }
+        function saveProfileAvatarColor() {
+            var val = (state.profileDraft.avatarBgColor || '').trim();
+            if (val && !/^#?[0-9a-fA-F]{6}$/.test(val)) return;
+            state.userAvatarBgColor = val || '';
+            if (window.chitchat && window.chitchat.socket) {
+                var hex = val ? (val.startsWith('#') ? val : '#' + val) : null;
+                window.chitchat.socket.emit('update_profile', { avatar_bg_color: hex });
             }
         }
         function goToMobileHome() {
@@ -1622,7 +1678,7 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -3061,11 +3117,13 @@ chitchatApp.mount('#app');
         if (data.status_line !== undefined) { currentUserStatusLine = data.status_line || ''; state.userStatusLine = currentUserStatusLine; }
         if (data.away_message !== undefined) { currentUserAwayMessage = data.away_message || ''; state.userAwayMessage = currentUserAwayMessage; }
         if (data.bio !== undefined) state.userBio = data.bio || '';
+        if (data.avatar_bg_color !== undefined) state.userAvatarBgColor = data.avatar_bg_color || '';
         var me = state.allUsersWithStatus.find(function(u) { return u.id === currentUserId; });
         if (me) {
             if (data.status_line !== undefined) me.status_line = data.status_line || null;
             if (data.away_message !== undefined) me.away_message = data.away_message || null;
             if (data.bio !== undefined) me.bio = data.bio || null;
+            if (data.avatar_bg_color !== undefined) me.avatar_bg_color = data.avatar_bg_color || null;
             me.user_status = data.away_message ? 'away' : 'online';
         }
     });

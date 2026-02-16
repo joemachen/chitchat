@@ -299,6 +299,7 @@ def register_routes(app):
             "chat.html",
             user=user,
             user_bio=getattr(user, "bio", None) or "",
+            user_avatar_bg_color=getattr(user, "avatar_bg_color", None) or "",
             message_retention_days=getattr(user, "message_retention_days", None),
             server_name=getattr(Config, "SERVER_NAME", "No Homers Club"),
             user_permissions=user_perms,

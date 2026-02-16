@@ -1,5 +1,18 @@
 # Release notes
 
+## v2.8.3 — Discord-style letter avatars
+
+**Letter avatars**
+- **Message cards** — Each message shows a circular avatar with the user's initial and a colored background.
+- **User list** — Sidebar and mobile presence sheet show letter avatars with status borders (online/away/dnd/offline).
+- **Deterministic colors** — When no custom color is set, a stable color is derived from the user ID.
+- **Custom color** — Settings → Profile → Avatar color: picker, hex input, Save, Reset.
+
+**Model**
+- Added nullable `avatar_bg_color` (hex) to User.
+
+---
+
 ## v2.8.2 — Mobile presence bar, Prof Frink rounds, user list cleanup
 
 **Mobile: inline presence bar**

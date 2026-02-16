@@ -71,6 +71,14 @@ _sid_to_remote_addr = {}  # sid -> IP string
 _user_id_to_room = {}  # user_id -> (room_id, room_name) for rich presence
 
 
+def _is_valid_hex_color(s: str) -> bool:
+    """Return True if s is a valid 6-digit hex color (with or without #)."""
+    s = (s or "").strip()
+    if s.startswith("#"):
+        s = s[1:]
+    return len(s) == 6 and all(c in "0123456789abcdefABCDEF" for c in s)
+
+
 def _get_users_with_online_status():
     """Return list of {id, username, online, is_super_admin, is_system_user} for all users, sorted by username.
     AcroBot's 'online' reflects the Settings toggle (is_acrobot_active), not socket presence.
@@ -85,6 +93,7 @@ def _get_users_with_online_status():
                 "id": u.id,
                 "username": u.username,
                 "display_name": None,
+                "avatar_bg_color": None,
                 "online": is_acrobot_active(),
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
@@ -97,6 +106,7 @@ def _get_users_with_online_status():
                 "id": u.id,
                 "username": u.username,
                 "display_name": None,
+                "avatar_bg_color": None,
                 "online": False,
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
@@ -133,22 +143,24 @@ def _get_users_with_online_status():
             st = getattr(u, "user_status", None) or "online"
             actually_online = u.id in online
             if st == "invisible":
-                result.append({
-                    "id": u.id,
-                    "username": u.username,
-                    "display_name": getattr(u, "display_name", None) or None,
-                    "online": False,
-                    "is_super_admin": getattr(u, "is_super_admin", False),
-                    "rank": rank,
-                    "is_system_user": False,
-                    "user_status": "invisible",
-                    "current_room_name": None,
-                })
+            result.append({
+                "id": u.id,
+                "username": u.username,
+                "display_name": getattr(u, "display_name", None) or None,
+                "avatar_bg_color": getattr(u, "avatar_bg_color", None) or None,
+                "online": False,
+                "is_super_admin": getattr(u, "is_super_admin", False),
+                "rank": rank,
+                "is_system_user": False,
+                "user_status": "invisible",
+                "current_room_name": None,
+            })
             else:
                 result.append({
                     "id": u.id,
                     "username": u.username,
                     "display_name": getattr(u, "display_name", None) or None,
+                    "avatar_bg_color": getattr(u, "avatar_bg_color", None) or None,
                     "online": actually_online,
                     "is_super_admin": getattr(u, "is_super_admin", False),
                     "rank": rank,
@@ -1328,7 +1340,7 @@ def register_socket_handlers(socketio):
                 "• In #Trivia: !trivia or !trivia X (X=1–7 rounds), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
                 "• Right-click message → Reply, Add reaction, Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message",
                 "• Right-click user → Whois, Message, Mute, Kick (if permitted); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",
-                "• Settings → Profile — nick, status, visibility, away message, bio, notification prefs",
+                "• Settings → Profile — nick, status, visibility, away message, bio, avatar color, notification prefs",
                 "• Ctrl+K — room switcher; Esc — close modals",
                 "",
                 "**In Acrophobia channel**",
@@ -1435,6 +1447,7 @@ def register_socket_handlers(socketio):
                 "display_name": getattr(target, "display_name", None) or None,
                 "status_line": getattr(target, "status_line", None) or None,
                 "bio": getattr(target, "bio", None) or None,
+                "avatar_bg_color": getattr(target, "avatar_bg_color", None) or None,
                 "last_seen": _isoformat_utc(getattr(target, "last_seen", None)),
             }
             if online:
@@ -1885,6 +1898,15 @@ def register_socket_handlers(socketio):
                 user.bio = bio
         else:
             bio = getattr(user, "bio", None) or None
+        if "avatar_bg_color" in payload:
+            val = (payload.get("avatar_bg_color") or "").strip()
+            if val and _is_valid_hex_color(val):
+                val = val[:7]
+            else:
+                val = None
+            if hasattr(user, "avatar_bg_color"):
+                user.avatar_bg_color = val
+        avatar_bg_color = getattr(user, "avatar_bg_color", None) or None
         if hasattr(user, "user_status"):
             user.user_status = "away" if away_message else "online"
         db.session.commit()
@@ -1894,7 +1916,7 @@ def register_socket_handlers(socketio):
             else:
                 _post_system_event(f"{user.username} is no longer away")
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
-        emit("profile_updated", {"status_line": status_line, "away_message": away_message, "bio": bio})
+        emit("profile_updated", {"status_line": status_line, "away_message": away_message, "bio": bio, "avatar_bg_color": avatar_bg_color})
         logger.info("Profile updated by user %s", user.username)
 
     @socketio.on("set_user_status")
@@ -2356,6 +2378,7 @@ def register_socket_handlers(socketio):
             "display_name": getattr(target, "display_name", None) or None,
             "status_line": getattr(target, "status_line", None) or None,
             "bio": getattr(target, "bio", None) or None,
+            "avatar_bg_color": getattr(target, "avatar_bg_color", None) or None,
             "last_seen": _isoformat_utc(getattr(target, "last_seen", None)),
         }
         if online:

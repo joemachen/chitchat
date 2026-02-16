@@ -29,6 +29,7 @@ class User(db.Model):
     display_name = db.Column(db.String(80), nullable=True)  # /nick; shown in chat when set
     status_line = db.Column(db.String(120), nullable=True)  # /status
     bio = db.Column(db.String(200), nullable=True)  # Short bio shown in whois
+    avatar_bg_color = db.Column(db.String(7), nullable=True)  # Hex color for letter avatar, e.g. #5865F2
     user_status = db.Column(db.String(20), nullable=False, default="online")  # online | away | dnd
     last_seen = db.Column(db.DateTime, nullable=True)  # Updated on disconnect for /whois
     message_retention_days = db.Column(db.Integer, nullable=True)  # None = keep forever; 7/30/90 = auto-delete after N days
@@ -59,6 +60,7 @@ class User(db.Model):
             "status_line": getattr(self, "status_line", None) or None,
             "user_status": getattr(self, "user_status", None) or "online",
             "last_seen": _isoformat_utc(getattr(self, "last_seen", None)),
+            "avatar_bg_color": getattr(self, "avatar_bg_color", None) or None,
         }
 
 
@@ -123,12 +125,14 @@ class Message(db.Model):
         user = self.user
         username = user.username if user else None
         display_name = getattr(user, "display_name", None) or None if user else None
+        avatar_bg_color = getattr(user, "avatar_bg_color", None) or None if user else None
         out = {
             "id": self.id,
             "room_id": self.room_id,
             "user_id": self.user_id,
             "username": username,
             "display_name": display_name,
+            "avatar_bg_color": avatar_bg_color,
             "content": self.content,
             "created_at": _isoformat_utc(self.created_at),
             "message_type": self.message_type or "chat",
