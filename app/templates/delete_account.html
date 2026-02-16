@@ -18,7 +18,7 @@
         {% if error %}
         <p class="error">{{ error }}</p>
         {% endif %}
-        <form method="post" action="{{ url_for('delete_account') }}" onsubmit="return confirm('Are you sure? Your account and all your messages will be permanently deleted.');">
+        <form id="deleteForm" method="post" action="{{ url_for('delete_account') }}">
             <label for="confirm">Type <strong>DELETE</strong> to confirm</label>
             <input id="confirm" name="confirm" type="text" required autocomplete="off" placeholder="DELETE">
             <button type="submit" class="danger">Delete my account</button>
@@ -27,5 +27,42 @@
             <a href="{{ url_for('chat') }}">Cancel and return to chat</a>
         </p>
     </main>
+    <div id="confirmModal" class="auth-confirm-modal" role="dialog" aria-modal="true" aria-label="Confirm deletion" hidden>
+        <div class="auth-confirm-inner">
+            <h3>Are you sure?</h3>
+            <p>Your account and all your messages will be permanently deleted.</p>
+            <div class="auth-confirm-actions">
+                <button type="button" class="auth-confirm-cancel">Cancel</button>
+                <button type="button" class="auth-confirm-ok danger">Delete</button>
+            </div>
+        </div>
+    </div>
+    <style>
+        .auth-confirm-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .auth-confirm-inner { background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.25rem 1.5rem; min-width: 280px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .auth-confirm-inner h3 { margin: 0 0 0.5rem; font-size: 1.1rem; color: #e4e4e7; }
+        .auth-confirm-inner p { margin: 0 0 1rem; font-size: 0.95rem; color: #a1a1aa; }
+        .auth-confirm-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+        .auth-confirm-cancel { padding: 0.5rem 1rem; background: #3f3f46; color: #e4e4e7; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
+        .auth-confirm-cancel:hover { background: #52525b; }
+        .auth-confirm-ok { padding: 0.5rem 1rem; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
+    </style>
+    <script>
+        (function() {
+            var form = document.getElementById('deleteForm');
+            var modal = document.getElementById('confirmModal');
+            var cancelBtn = modal.querySelector('.auth-confirm-cancel');
+            var okBtn = modal.querySelector('.auth-confirm-ok');
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                modal.hidden = false;
+            });
+            cancelBtn.addEventListener('click', function() { modal.hidden = true; });
+            okBtn.addEventListener('click', function() {
+                modal.hidden = true;
+                form.submit();
+            });
+        })();
+    </script>
 </body>
 </html>

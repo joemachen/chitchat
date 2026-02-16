@@ -102,12 +102,15 @@
         .context-menu button:first-child { border-radius: 6px 6px 0 0; }
         .context-menu button:last-child { border-radius: 0 0 6px 6px; }
         .context-menu-divider { height: 1px; background: #3f3f46; margin: 0.25rem 0; }
-        .profile-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.5rem; min-width: 240px; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .profile-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.5rem; min-width: 280px; max-width: min(480px, calc(100vw - 2rem)); max-height: 85vh; overflow-y: auto; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
         .profile-modal h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
         .profile-modal p { margin: 0; color: #a1a1aa; font-size: 0.9rem; }
         .profile-modal .close { margin-top: 1rem; padding: 0.4rem 0.8rem; background: #3f3f46; border: none; border-radius: 6px; color: #e4e4e7; cursor: pointer; font-size: 0.9rem; }
         .profile-modal .close:hover { background: #52525b; }
-        .edit-message-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.25rem; min-width: 360px; max-width: 90vw; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .edit-message-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.25rem 1.5rem; min-width: 320px; max-width: min(480px, 90vw); max-height: 85vh; overflow-y: auto; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        @media (max-width: 768px) {
+            .edit-message-modal { min-width: 280px; max-width: calc(100vw - 2rem); max-height: 80vh; }
+        }
         .edit-message-modal h3 { margin: 0 0 0.75rem; font-size: 1rem; color: #e4e4e7; }
         .edit-message-modal textarea { width: 100%; min-height: 120px; max-height: 280px; padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; resize: vertical; box-sizing: border-box; }
         .edit-message-modal textarea:focus { outline: none; border-color: #6366f1; }
@@ -128,6 +131,28 @@
         body.theme-light .edit-message-cancel { background: #e4e4e7; color: #52525b; }
         body.theme-light .edit-message-cancel:hover { background: #d4d4d8; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; }
+        .app-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1.25rem 1.5rem; min-width: 280px; max-width: min(480px, calc(100vw - 2rem)); z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .app-modal h3 { margin: 0 0 0.75rem; font-size: 1rem; color: #e4e4e7; font-weight: 600; }
+        .app-modal p { margin: 0 0 1rem; font-size: 0.95rem; color: #a1a1aa; line-height: 1.4; }
+        .app-modal .app-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
+        .app-modal .app-modal-btn { padding: 0.5rem 1rem; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+        .app-modal .app-modal-btn-secondary { background: #3f3f46; color: #e4e4e7; }
+        .app-modal .app-modal-btn-secondary:hover { background: #52525b; }
+        .app-modal .app-modal-btn-primary { background: #6366f1; color: #fff; }
+        .app-modal .app-modal-btn-primary:hover { background: #5558e3; }
+        .app-modal .app-modal-btn-destructive { background: #7f1d1d; color: #fecaca; }
+        .app-modal .app-modal-btn-destructive:hover { background: #991b1b; }
+        .app-modal .app-modal-input { width: 100%; padding: 0.6rem 0.75rem; margin-bottom: 1rem; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; font-family: inherit; box-sizing: border-box; }
+        .app-modal .app-modal-input:focus { outline: none; border-color: #6366f1; }
+        body.theme-light .app-modal { background: #fafafa; border-color: #d4d4d8; }
+        body.theme-light .app-modal h3 { color: #18181b; }
+        body.theme-light .app-modal p { color: #52525b; }
+        body.theme-light .app-modal .app-modal-btn-secondary { background: #e4e4e7; color: #52525b; }
+        body.theme-light .app-modal .app-modal-btn-secondary:hover { background: #d4d4d8; }
+        body.theme-light .app-modal .app-modal-input { background: #fff; border-color: #d4d4d8; color: #18181b; }
+        @media (max-width: 768px) {
+            .app-modal { min-width: 280px; max-width: calc(100vw - 2rem); padding: 1rem 1.25rem; }
+        }
         .mobile-presence-bar { display: none; padding: 0.5rem 1rem; background: #1c1c1f; border-top: 1px solid #27272a; flex-shrink: 0; align-items: center; gap: 0.5rem; cursor: pointer; min-height: 44px; -webkit-tap-highlight-color: transparent; }
         .mobile-presence-bar .mobile-presence-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex-shrink: 0; }
         .mobile-presence-bar .mobile-presence-text { font-size: 0.9rem; color: #a1a1aa; }
@@ -229,8 +254,11 @@
         .search-form input:focus { outline: none; border-color: #6366f1; }
         .search-form button { padding: 0.4rem 0.75rem; background: #27272a; border: none; border-radius: 6px; color: #e4e4e7; font-size: 0.9rem; cursor: pointer; }
         .search-form button:hover { background: #3f3f46; }
-        .search-results-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem; min-width: 320px; max-width: 90vw; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-        .room-switcher-modal { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem; width: 400px; max-width: 90vw; max-height: 60vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2002; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .search-results-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem 1.5rem; min-width: 320px; max-width: min(480px, 90vw); max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2001; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .room-switcher-modal { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: #25262b; border: 1px solid #3f3f46; border-radius: 12px; padding: 1rem 1.5rem; width: 400px; max-width: min(400px, calc(100vw - 2rem)); max-height: 60vh; overflow: hidden; display: flex; flex-direction: column; z-index: 2002; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        @media (max-width: 768px) {
+            .search-results-modal, .room-switcher-modal { min-width: 280px; max-width: calc(100vw - 2rem); }
+        }
         .room-switcher-modal input { padding: 0.6rem 0.75rem; border: 1px solid #3f3f46; border-radius: 6px; background: #0f0f12; color: #e4e4e7; font-size: 1rem; margin-bottom: 0.5rem; }
         .room-switcher-list { overflow-y: auto; flex: 1; min-height: 0; max-height: 300px; }
         .room-switcher-item { padding: 0.5rem 0.75rem; cursor: pointer; border-radius: 6px; font-size: 0.95rem; }
@@ -403,6 +431,11 @@
         .room-list-footer-mobile button:hover, .room-list-footer-mobile form button:hover { color: #e4e4e7; }
         body.theme-light .room-list-footer-mobile { }
         body.theme-light .room-list-footer-mobile button, body.theme-light .room-list-footer-mobile form button { color: #52525b; }
+        .mobile-channel-list-footer { border-top: 1px solid #27272a; }
+        body.theme-light .mobile-channel-list-footer { border-top-color: #d4d4d8; }
+        body.theme-light .mobile-channel-list-footer button { color: #52525b; }
+        body.theme-light .mobile-channel-list-footer button:hover { color: #18181b; }
+        body.theme-light .settings-logout-wrap { border-color: #d4d4d8; }
         body.theme-light .room-list-footer-mobile button:hover, body.theme-light .room-list-footer-mobile form button:hover { color: #18181b; }
         /* Mobile bottom nav: 3-tab bar for <768px. 60-30-10 color rule, safe-area, OLED-safe (no #000). */
         .mobile-bottom-nav { display: none; }
@@ -480,6 +513,9 @@
             .mobile-channel-list-panel { display: flex; }
         }
         .mobile-channel-list-panel .mobile-channel-list-section { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+        @media (max-width: 768px) {
+            .mobile-channel-list-panel { padding-bottom: 80px; box-sizing: border-box; }
+        }
         .mobile-channel-list-panel .room-list-title,
         .mobile-channel-list-panel .message-list-title { font-size: 0.75rem; font-weight: 600; color: #71717a; padding: 0.5rem 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .mobile-channel-list-panel .room-item { padding: 0.5rem 1rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; min-height: 48px; border-bottom: 1px solid #27272a; }
@@ -679,6 +715,30 @@
         </div>
         <p class="room-switcher-hint">↑↓ to navigate, Enter to select, Esc to close</p>
     </div>
+    <div v-if="state.appConfirmModal" class="app-modal" role="dialog" aria-modal="true" :aria-label="state.appConfirmModal.ariaLabel || 'Confirm'" @keydown.esc="state.appConfirmModal && state.appConfirmModal.reject && state.appConfirmModal.reject(false)">
+        <h3>{{ state.appConfirmModal.title || 'Confirm' }}</h3>
+        <p>{{ state.appConfirmModal.message }}</p>
+        <div class="app-modal-actions">
+            <button type="button" class="app-modal-btn app-modal-btn-secondary" @click="state.appConfirmModal.reject(false)">{{ state.appConfirmModal.secondaryLabel || 'Cancel' }}</button>
+            <button type="button" :class="['app-modal-btn', state.appConfirmModal.destructive ? 'app-modal-btn-destructive' : 'app-modal-btn-primary']" @click="state.appConfirmModal.resolve(true)">{{ state.appConfirmModal.primaryLabel || 'OK' }}</button>
+        </div>
+    </div>
+    <div v-if="state.appAlertModal" class="app-modal" role="dialog" aria-modal="true" aria-label="Notice" @keydown.esc="state.appAlertModal && state.appAlertModal.resolve && state.appAlertModal.resolve()">
+        <h3>{{ state.appAlertModal.title || 'Notice' }}</h3>
+        <p>{{ state.appAlertModal.message }}</p>
+        <div class="app-modal-actions">
+            <button type="button" class="app-modal-btn app-modal-btn-primary" @click="state.appAlertModal.resolve()">OK</button>
+        </div>
+    </div>
+    <div v-if="state.appPromptModal" class="app-modal" role="dialog" aria-modal="true" :aria-label="state.appPromptModal.ariaLabel || 'Input'" @keydown.esc="state.appPromptModal && state.appPromptModal.reject && state.appPromptModal.reject(null)">
+        <h3>{{ state.appPromptModal.title || 'Input' }}</h3>
+        <p v-if="state.appPromptModal.message">{{ state.appPromptModal.message }}</p>
+        <input type="text" ref="appPromptInputRef" class="app-modal-input" v-model="state.appPromptModal.value" :placeholder="state.appPromptModal.placeholder || ''" @keydown.enter.prevent="state.appPromptModal.resolve(state.appPromptModal.value)" @keydown.esc.prevent="state.appPromptModal.reject(null)">
+        <div class="app-modal-actions">
+            <button type="button" class="app-modal-btn app-modal-btn-secondary" @click="state.appPromptModal.reject(null)">Cancel</button>
+            <button type="button" class="app-modal-btn app-modal-btn-primary" @click="state.appPromptModal.resolve(state.appPromptModal.value)">OK</button>
+        </div>
+    </div>
     <header class="header" id="header" role="banner">
         <button type="button" v-show="isMobile && !state.mobileHomeView" class="mobile-back-btn" aria-label="Back" @click="goToMobileHome">←</button>
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
@@ -791,6 +851,11 @@
                         <div v-else class="room-item" style="cursor:default;color:#71717a;">No messages</div>
                     </div>
                 </div>
+                <div class="mobile-channel-list-footer" style="flex-shrink:0;padding:0.75rem 1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+                    <form action="{% endraw %}{{ url_for('logout') }}{% raw %}" method="post" style="display:inline;">
+                        <button type="submit" style="background:none;border:none;color:#a1a1aa;cursor:pointer;font-size:0.9rem;padding:0.25rem 0;">Log out</button>
+                    </form>
+                </div>
             </div>
             <div v-show="!isMobile || !state.mobileHomeView" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
             <div class="mobile-room-name" id="mobileRoomName">{{ mobileRoomName }}</div>
@@ -828,8 +893,8 @@
                                 <a v-else class="attachment-file" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer">📎 {{ msg.attachment_filename || 'Attachment' }}</a>
                             </div>
                             <div class="msg-edited" v-if="msg.edited_at">edited {{ formatMessageTime(msg.edited_at) }}</div>
-                            <div class="msg-link-previews" v-if="msg.link_previews && msg.link_previews.length">
-                                <div v-for="(p, pi) in msg.link_previews" :key="pi" class="msg-link-preview" :data-url="p.url || ''">
+                            <div class="msg-link-previews" v-if="linkPreviewsForMessage(msg).length">
+                                <div v-for="(p, pi) in linkPreviewsForMessage(msg)" :key="pi" class="msg-link-preview" :data-url="p.url || ''">
                                     <div class="link-preview-header"><a :href="p.url || ''" target="_blank" rel="noopener noreferrer">{{ (p.url || '').replace(/^https?:\/\//, '') }}</a><button type="button" class="link-preview-minimize" title="Minimize" @click="onLinkPreviewMinimize($event)">−</button></div>
                                     <div class="link-preview-body"> <div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div> <div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div> <img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt=""> </div>
                                 </div>
@@ -1086,6 +1151,11 @@
                             </div>
                             <div v-for="r in channelsInOrder" :key="r.id" class="user-row"><label><input type="checkbox" :checked="state.roomNotificationMuted[r.id]" @change="window.chitchat && window.chitchat.settingsToggleRoomMute && window.chitchat.settingsToggleRoomMute(r.id, $event.target.checked)"> <span>Mute {{ r.name }}</span></label></div>
                         </template>
+                        <div class="settings-logout-wrap" style="margin-top:2rem;padding-top:1rem;border-top:1px solid #27272a;">
+                            <form action="{% endraw %}{{ url_for('logout') }}{% raw %}" method="post" style="display:inline;">
+                                <button type="submit" style="padding:0.5rem 1rem;background:#3f3f46;border:1px solid #52525b;border-radius:6px;color:#e4e4e7;font-size:0.9rem;cursor:pointer;">Log out</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1221,7 +1291,10 @@ const state = reactive({
     roomContextMenu: null,
     messageContextMenu: null,
     selectionContextMenu: null,
-    mobilePresenceSheetOpen: false
+    mobilePresenceSheetOpen: false,
+    appConfirmModal: null,
+    appAlertModal: null,
+    appPromptModal: null
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -1510,6 +1583,17 @@ const chitchatApp = createApp({
             if (s == null) return '';
             return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
+        function isGifUrl(url) {
+            if (!url) return false;
+            return /\.gif(\?|$)/i.test(url) || /giphy\.com/i.test(url) || /tenor\.com/i.test(url) || /media\.giphy\.com/i.test(url) || /i\.giphy\.com/i.test(url);
+        }
+        function linkPreviewsForMessage(msg) {
+            var raw = msg && msg.link_previews;
+            var previews = [];
+            if (Array.isArray(raw)) previews = raw;
+            else if (typeof raw === 'string') { try { var p = JSON.parse(raw); previews = Array.isArray(p) ? p : []; } catch (e) {} }
+            return previews.filter(function(p) { return !isGifUrl(p && p.url); });
+        }
         function getMessageContentHtml(msg) {
             if (!msg) return '';
             const esc = _escapeHtml;
@@ -1520,14 +1604,13 @@ const chitchatApp = createApp({
             }
             var raw = msg.content || '';
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
-            html = html.replace(/(https?:\/\/[^\s<>"']+)/g, function(match, offset, fullStr) {
+            html = html.replace(/(https?:\/\/[^\s<>"']+)(\s*["']?>\s*)?/g, function(match, url, artifact, offset, fullStr) {
                 if (offset > 0 && fullStr[offset - 1] === '"') return match;
                 if (offset > 1 && fullStr.substring(offset - 2, offset) === '">') return match;
-                var url = match.replace(/[.,;:)]+$/, '');
-                var isGif = /\.gif(\?|$)/i.test(url) || /giphy\.com.*\.gif/i.test(url) || /tenor\.com.*\.gif/i.test(url);
-                if (isGif && msg.link_previews && msg.link_previews.length) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url.replace(/^https?:\/\//, '')) + '</a>';
+                url = (url || match).replace(/[.,;:)]+$/, '');
+                var isGif = isGifUrl(url);
                 if (isGif) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
-                return '<a href="' + escA(match) + '" target="_blank" rel="noopener noreferrer">' + esc(match) + '</a>';
+                return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>';
             });
             return html;
         }
@@ -1565,7 +1648,7 @@ const chitchatApp = createApp({
         }
         function formatTime(iso) { if (!iso) return ''; return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true }); }
         const hasAnyModalOpen = computed(function() {
-            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen || state.mobilePresenceSheetOpen);
+            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen || state.mobilePresenceSheetOpen || state.appConfirmModal || state.appAlertModal || state.appPromptModal);
         });
         const roomSwitcherFiltered = computed(function() {
             var rooms = roomsInOrder.value || [];
@@ -1580,6 +1663,12 @@ const chitchatApp = createApp({
         function hideWhoisModal() { var prev = focusRestoreBeforeModal; state.whoisModalData = null; if (prev && prev.focus) nextTick(function() { prev.focus(); }); focusRestoreBeforeModal = null; }
         function hideAllModals() {
             var prev = focusRestoreBeforeModal;
+            if (state.appConfirmModal && state.appConfirmModal.reject) state.appConfirmModal.reject(false);
+            state.appConfirmModal = null;
+            if (state.appAlertModal && state.appAlertModal.resolve) state.appAlertModal.resolve();
+            state.appAlertModal = null;
+            if (state.appPromptModal && state.appPromptModal.reject) state.appPromptModal.reject(null);
+            state.appPromptModal = null;
             state.profileModalUser = null;
             state.whoisModalData = null;
             state.editMessageModal = null;
@@ -1680,7 +1769,7 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -2324,10 +2413,13 @@ chitchatApp.mount('#app');
     });
     roomContextMenuEl.querySelector('[data-action="room-delete"]').addEventListener('click', function(e) {
         e.stopPropagation();
-        if (roomContextTarget && confirm('Delete channel "' + roomContextTarget.name + '" and all its messages?')) {
-            socket.emit('delete_room', { room_id: roomContextTarget.id });
-        }
-        hideRoomContextMenu();
+        if (roomContextTarget) {
+            var target = roomContextTarget;
+            hideRoomContextMenu();
+            showConfirm('Delete channel "' + target.name + '" and all its messages?', { destructive: true }).then(function(ok) {
+                if (ok) socket.emit('delete_room', { room_id: target.id });
+            });
+        } else hideRoomContextMenu();
     });
 
     contextMenuEl.querySelector('[data-action="whois"]').addEventListener('click', function(e) {
@@ -2433,14 +2525,15 @@ chitchatApp.mount('#app');
     messageContextMenuEl.querySelector('[data-action="delete-message"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (messageContextTarget && messageContextTarget.userId === currentUserId) {
-            if (!confirm('Delete this message?')) { hideMessageContextMenu(); return; }
-            if (!confirm('This will permanently erase the message and all its history. Are you sure?')) {
-                hideMessageContextMenu();
-                return;
-            }
-            socket.emit('delete_message', { message_id: messageContextTarget.messageId });
-        }
-        hideMessageContextMenu();
+            var msgId = messageContextTarget.messageId;
+            hideMessageContextMenu();
+            showConfirm('Delete this message?', { destructive: true }).then(function(ok) {
+                if (!ok) return;
+                showConfirm('This will permanently erase the message and all its history. Are you sure?', { destructive: true, primaryLabel: 'Delete' }).then(function(ok2) {
+                    if (ok2) socket.emit('delete_message', { message_id: msgId });
+                });
+            });
+        } else hideMessageContextMenu();
     });
     if (hideMsgBtn) hideMsgBtn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -2459,12 +2552,12 @@ chitchatApp.mount('#app');
     messageContextMenuEl.querySelector('[data-action="report-message"]').addEventListener('click', function(e) {
         e.stopPropagation();
         if (messageContextTarget) {
-            var reason = prompt('Optional: briefly describe why you are reporting this message (or leave blank):');
-            if (reason !== null) {
-                socket.emit('report_message', { message_id: messageContextTarget.messageId, reason: reason ? reason.trim() : null });
-            }
-        }
-        hideMessageContextMenu();
+            var msgId = messageContextTarget.messageId;
+            hideMessageContextMenu();
+            showPrompt('Optional: briefly describe why you are reporting this message (or leave blank):', '', { title: 'Report message' }).then(function(reason) {
+                if (reason !== null) socket.emit('report_message', { message_id: msgId, reason: reason ? reason.trim() : null });
+            });
+        } else hideMessageContextMenu();
     });
     messageContextMenuEl.querySelector('[data-action="mark-unread"]').addEventListener('click', function(e) {
         e.stopPropagation();
@@ -2527,6 +2620,12 @@ chitchatApp.mount('#app');
     }
 
     function hideAllModalsFromIIFE() {
+        if (state.appConfirmModal && state.appConfirmModal.reject) state.appConfirmModal.reject(false);
+        state.appConfirmModal = null;
+        if (state.appAlertModal && state.appAlertModal.resolve) state.appAlertModal.resolve();
+        state.appAlertModal = null;
+        if (state.appPromptModal && state.appPromptModal.reject) state.appPromptModal.reject(null);
+        state.appPromptModal = null;
         state.profileModalUser = null;
         state.whoisModalData = null;
         state.editMessageModal = null;
@@ -2695,12 +2794,13 @@ chitchatApp.mount('#app');
     function getFont() { return state.fontFamily || localStorage.getItem('chitchatFont') || ''; }
     function setFont(val) { applyFont(val || ''); }
     function settingsDeleteMyMessages() {
-        var typed = prompt('Type DELETE_ALL_MY_MESSAGES (exactly) to delete all your messages. This cannot be undone.');
-        if (typed !== 'DELETE_ALL_MY_MESSAGES') {
-            if (typed !== null) setStatus('Cancelled. You must type DELETE_ALL_MY_MESSAGES exactly.');
-            return;
-        }
-        socket.emit('delete_my_messages', { confirm: 'DELETE_ALL_MY_MESSAGES' });
+        showPrompt('Type DELETE_ALL_MY_MESSAGES (exactly) to delete all your messages. This cannot be undone.', '', { title: 'Delete all my messages', placeholder: 'DELETE_ALL_MY_MESSAGES' }).then(function(typed) {
+            if (typed !== 'DELETE_ALL_MY_MESSAGES') {
+                if (typed !== null) setStatus('Cancelled. You must type DELETE_ALL_MY_MESSAGES exactly.');
+                return;
+            }
+            socket.emit('delete_my_messages', { confirm: 'DELETE_ALL_MY_MESSAGES' });
+        });
     }
     function settingsSetMessageRetention(val) {
         var days = val ? parseInt(val, 10) : null;
@@ -2723,12 +2823,13 @@ chitchatApp.mount('#app');
         socket.emit('set_frink_active', { active: checked });
     }
     function settingsResetStats() {
-                var typed = prompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.');
-                if (typed !== 'RESET') {
-                    if (typed !== null) setStatus('Reset cancelled. You must type RESET exactly.');
-                    return;
-                }
-                socket.emit('reset_stats_data', { confirm: 'RESET' });
+        showPrompt('Type RESET (all caps) to delete all messages in all channels. This cannot be undone.', '', { title: 'Reset all message data', placeholder: 'RESET' }).then(function(typed) {
+            if (typed !== 'RESET') {
+                if (typed !== null) setStatus('Reset cancelled. You must type RESET exactly.');
+                return;
+            }
+            socket.emit('reset_stats_data', { confirm: 'RESET' });
+        });
     }
     function settingsSetRoomProtected(roomId, roomName, checked) {
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
@@ -2737,19 +2838,22 @@ chitchatApp.mount('#app');
         socket.emit('update_room', { room_id: roomId, name: roomName, is_protected: checked });
     }
     function settingsDeleteRoom(roomId, roomName) {
-        if (!confirm('Delete channel "' + roomName + '" and all its messages?')) return;
-        socket.emit('delete_room', { room_id: roomId, from_settings: true });
+        showConfirm('Delete channel "' + roomName + '" and all its messages?', { destructive: true }).then(function(ok) {
+            if (ok) socket.emit('delete_room', { room_id: roomId, from_settings: true });
+        });
     }
     function settingsWipeRoom(roomId, roomName) {
-        if (!confirm('Wipe all chat history from "' + roomName + '"? This cannot be undone.')) return;
-        socket.emit('wipe_room_history', { room_id: roomId });
+        showConfirm('Wipe all chat history from "' + roomName + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Wipe' }).then(function(ok) {
+            if (ok) socket.emit('wipe_room_history', { room_id: roomId });
+        });
     }
     function settingsSetUserRank(userId, rank) {
         if (rank) socket.emit('set_user_rank', { target_user_id: userId, rank: rank });
     }
     function settingsDeleteUser(userId, username) {
-        if (!confirm('Permanently delete user "' + username + '"? This cannot be undone.')) return;
-        socket.emit('delete_user', { target_user_id: userId });
+        showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {
+            if (ok) socket.emit('delete_user', { target_user_id: userId });
+        });
     }
     function settingsSetDefaultChannel(roomId) {
         var rid = parseInt(roomId, 10);
@@ -2830,14 +2934,15 @@ chitchatApp.mount('#app');
     function deleteRoom(roomId) {
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (!room || room.name === 'general') return;
-        if (!confirm('Delete room "' + room.name + '" and all its messages?')) return;
-        socket.emit('delete_room', { room_id: roomId });
+        showConfirm('Delete room "' + room.name + '" and all its messages?', { destructive: true }).then(function(ok) {
+            if (ok) socket.emit('delete_room', { room_id: roomId });
+        });
     }
 
     function showNewRoomPrompt() {
-        var name = prompt('New room name:');
-        if (name === null || !name.trim()) return;
-        socket.emit('create_room', { name: name.trim() });
+        showPrompt('New room name:', '', { title: 'Create room', placeholder: 'Room name…' }).then(function(name) {
+            if (name !== null && name.trim()) socket.emit('create_room', { name: name.trim() });
+        });
     }
 
     socket = io({ withCredentials: true{% if socket_polling_only %}, transports: ['polling']{% endif %} });
@@ -2867,7 +2972,57 @@ chitchatApp.mount('#app');
         hideRoomContextMenu();
         hideSelectionContextMenu();
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
+    function showConfirm(message, opts) {
+        opts = opts || {};
+        return new Promise(function(resolve, reject) {
+            state.appConfirmModal = {
+                title: opts.title || 'Confirm',
+                message: message,
+                primaryLabel: opts.primaryLabel || 'OK',
+                secondaryLabel: opts.secondaryLabel || 'Cancel',
+                destructive: !!opts.destructive,
+                resolve: function(ok) { state.appConfirmModal = null; resolve(ok); },
+                reject: function() { state.appConfirmModal = null; resolve(false); }
+            };
+            nextTick(function() {
+                var btn = document.querySelector('.app-modal .app-modal-btn-secondary');
+                if (btn) btn.focus();
+            });
+        });
+    }
+    function showAlert(message, opts) {
+        opts = opts || {};
+        return new Promise(function(resolve) {
+            state.appAlertModal = {
+                title: opts.title || 'Notice',
+                message: message,
+                resolve: function() { state.appAlertModal = null; resolve(); }
+            };
+            nextTick(function() {
+                var btn = document.querySelector('.app-modal .app-modal-btn-primary');
+                if (btn) btn.focus();
+            });
+        });
+    }
+    function showPrompt(message, defaultValue, opts) {
+        opts = opts || {};
+        var defVal = defaultValue != null ? String(defaultValue) : '';
+        return new Promise(function(resolve, reject) {
+            state.appPromptModal = {
+                title: opts.title || 'Input',
+                message: message || '',
+                value: defVal,
+                placeholder: opts.placeholder || '',
+                resolve: function(val) { state.appPromptModal = null; resolve(val != null ? String(val) : defVal); },
+                reject: function() { state.appPromptModal = null; resolve(null); }
+            };
+            nextTick(function() {
+                var inp = document.querySelector('.app-modal-input');
+                if (inp) { inp.focus(); inp.select && inp.select(); }
+            });
+        });
+    }
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -3463,6 +3618,9 @@ chitchatApp.mount('#app');
 
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
+            if (state.appConfirmModal && state.appConfirmModal.reject) { state.appConfirmModal.reject(false); return; }
+            if (state.appAlertModal && state.appAlertModal.resolve) { state.appAlertModal.resolve(); return; }
+            if (state.appPromptModal && state.appPromptModal.reject) { state.appPromptModal.reject(null); return; }
             if (state.roomSwitcherOpen) {
                 var prev = focusRestoreBeforeModal;
                 state.roomSwitcherOpen = false;

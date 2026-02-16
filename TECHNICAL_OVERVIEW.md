@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, edit profile (status, away message, bio; announces in System Events; auto-replies to DMs when away), an in-channel stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, !daily, !set-difficulty, !set-seasons; hot streaks; DM replies), message edit/delete, file/image uploads, and admin moderation with role permissions (kick, channel CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, channel topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-channel stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, !daily, !set-difficulty, !set-seasons; hot streaks; DM replies), message edit/delete, file/image uploads, link previews (OG metadata; GIF URLs render inline without duplicate preview cards), custom confirm/alert/prompt modals (no native dialogs), and admin moderation with role permissions (kick, channel CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
@@ -71,6 +71,7 @@ chitchat/
 ├── ARCHITECTURE.md        # High-level architecture
 ├── TECH_STACK.md          # Stack summary
 ├── TECHNICAL_OVERVIEW.md  # This file
+├── UI_GUIDELINES.md       # Modal, alert, and form UI standards (see §3.3)
 ├── ROADMAP.md             # Phases and feature list
 └── IDEAS.md               # Plus-up / backlog ideas
 ```
@@ -86,10 +87,11 @@ chitchat/
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message` on `users`; `room_id`, `message_type` on `messages`). Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color` on `users`; `room_id`, `message_type` on `messages`). Versions 001–020. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
 
 ### 3.3 Design principles
 
+- **UI guidelines**: See `UI_GUIDELINES.md` for modal, alert, and form standards. The app uses custom confirm/alert/prompt modals (never native `alert`/`confirm`/`prompt`); edit modals follow responsive dimensions for desktop and mobile.
 - **Separation of concerns**: Models, auth, routes, sockets, and game logic are in distinct modules; Acrophobia returns “bot replies” that the socket layer persists and emits.
 - **Single source of truth**: Messages and room state in SQLite; presence and Acrophobia game state in process memory.
 - **No console logging by default**: All logging goes to `logs/app.log` and `logs/errors.log` (see `logging_config.py`).

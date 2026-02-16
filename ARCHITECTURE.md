@@ -35,7 +35,7 @@ chitchat/
 - **Database**: Schema is managed by **Flask-Migrate (Alembic)**. `create_app()` runs `flask db upgrade` and seeds default rooms/users. SQLite by default; **PostgreSQL** (Neon) supported via `DATABASE_URL` or `CHITCHAT_DATABASE_URI`. Config normalizes `postgres://` to `postgresql://`.
 - **Environment safety**: `run.py` validates `CHITCHAT_SECRET_KEY` and `CHITCHAT_INVITE_CODE` are non-default; exits with a clear message if not.
 - **Logging**: `/logs` directory; `app.log` for general activity; `errors.log` for exceptions with **full stack traces and local variable context** per frame (Recursive Learning Loop).
-- **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `ROADMAP.md`, `migrations/README`.
+- **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `UI_GUIDELINES.md`, `ROADMAP.md`, `migrations/README`.
 - **Production**: `Procfile` for Koyeb; gunicorn with eventlet worker. Role permissions (Super Admin configures rookie/bro/fam) in `role_permissions` table.
 
 ## Data Model (Step 2)
@@ -55,6 +55,7 @@ chitchat/
 ## UI (Step 4)
 
 - Single chat interface in `app/templates/chat.html` using **Vue 3** (CDN, Composition API), Socket.IO client, and **marked.js** for Markdown in messages.
+- **UI guidelines** (`UI_GUIDELINES.md`): Custom confirm/alert/prompt modals; edit modals with responsive dimensions; design tokens for dark/light themes.
 - **Display name** (from /nick) and **status** (from /status) shown in whois; message header shows display name when set. **Letter avatars** — circular avatars with user initial and colored background (customizable in Settings → Profile).
 - **Load older messages** button at top of message list; **typing indicator** above the input; **link preview** cards with minimize per message.
 

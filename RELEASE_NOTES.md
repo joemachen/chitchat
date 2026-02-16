@@ -1,5 +1,35 @@
 # Release notes
 
+## v2.8.5 — GIF fixes, code artifacts, mobile logout
+
+**GIF links**
+- GIF URLs (Giphy, Tenor, direct .gif) no longer show both inline image and link preview card — only the inline GIF is shown.
+- Link preview cards are filtered to exclude GIF URLs to avoid duplication.
+
+**Code artifacts**
+- Trailing `">` or similar artifacts from pasted HTML (e.g. `href="url">`) are now stripped when rendering URLs, so raw `">` no longer appears in messages.
+
+**Mobile: Log out**
+- Log out added to Settings view (scroll to bottom) and to channel list footer (Rooms/DMs tabs; scroll to bottom).
+- Footer has padding so it stays visible above the 3-tab bottom nav.
+
+---
+
+## v2.8.4 — Custom modals, UI guidelines
+
+**Custom confirm/alert/prompt**
+- Replaced all native `alert()`, `confirm()`, and `prompt()` with in-app modals that match the app theme.
+- Message delete, channel delete, report, wipe, user delete, and other destructive actions now use styled confirm dialogs.
+- Report message and type-to-confirm prompts (e.g. DELETE_ALL_MY_MESSAGES, RESET) use custom prompt modals.
+- Delete account page uses a custom confirm modal instead of native confirm.
+
+**UI guidelines**
+- Added `UI_GUIDELINES.md` — design tokens, modal dimensions, accessibility notes, and references to WAI-ARIA.
+- Edit modals (message, profile, channel), search results, and room switcher updated for responsive dimensions (desktop and mobile).
+- Modals: min-width 280px, max-width calc(100vw - 2rem) on mobile; Escape to close; focus management.
+
+---
+
 ## v2.8.3 — Discord-style letter avatars
 
 **Letter avatars**
