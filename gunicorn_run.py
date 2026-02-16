@@ -20,17 +20,24 @@ if __name__ == "__main__":
     os.environ["CHITCHAT_MAINTENANCE_DONE"] = "1"
     try:
         print("[gunicorn_run] running maintenance...", flush=True)
+        print("[gunicorn_run] importing app...", flush=True)
         from run import app
+        print("[gunicorn_run] running migrations...", flush=True)
         with app.app_context():
             from flask_migrate import upgrade
             from app import _seed_default_data, _run_message_retention_cleanup, _post_deploy_announcement
             upgrade()
+            print("[gunicorn_run] seeding...", flush=True)
             _seed_default_data(app)
             _run_message_retention_cleanup(app)
             _post_deploy_announcement(app)
         print("[gunicorn_run] maintenance done, starting gunicorn...", flush=True)
     except Exception as e:
-        print(f"FATAL: maintenance failed: {e}", file=sys.stderr, flush=True)
+        # Print to both stdout and stderr so it shows in Koyeb logs
+        msg = f"FATAL: maintenance failed: {e}"
+        print(msg, flush=True)
+        print(msg, file=sys.stderr, flush=True)
+        traceback.print_exc()
         traceback.print_exc(file=sys.stderr)
         sys.stderr.flush()
         sys.stdout.flush()
