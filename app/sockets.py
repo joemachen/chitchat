@@ -30,6 +30,7 @@ from app.acrophobia import (
 )
 from app.homer import get_homer_dm_reply, get_random_simpsons_quote, is_homer_active, set_homer_active as homer_set_active
 from app.prof_frink import (
+    TRIVIA_SECONDS,
     award_trivia_point,
     check_trivia_answer,
     clear_all_trivia_streaks,
@@ -38,9 +39,11 @@ from app.prof_frink import (
     get_frink_settings,
     get_help_text as frink_get_help,
     get_trivia_leaderboard,
+    get_trivia_phase_info,
     get_trivia_response,
     get_frink_dm_reply,
     get_trivia_rounds_remaining,
+    get_trivia_timeout_reply,
     is_frink_active,
     is_frink_daily_enabled,
     set_active_trivia,
@@ -612,22 +615,32 @@ def _fire_daily_trivia(socket_io):
 
                 def _reveal(app_obj, rid, fid, sock_io):
                     with app_obj.app_context():
-                        from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks
+                        from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_timeout_reply
                         active = get_active_trivia(rid)
                         if active:
                             clear_active_trivia(rid)
                             clear_all_trivia_streaks(rid)
-                            rev_msg = Message(
-                                room_id=rid,
-                                user_id=fid,
-                                content=f"**Answer:** {active['answer']}",
-                                message_type="chat",
-                            )
+                            content = get_trivia_timeout_reply(active["answer"])
+                            rev_msg = Message(room_id=rid, user_id=fid, content=content, message_type="chat")
                             db.session.add(rev_msg)
                             db.session.commit()
                             _broadcast_new_message_impl(sock_io, rid, rev_msg.to_dict())
+                            sock_io.emit("trivia_phase", {"end_time": None}, room=f"room_{rid}")
 
-                eventlet.spawn_after(30, _reveal, app, trivia_room.id, frink_user.id, socket_io)
+                def _daily_10s_warning(app_obj, rid, fid, sock_io):
+                    with app_obj.app_context():
+                        from app.prof_frink import get_active_trivia, format_frink_reply
+                        if get_active_trivia(rid):
+                            warn_msg = Message(room_id=rid, user_id=fid, content=format_frink_reply("**10 seconds** left! The flux capacitor is winding down! Glavin!"), message_type="chat")
+                            db.session.add(warn_msg)
+                            db.session.commit()
+                            _broadcast_new_message_impl(sock_io, rid, warn_msg.to_dict())
+
+                info = get_trivia_phase_info(trivia_room.id)
+                if info:
+                    socket_io.emit("trivia_phase", info, room=f"room_{trivia_room.id}")
+                eventlet.spawn_after(TRIVIA_SECONDS - 10, _daily_10s_warning, app, trivia_room.id, frink_user.id, socket_io)
+                eventlet.spawn_after(TRIVIA_SECONDS, _reveal, app, trivia_room.id, frink_user.id, socket_io)
             logger.info("Posted daily trivia to Trivia room")
     except Exception as e:
         logger.warning("Daily trivia failed: %s", e)
@@ -898,6 +911,9 @@ def register_socket_handlers(socketio):
             }
             if room_obj.name.strip() == "Acrophobia":
                 payload["acrophobia"] = acrophobia_get_phase_info(room_id)
+            if room_obj.name.strip() == "Trivia":
+                trivia_info = get_trivia_phase_info(room_id)
+                payload["trivia"] = trivia_info if trivia_info else {"end_time": None}
             emit("room_joined", payload)
             logger.info("User %s joined room %s, history len=%s", user_id, room_id, len(history))
 
@@ -1003,34 +1019,47 @@ def register_socket_handlers(socketio):
 
                         def _reveal_timeout(app_o, r, frink_id, sio):
                             with app_o.app_context():
-                                from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining
+                                from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining, get_trivia_timeout_reply
                                 active = get_active_trivia(r)
                                 if active:
                                     clear_active_trivia(r)
                                     clear_all_trivia_streaks(r)
-                                    rev_msg = Message(room_id=r, user_id=frink_id, content=f"**Answer:** {active['answer']}", message_type="chat")
+                                    content = get_trivia_timeout_reply(active["answer"])
+                                    rev_msg = Message(room_id=r, user_id=frink_id, content=content, message_type="chat")
                                     db.session.add(rev_msg)
                                     db.session.commit()
                                     _broadcast_new_message_impl(sio, r, rev_msg.to_dict())
+                                    sio.emit("trivia_phase", {"end_time": None}, room=f"room_{r}")
                                 if get_trivia_rounds_remaining(r) > 0:
                                     set_trivia_rounds_remaining(r, get_trivia_rounds_remaining(r) - 1)
                                     eventlet.spawn_after(3, _post_next_trivia_round, r, frink_id, sio, app_o)
                                 else:
                                     clear_trivia_session(r)
 
-                        eventlet.spawn_after(30, _reveal_timeout, app_obj, rid, fid, sock_io)
+                        def _trivia_10s_warning(app_o, r, frink_id, sio):
+                            with app_o.app_context():
+                                from app.prof_frink import get_active_trivia, format_frink_reply
+                                if get_active_trivia(r):
+                                    warn_msg = Message(room_id=r, user_id=frink_id, content=format_frink_reply("**10 seconds** left! The flux capacitor is winding down! Glavin!"), message_type="chat")
+                                    db.session.add(warn_msg)
+                                    db.session.commit()
+                                    _broadcast_new_message_impl(sio, r, warn_msg.to_dict())
+                        eventlet.spawn_after(TRIVIA_SECONDS - 10, _trivia_10s_warning, app_obj, rid, fid, sock_io)
+                        eventlet.spawn_after(TRIVIA_SECONDS, _reveal_timeout, app_obj, rid, fid, sock_io)
 
             def _reveal_answer_timeout(app_obj, rid, fid, socket_io):
                 with app_obj.app_context():
-                    from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining
+                    from app.prof_frink import get_active_trivia, clear_active_trivia, clear_all_trivia_streaks, get_trivia_rounds_remaining, set_trivia_rounds_remaining, get_trivia_timeout_reply
                     active = get_active_trivia(rid)
                     if active:
                         clear_active_trivia(rid)
                         clear_all_trivia_streaks(rid)
-                        rev_msg = Message(room_id=rid, user_id=fid, content=f"**Answer:** {active['answer']}", message_type="chat")
+                        content = get_trivia_timeout_reply(active["answer"])
+                        rev_msg = Message(room_id=rid, user_id=fid, content=content, message_type="chat")
                         db.session.add(rev_msg)
                         db.session.commit()
                         _broadcast_new_message_impl(socket_io, rid, rev_msg.to_dict())
+                        socket_io.emit("trivia_phase", {"end_time": None}, room=f"room_{rid}")
                     if get_trivia_rounds_remaining(rid) > 0:
                         set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
                         eventlet.spawn_after(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
@@ -1056,7 +1085,19 @@ def register_socket_handlers(socketio):
                 if answer:
                     set_active_trivia(room_id, answer, msg.id)
                     app_obj = current_app._get_current_object()
-                    eventlet.spawn_after(30, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
+                    info = get_trivia_phase_info(room_id)
+                    if info:
+                        socketio.emit("trivia_phase", info, room=f"room_{room_id}")
+                    def _trivia_10s_warning_first(app_o, r, frink_id, sio):
+                        with app_o.app_context():
+                            from app.prof_frink import get_active_trivia, format_frink_reply
+                            if get_active_trivia(r):
+                                warn_msg = Message(room_id=r, user_id=frink_id, content=format_frink_reply("**10 seconds** left! The flux capacitor is winding down! Glavin!"), message_type="chat")
+                                db.session.add(warn_msg)
+                                db.session.commit()
+                                _broadcast_new_message_impl(sio, r, warn_msg.to_dict())
+                    eventlet.spawn_after(TRIVIA_SECONDS - 10, _trivia_10s_warning_first, app_obj, room_id, frink_user.id, socketio)
+                    eventlet.spawn_after(TRIVIA_SECONDS, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
                 return
             if cmd in ("/score", "/ score") and is_frink_active() and frink_user:
                 leaderboard = get_trivia_leaderboard(room_id, limit=10)
@@ -1128,6 +1169,7 @@ def register_socket_handlers(socketio):
                 matched_answer = check_trivia_answer(room_id, content)
                 if matched_answer and frink_user:
                     total, streak_msg = award_trivia_point(room_id, user_id)
+                    socketio.emit("trivia_phase", {"end_time": None}, room=f"room_{room_id}")
                     winner_text = f"**{user.username}** got it right! **Answer:** {matched_answer} (+1 point, {total} total)"
                     if streak_msg:
                         winner_text += f"\n\n{streak_msg}"

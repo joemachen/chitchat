@@ -3,6 +3,9 @@ Prof Frink trivia bot. Eccentric, cartoonish, nutty professor (Jerry Lewis style
 Responds only in the #Trivia channel. Fetches trivia from simpsons-trivia.com or placeholder.
 """
 import random
+import time
+
+TRIVIA_SECONDS = 30  # Time limit to answer each question
 from dataclasses import dataclass
 from typing import Optional
 
@@ -68,6 +71,20 @@ _trivia_total_rounds: dict[int, int] = {}
 
 # Hot streaks: (room_id, user_id) -> consecutive correct count
 _trivia_streak: dict[tuple[int, int], int] = {}
+
+# When nobody gets it right and Frink has to reveal the answer
+RIDICULE_PHRASES = [
+    "Glavin! Not a single correct answer! The flux capacitor weeps!",
+    "Hoyvin! The collective knowledge of this room has failed the mathematics of trivia!",
+    "By Jove—I mean, by science! Did anyone here watch the show?!",
+    "Ooh, the cosmic ballet of incorrect answers! A most disappointing outcome!",
+    "Shabooey! Zero correct! The thingamajig is most unimpressed!",
+    "Eureka! Well, almost—nobody got it. The probability was not in your favor!",
+    "Glaaven! Such a simple question, and yet—silence. Glavin!",
+    "The mathematics never lie—and neither does the answer you all missed!",
+    "Fascinating! Absolutely fascinating how wrong everyone was!",
+    "Yes, yes! The flux capacitor—I mean, your brains—need a tune-up!",
+]
 
 HOT_STREAK_PHRASES = [
     "Ooh, the mathematics of a hot streak! Glavin!",
@@ -220,14 +237,29 @@ def get_trivia_response(room_id: Optional[int] = None) -> tuple[str, str]:
     if total > 1 and remaining >= 0:
         current = total - remaining  # 1-based: round 1, 2, 3...
         round_prefix = f"**Round {current} of {total}** — "
-    msg = format_frink_reply(f"{round_prefix}**Trivia time!** {tq.question}")
+    msg = format_frink_reply(f"{round_prefix}**Trivia time!** {tq.question} You have {TRIVIA_SECONDS} seconds!")
     return msg, tq.answer
 
 
+def get_trivia_timeout_reply(answer: str) -> str:
+    """When nobody got it right, ridicule the room and reveal the answer."""
+    ridicule = random.choice(RIDICULE_PHRASES)
+    return f"{ridicule}\n\n**Answer:** {answer}"
+
+
 def set_active_trivia(room_id: int, answer: str, question_msg_id: int) -> None:
-    """Record active question for answer matching."""
+    """Record active question for answer matching. Stores end_time for timer UI."""
     global _active_trivia
-    _active_trivia[room_id] = {"answer": answer, "question_msg_id": question_msg_id}
+    end_time = time.time() + TRIVIA_SECONDS
+    _active_trivia[room_id] = {"answer": answer, "question_msg_id": question_msg_id, "end_time": end_time}
+
+
+def get_trivia_phase_info(room_id: int) -> dict | None:
+    """Return {end_time} for timer UI if trivia is active, else None."""
+    active = _active_trivia.get(room_id)
+    if not active or "end_time" not in active:
+        return None
+    return {"end_time": active["end_time"]}
 
 
 def get_active_trivia(room_id: int) -> Optional[dict]:

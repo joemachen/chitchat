@@ -243,8 +243,9 @@
         @keyframes acro-urgency-pulse { 0%, 100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { border-color: #dc2626; box-shadow: 0 0 0 4px rgba(239,68,68,0.2); } }
         .typing-indicator { padding: 0.35rem 1rem; font-size: 0.8rem; color: #71717a; min-height: 1.5rem; flex-shrink: 0; }
         .typing-indicator.empty { visibility: hidden; }
-        .acro-timer { padding: 0.35rem 1rem; font-size: 0.85rem; color: #818cf8; min-height: 1.5rem; flex-shrink: 0; background: #1e1e24; border-top: 1px solid #27272a; }
-        .acro-timer.hidden { display: none; }
+        .acro-timer, .trivia-timer { padding: 0.35rem 1rem; font-size: 0.85rem; color: #818cf8; min-height: 1.5rem; flex-shrink: 0; background: #1e1e24; border-top: 1px solid #27272a; }
+        .acro-timer.hidden, .trivia-timer.hidden { display: none; }
+        .trivia-timer { color: #a78bfa; }
         .search-bar-wrap { padding: 0 1rem; background: #18181c; border-bottom: 1px solid #27272a; display: flex; justify-content: flex-end; }
         .search-toggle-btn { padding: 0.35rem 0.5rem; margin: 0; background: none; border: none; color: #818cf8; font-size: 0.9rem; cursor: pointer; }
         .search-toggle-btn:hover { color: #a5b4fc; }
@@ -404,7 +405,8 @@
         body.theme-light .msg.action .msg-content { color: #6d28d9; }
         body.theme-light .form-wrap { background: #e4e4e7; border-color: #d4d4d8; }
         body.theme-light .form-wrap input, body.theme-light .form-wrap textarea { background: #fff; border-color: #d4d4d8; color: #18181b; }
-        body.theme-light .acro-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
+        body.theme-light .acro-timer, body.theme-light .trivia-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
+        body.theme-light .trivia-timer { color: #7c3aed; }
         body.theme-light .typing-indicator { color: #71717a; }
         body.theme-light .context-menu, body.theme-light .profile-modal, body.theme-light .search-results-modal, body.theme-light .room-switcher-modal, body.theme-light .reaction-picker { background: #fafafa; border-color: #d4d4d8; }
         body.theme-light .reaction-picker-search { background: #fff; border-color: #d4d4d8; color: #18181b; }
@@ -1165,11 +1167,12 @@
             </div>
             <div class="typing-indicator" :class="{ empty: !typingText }">{{ typingText }}</div>
             <div class="acro-timer" :class="{ hidden: !state.acroTimerSeconds || state.acroTimerSeconds <= 0 }" id="acroTimer">{{ state.acroPhase === 'submitting' ? 'Submit' : 'Vote' }}: {{ state.acroTimerSeconds || 0 }}s</div>
+            <div class="trivia-timer" :class="{ hidden: !state.triviaTimerSeconds || state.triviaTimerSeconds <= 0 }" id="triviaTimer">Answer: {{ state.triviaTimerSeconds || 0 }}s</div>
             <div v-show="isMobile && !showSettingsView && showMessagesView" class="mobile-presence-bar" role="button" tabindex="0" aria-label="View online users" @click="state.mobilePresenceSheetOpen = true" @keydown.enter="state.mobilePresenceSheetOpen = true">
                 <span class="mobile-presence-dot"></span>
                 <span class="mobile-presence-text">{{ onlineUsers.length }} online</span>
             </div>
-            <div class="form-wrap" :class="{ 'acro-urgency': state.acroFormUrgent }" v-show="!showSettingsView">
+            <div class="form-wrap" :class="{ 'acro-urgency': state.acroFormUrgent || state.triviaFormUrgent }" v-show="!showSettingsView">
                 <form id="sendForm">
                     <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.zip">
                     <button type="button" id="attachBtn" class="attach-btn" title="Attach file or image" aria-label="Attach file or image">📎</button>
@@ -1254,6 +1257,9 @@ const state = reactive({
     acroAcronym: null,
     acroTimerSeconds: null,
     acroFormUrgent: false,
+    triviaEndTime: null,
+    triviaTimerSeconds: null,
+    triviaFormUrgent: false,
     hiddenMessageIds: [],  // Synced from localStorage for reactive hide/unhide
     activeSettingsTab: 'profile',
     acrobotActive: true,
@@ -1855,6 +1861,7 @@ chitchatApp.mount('#app');
         if (!document.hidden) stopMentionTabFlash();
     });
     var acroTimerInterval = null;
+    var triviaTimerInterval = null;
     var messagesSectionHeight = parseInt(localStorage.getItem('chitchatMessagesSectionHeight') || '80', 10) || 80;
 
     function addUnreadMention(roomId, msgId) {
@@ -2855,6 +2862,31 @@ chitchatApp.mount('#app');
         }
     }
 
+    function setTriviaPhase(endTime) {
+        state.triviaEndTime = endTime;
+        if (triviaTimerInterval) { clearInterval(triviaTimerInterval); triviaTimerInterval = null; }
+        if (endTime != null && state.currentRoom && state.currentRoom.name === 'Trivia') {
+            function tick() {
+                var now = Date.now() / 1000;
+                var sec = Math.max(0, Math.floor(endTime - now));
+                if (sec <= 0) {
+                    if (triviaTimerInterval) { clearInterval(triviaTimerInterval); triviaTimerInterval = null; }
+                    state.triviaEndTime = null;
+                    state.triviaTimerSeconds = null;
+                    state.triviaFormUrgent = false;
+                    return;
+                }
+                state.triviaTimerSeconds = sec;
+                state.triviaFormUrgent = state.currentRoom && state.currentRoom.name === 'Trivia' && sec <= 10;
+            }
+            tick();
+            triviaTimerInterval = setInterval(tick, 1000);
+        } else {
+            state.triviaTimerSeconds = null;
+            state.triviaFormUrgent = false;
+        }
+    }
+
     function applyChatBackgroundColor() {
         var val = localStorage.getItem('chatBgColor') || '#0f0f12';
         state.bgColor = val;
@@ -3225,6 +3257,11 @@ chitchatApp.mount('#app');
         } else {
             setAcroPhase('idle', null);
         }
+        if (state.currentRoom && state.currentRoom.name === 'Trivia' && data.trivia) {
+            setTriviaPhase(data.trivia.end_time || null);
+        } else {
+            setTriviaPhase(null);
+        }
     });
 
     socket.on('user_typing', function(data) {
@@ -3556,6 +3593,11 @@ chitchatApp.mount('#app');
     socket.on('acrophobia_phase', function(data) {
         if (!state.currentRoom || state.currentRoom.name !== 'Acrophobia') return;
         setAcroPhase(data.phase, data.end_time, data.acronym);
+    });
+
+    socket.on('trivia_phase', function(data) {
+        if (!state.currentRoom || state.currentRoom.name !== 'Trivia') return;
+        setTriviaPhase(data.end_time || null);
     });
 
     socket.on('acrophobia_winner', function(data) {
