@@ -1,5 +1,6 @@
 # ChitChat application package
 import logging
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -211,18 +212,20 @@ def create_app() -> Flask:
     Migrate(app, db)
 
     # Run migrations (and seed) on every app load so end users never need to run "flask db upgrade"
-    with app.app_context():
-        try:
-            from flask_migrate import upgrade
-            upgrade()
-            _seed_default_data(app)
-            _run_message_retention_cleanup(app)
-            _post_deploy_announcement(app)
-        except Exception as e:
-            logger.exception("Migrations/seed on startup failed: %s", e)
-            raise RuntimeError(
-                f"Database migrations failed: {e}. Run 'flask db upgrade' manually, or fix the error above."
-            ) from e
+    # Skip when gunicorn_run already ran maintenance (faster startup for Koyeb health checks)
+    if not os.environ.get("CHITCHAT_MAINTENANCE_DONE"):
+        with app.app_context():
+            try:
+                from flask_migrate import upgrade
+                upgrade()
+                _seed_default_data(app)
+                _run_message_retention_cleanup(app)
+                _post_deploy_announcement(app)
+            except Exception as e:
+                logger.exception("Migrations/seed on startup failed: %s", e)
+                raise RuntimeError(
+                    f"Database migrations failed: {e}. Run 'flask db upgrade' manually, or fix the error above."
+                ) from e
 
     from app.routes import register_routes
     register_routes(app)
