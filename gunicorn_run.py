@@ -7,9 +7,13 @@ gevent.monkey.patch_all()
 
 import os
 import sys
+import traceback
 from gunicorn.app.wsgiapp import run
 
 if __name__ == "__main__":
+    # Clear GUNICORN_CMD_ARGS so Koyeb/env cannot override our wsgi:app or worker class
+    os.environ.pop("GUNICORN_CMD_ARGS", None)
+
     # Run maintenance before web starts so app is ready for health checks immediately
     os.environ["CHITCHAT_MAINTENANCE_DONE"] = "1"
     try:
@@ -23,6 +27,7 @@ if __name__ == "__main__":
             _post_deploy_announcement(app)
     except Exception as e:
         print(f"FATAL: maintenance failed: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
     # Use explicit args only - do NOT append sys.argv[1:] (Koyeb may pass main:app etc)
