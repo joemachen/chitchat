@@ -32,7 +32,11 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # PostgreSQL/Neon: prevent "SSL connection has been closed unexpectedly" from stale connections
     SQLALCHEMY_ENGINE_OPTIONS = (
-        {"pool_pre_ping": True, "pool_recycle": 300}
+        {
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "connect_args": {"connect_timeout": 30},
+        }
         if _db_uri and "postgresql" in _db_uri
         else {}
     )

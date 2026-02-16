@@ -22,11 +22,20 @@ if __name__ == "__main__":
         print("[gunicorn_run] running maintenance...", flush=True)
         print("[gunicorn_run] importing app...", flush=True)
         from run import app
-        print("[gunicorn_run] running migrations...", flush=True)
         with app.app_context():
             from flask_migrate import upgrade
             from app import _seed_default_data, _run_message_retention_cleanup, _post_deploy_announcement
-            upgrade()
+
+            if os.environ.get("CHITCHAT_SKIP_MIGRATIONS") == "1":
+                print("[gunicorn_run] skipping migrations (CHITCHAT_SKIP_MIGRATIONS=1)", flush=True)
+            else:
+                print("[gunicorn_run] running migrations...", flush=True)
+                try:
+                    upgrade()
+                except Exception as mig_err:
+                    print(f"[gunicorn_run] MIGRATION FAILED: {mig_err}", flush=True)
+                    traceback.print_exc()
+                    raise
             print("[gunicorn_run] seeding...", flush=True)
             _seed_default_data(app)
             _run_message_retention_cleanup(app)
