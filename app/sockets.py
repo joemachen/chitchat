@@ -2,7 +2,7 @@
 Flask-SocketIO: join room (with history), send message, ignore list, user presence, stats.
 Acrophobia game bot in room "Acrophobia". Super Admin: kick, channels, assign admins, settings.
 """
-import eventlet
+import gevent
 import json
 import random
 import re
@@ -368,7 +368,7 @@ def _get_user_stats(user_id: int) -> dict:
 
 
 def _netsplit_reconnect(app, room_id: int, names: str, sys_user_id: int) -> None:
-    """Post netsplit reconnection message (called from eventlet.spawn_after)."""
+    """Post netsplit reconnection message (called from gevent.spawn_later)."""
     with app.app_context():
         sys_user = User.query.get(sys_user_id)
         if sys_user:
@@ -479,8 +479,8 @@ def _acrophobia_submit_timer_callback(app, room_id, sudden_death: bool = False):
             return  # No submissions; phase went to idle
         vote_sec = SUDDEN_DEATH_VOTE if is_sudden else VOTE_SECONDS
         for s in range(min(10, vote_sec), 0, -1):
-            eventlet.spawn_after(vote_sec - s, _acrophobia_vote_countdown_callback, app, room_id, s)
-        eventlet.spawn_after(vote_sec, _acrophobia_vote_timer_callback, app, room_id)
+            gevent.spawn_later(vote_sec - s, _acrophobia_vote_countdown_callback, app, room_id, s)
+        gevent.spawn_later(vote_sec, _acrophobia_vote_timer_callback, app, room_id)
 
 
 def _acrophobia_vote_timer_callback(app, room_id):
@@ -521,16 +521,16 @@ def _schedule_acrophobia_submit_timer(room_id):
     """Schedule 10-1s countdown and advance from submit phase to voting after SUBMIT_SECONDS."""
     app = current_app._get_current_object()
     for s in range(10, 0, -1):
-        eventlet.spawn_after(SUBMIT_SECONDS - s, _acrophobia_submit_warning_callback, app, room_id, s)
-    eventlet.spawn_after(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id, False)
+        gevent.spawn_later(SUBMIT_SECONDS - s, _acrophobia_submit_warning_callback, app, room_id, s)
+    gevent.spawn_later(SUBMIT_SECONDS, _acrophobia_submit_timer_callback, app, room_id, False)
 
 
 def _schedule_sudden_death_submit_timer(room_id):
     """Schedule sudden death submit phase (30s) with 10-1s countdown and advance."""
     app = current_app._get_current_object()
     for s in range(min(10, SUDDEN_DEATH_SUBMIT), 0, -1):
-        eventlet.spawn_after(SUDDEN_DEATH_SUBMIT - s, _acrophobia_submit_warning_callback, app, room_id, s)
-    eventlet.spawn_after(SUDDEN_DEATH_SUBMIT, _acrophobia_submit_timer_callback, app, room_id, True)
+        gevent.spawn_later(SUDDEN_DEATH_SUBMIT - s, _acrophobia_submit_warning_callback, app, room_id, s)
+    gevent.spawn_later(SUDDEN_DEATH_SUBMIT, _acrophobia_submit_timer_callback, app, room_id, True)
 
 
 def _user_by_username(username: str):
@@ -588,16 +588,16 @@ def _fire_daily_trivia(socket_io):
     try:
         app = getattr(socket_io, "app", None)
         if not app:
-            eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+            gevent.spawn_later(86400, _fire_daily_trivia, socket_io)
             return
         with app.app_context():
             if not is_frink_daily_enabled() or not is_frink_active():
-                eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+                gevent.spawn_later(86400, _fire_daily_trivia, socket_io)
                 return
             trivia_room = Room.query.filter_by(name="Trivia").first()
             frink_user = User.query.filter_by(username="Prof Frink").first()
             if not trivia_room or not frink_user:
-                eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+                gevent.spawn_later(86400, _fire_daily_trivia, socket_io)
                 return
             q_msg, answer = get_trivia_response()
             msg = Message(
@@ -638,18 +638,18 @@ def _fire_daily_trivia(socket_io):
                 info = get_trivia_phase_info(trivia_room.id)
                 if info:
                     socket_io.emit("trivia_phase", info, room=f"room_{trivia_room.id}")
-                eventlet.spawn_after(TRIVIA_SECONDS - 10, _daily_10s_warning, app, trivia_room.id, frink_user.id, socket_io)
-                eventlet.spawn_after(TRIVIA_SECONDS, _reveal, app, trivia_room.id, frink_user.id, socket_io)
+                gevent.spawn_later(TRIVIA_SECONDS - 10, _daily_10s_warning, app, trivia_room.id, frink_user.id, socket_io)
+                gevent.spawn_later(TRIVIA_SECONDS, _reveal, app, trivia_room.id, frink_user.id, socket_io)
             logger.info("Posted daily trivia to Trivia room")
     except Exception as e:
         logger.warning("Daily trivia failed: %s", e)
-    eventlet.spawn_after(86400, _fire_daily_trivia, socket_io)
+    gevent.spawn_later(86400, _fire_daily_trivia, socket_io)
 
 
 def _start_daily_trivia_scheduler(socket_io):
     """Schedule first daily trivia post at next 9:00 UTC."""
     secs = _seconds_until_next_daily_utc()
-    eventlet.spawn_after(secs, _fire_daily_trivia, socket_io)
+    gevent.spawn_later(secs, _fire_daily_trivia, socket_io)
     logger.info("Daily trivia scheduler started; first post in %d seconds (%.1f h)", secs, secs / 3600)
 
 
@@ -662,12 +662,12 @@ def _periodic_presence_broadcast(socketio):
                 socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
     except Exception as e:
         logger.warning("Periodic presence broadcast failed: %s", e)
-    eventlet.spawn_after(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
+    gevent.spawn_later(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
 
 
 def register_socket_handlers(socketio):
     """Register SocketIO event handlers."""
-    eventlet.spawn_after(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
+    gevent.spawn_later(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
     _start_daily_trivia_scheduler(socketio)
 
     def _post_system_event(content: str):
@@ -866,7 +866,7 @@ def register_socket_handlers(socketio):
         if room_obj.name.strip().lower() not in ("stats",):
             _user_id_to_room[user_id] = (room_id, room_obj.name)
             # Defer presence broadcast so room_joined reaches the joining user first
-            eventlet.spawn_after(0, lambda: socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}))
+            gevent.spawn_later(0, lambda: socketio.emit("user_list_updated", {"users": _get_users_with_online_status()}))
         else:
             _user_id_to_room.pop(user_id, None)
 
@@ -1050,7 +1050,7 @@ def register_socket_handlers(socketio):
                                     sio.emit("trivia_phase", {"end_time": None}, room=f"room_{r}")
                                 if get_trivia_rounds_remaining(r) > 0:
                                     set_trivia_rounds_remaining(r, get_trivia_rounds_remaining(r) - 1)
-                                    eventlet.spawn_after(3, _post_next_trivia_round, r, frink_id, sio, app_o)
+                                    gevent.spawn_later(3, _post_next_trivia_round, r, frink_id, sio, app_o)
                                 else:
                                     clear_trivia_session(r)
 
@@ -1062,8 +1062,8 @@ def register_socket_handlers(socketio):
                                     db.session.add(warn_msg)
                                     db.session.commit()
                                     _broadcast_new_message_impl(sio, r, warn_msg.to_dict())
-                        eventlet.spawn_after(TRIVIA_SECONDS - 10, _trivia_10s_warning, app_obj, rid, fid, sock_io)
-                        eventlet.spawn_after(TRIVIA_SECONDS, _reveal_timeout, app_obj, rid, fid, sock_io)
+                        gevent.spawn_later(TRIVIA_SECONDS - 10, _trivia_10s_warning, app_obj, rid, fid, sock_io)
+                        gevent.spawn_later(TRIVIA_SECONDS, _reveal_timeout, app_obj, rid, fid, sock_io)
 
             def _reveal_answer_timeout(app_obj, rid, fid, socket_io):
                 with app_obj.app_context():
@@ -1080,7 +1080,7 @@ def register_socket_handlers(socketio):
                         socket_io.emit("trivia_phase", {"end_time": None}, room=f"room_{rid}")
                     if get_trivia_rounds_remaining(rid) > 0:
                         set_trivia_rounds_remaining(rid, get_trivia_rounds_remaining(rid) - 1)
-                        eventlet.spawn_after(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
+                        gevent.spawn_later(3, _post_next_trivia_round, rid, fid, socket_io, app_obj)
                     else:
                         clear_trivia_session(rid)
 
@@ -1114,8 +1114,8 @@ def register_socket_handlers(socketio):
                                 db.session.add(warn_msg)
                                 db.session.commit()
                                 _broadcast_new_message_impl(sio, r, warn_msg.to_dict())
-                    eventlet.spawn_after(TRIVIA_SECONDS - 10, _trivia_10s_warning_first, app_obj, room_id, frink_user.id, socketio)
-                    eventlet.spawn_after(TRIVIA_SECONDS, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
+                    gevent.spawn_later(TRIVIA_SECONDS - 10, _trivia_10s_warning_first, app_obj, room_id, frink_user.id, socketio)
+                    gevent.spawn_later(TRIVIA_SECONDS, _reveal_answer_timeout, app_obj, room_id, frink_user.id, socketio)
                 return
             if cmd in ("/score", "/ score") and is_frink_active() and frink_user:
                 leaderboard = get_trivia_leaderboard(room_id, limit=10)
@@ -1204,7 +1204,7 @@ def register_socket_handlers(socketio):
                     if get_trivia_rounds_remaining(room_id) > 0:
                         set_trivia_rounds_remaining(room_id, get_trivia_rounds_remaining(room_id) - 1)
                         app_obj = current_app._get_current_object()
-                        eventlet.spawn_after(3, _post_next_trivia_round, room_id, frink_user.id, socketio, app_obj)
+                        gevent.spawn_later(3, _post_next_trivia_round, room_id, frink_user.id, socketio, app_obj)
                     else:
                         clear_trivia_session(room_id)
 
@@ -1281,7 +1281,7 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message_impl(socketio, room_id, msg1.to_dict())
                     app = current_app._get_current_object()
-                    eventlet.spawn_after(3, _netsplit_reconnect, app, room_id, names, sys_user.id)
+                    gevent.spawn_later(3, _netsplit_reconnect, app, room_id, names, sys_user.id)
                 else:
                     msg1 = Message(
                         room_id=room_id,
@@ -1293,7 +1293,7 @@ def register_socket_handlers(socketio):
                     db.session.commit()
                     _broadcast_new_message_impl(socketio, room_id, msg1.to_dict())
                     app = current_app._get_current_object()
-                    eventlet.spawn_after(3, _netsplit_reconnect, app, room_id, "Server A and Server B", sys_user.id)
+                    gevent.spawn_later(3, _netsplit_reconnect, app, room_id, "Server A and Server B", sys_user.id)
             return
 
         # DM with AcroBot: during Acrophobia submit phase, treat message as submission (so DMs count)

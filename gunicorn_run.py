@@ -1,10 +1,9 @@
 """
-Gunicorn launcher: run eventlet.monkey_patch() before any other imports to fix
-"RLock(s) were not greened" warning. Must be the first code that runs in the worker.
+Gunicorn launcher: run gevent.monkey_patch() before any other imports.
 Runs migrations and seed BEFORE starting gunicorn so the app responds to health checks quickly.
 """
-import eventlet
-eventlet.monkey_patch()
+import gevent.monkey
+gevent.monkey.patch_all()
 
 import os
 import sys
@@ -26,5 +25,5 @@ if __name__ == "__main__":
         print(f"FATAL: maintenance failed: {e}", file=sys.stderr)
         sys.exit(1)
 
-    sys.argv = [sys.argv[0], "--worker-class", "eventlet", "-w", "1", "--preload", "wsgi:app"] + sys.argv[1:]
+    sys.argv = [sys.argv[0], "--worker-class", "gevent", "-w", "1", "wsgi:app"] + sys.argv[1:]
     sys.exit(run())
