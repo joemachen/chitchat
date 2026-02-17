@@ -1138,13 +1138,17 @@
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user rankings (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
                                 <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
-                                    <select :disabled="u.id === currentUserId" :value="(u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRank && window.chitchat.settingsSetUserRank(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
+                                    <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRankPending && window.chitchat.settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
                                         <option value="rookie">Rookie</option>
                                         <option value="bro">Bro</option>
                                         <option value="fam">Fam</option>
                                         <option value="super_admin">Super Admin</option>
                                     </select>
                                     <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
+                                </div>
+                                <div class="user-row" style="margin-top:0.75rem;">
+                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveUserRanks && window.chitchat.settingsSaveUserRanks()" :disabled="!Object.keys(state.pendingRankChanges || {}).length" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save rankings</button>
+                                    <span v-if="Object.keys(state.pendingRankChanges || {}).length" style="color:#a1a1aa;font-size:0.85rem;margin-left:0.5rem;">{{ Object.keys(state.pendingRankChanges || {}).length }} change(s) pending</span>
                                 </div>
                                 <h2>Audit log</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>
@@ -1330,6 +1334,7 @@ const state = reactive({
     frinkActive: true,
     messageRetentionDays: {{ (message_retention_days|default(none))|tojson }},
     auditLogEntries: [],
+    pendingRankChanges: {},
     botChannels: { acrobot: ['Acrophobia'], homer: null, frink: ['Trivia'] },
     rolePermissions: {},
     defaultChannelId: null,
@@ -3087,37 +3092,26 @@ chitchatApp.mount('#app');
             if (ok) socket.emit('wipe_room_history', { room_id: roomId });
         });
     }
-    function settingsSetUserRank(userId, rank) {
+    function settingsSetUserRankPending(userId, rank) {
         if (!rank) return;
         var r = (rank || '').trim().toLowerCase();
-        var prevRank = null;
-        if (state.allUsersWithStatus) {
-            var u = state.allUsersWithStatus.find(function(x) { return x.id === userId; });
-            if (u) { prevRank = (u.rank || 'rookie').toLowerCase(); u.rank = r; }
+        if (!state.pendingRankChanges) state.pendingRankChanges = {};
+        state.pendingRankChanges[userId] = r;
+    }
+    function settingsSaveUserRanks() {
+        var pending = state.pendingRankChanges || {};
+        var ids = Object.keys(pending);
+        if (ids.length === 0) return;
+        var toast = document.createElement('div');
+        toast.className = 'ping-toast';
+        toast.style.background = '#6366f1';
+        toast.textContent = 'Saving ' + ids.length + ' rank change(s)...';
+        getToastContainer().appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 2000);
+        for (var i = 0; i < ids.length; i++) {
+            var uid = parseInt(ids[i], 10) || ids[i];
+            socket.emit('set_user_rank', { target_user_id: uid, rank: pending[ids[i]] });
         }
-        socket.emit('set_user_rank', { target_user_id: userId, rank: rank }, function(res) {
-            if (res && res.ok) {
-                var rankLabel = { rookie: 'Rookie', bro: 'Bro', fam: 'Fam', super_admin: 'Super Admin' }[(res.rank || r).toLowerCase()] || (res.rank || r);
-                var toast = document.createElement('div');
-                toast.className = 'ping-toast';
-                toast.style.background = '#166534';
-                toast.textContent = rankLabel + ' set for ' + (res.target_username || 'user');
-                (document.getElementById('toastContainer') || document.body).appendChild(toast);
-                setTimeout(function() { toast.remove(); }, 3000);
-            } else {
-                if (prevRank && state.allUsersWithStatus) {
-                    var u = state.allUsersWithStatus.find(function(x) { return x.id === userId; });
-                    if (u) u.rank = prevRank;
-                }
-                var msg = (res && res.error) || 'Failed to save rank';
-                var toast = document.createElement('div');
-                toast.className = 'ping-toast';
-                toast.style.background = '#7f1d1d';
-                toast.textContent = msg;
-                (document.getElementById('toastContainer') || document.body).appendChild(toast);
-                setTimeout(function() { toast.remove(); }, 5000);
-            }
-        });
     }
     function settingsDeleteUser(userId, username) {
         showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {
@@ -3362,7 +3356,7 @@ chitchatApp.mount('#app');
         lb.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRank: settingsSetUserRank, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRankPending: settingsSetUserRankPending, settingsSaveUserRanks: settingsSaveUserRanks, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -3604,8 +3598,30 @@ chitchatApp.mount('#app');
     socket.on('user_list_updated', function(data) {
         if (data.users) {
             state.allUsersWithStatus = data.users;
+            state.pendingRankChanges = {};
             var me = data.users.find(function(u) { return u.id === currentUserId; });
             if (me && me.display_name !== undefined) state.userDisplayName = me.display_name || '';
+        }
+    });
+
+    socket.on('user_rank_result', function(res) {
+        if (res && res.ok) {
+            var rankLabel = { rookie: 'Rookie', bro: 'Bro', fam: 'Fam', super_admin: 'Super Admin' }[(res.rank || '').toLowerCase()] || res.rank;
+            var toast = document.createElement('div');
+            toast.className = 'ping-toast';
+            toast.style.background = '#166534';
+            toast.textContent = rankLabel + ' set for ' + (res.target_username || 'user');
+            getToastContainer().appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 3000);
+            if (res.target_user_id !== undefined) delete state.pendingRankChanges[res.target_user_id];
+        } else {
+            var msg = (res && res.error) || 'Failed to save rank';
+            var toast = document.createElement('div');
+            toast.className = 'ping-toast';
+            toast.style.background = '#7f1d1d';
+            toast.textContent = msg;
+            getToastContainer().appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 5000);
         }
     });
 

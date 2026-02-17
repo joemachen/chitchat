@@ -2788,32 +2788,38 @@ def register_socket_handlers(socketio):
 
     @socketio.on("set_user_rank")
     def on_set_user_rank(data):
-        """Set a user's rank (rookie, bro, fam, super_admin). Caller must have permission. Returns {ok, error} for callback."""
+        """Set a user's rank (rookie, bro, fam, super_admin). Caller must have permission. Emits user_rank_result to requester."""
         user_id = session.get("user_id")
         if not user_id:
-            return {"ok": False, "error": "Not authenticated"}
+            emit("user_rank_result", {"ok": False, "error": "Not authenticated"})
+            return
         if not _has_permission(user_id, "set_user_rank"):
-            return {"ok": False, "error": "Only admins can set user rankings (or your role needs this permission)"}
+            emit("user_rank_result", {"ok": False, "error": "Only admins can set user rankings (or your role needs this permission)"})
+            return
         target_id = (data or {}).get("target_user_id")
         rank = ((data or {}).get("rank") or "").strip().lower()
         if target_id is None:
-            return {"ok": False, "error": "target_user_id required"}
+            emit("user_rank_result", {"ok": False, "error": "target_user_id required"})
+            return
         if rank not in ("rookie", "bro", "fam", "super_admin"):
-            return {"ok": False, "error": "rank must be one of: rookie, bro, fam, super_admin"}
+            emit("user_rank_result", {"ok": False, "error": "rank must be one of: rookie, bro, fam, super_admin"})
+            return
         try:
             target_id = int(target_id)
         except (TypeError, ValueError):
-            return {"ok": False, "error": "Invalid target_user_id"}
+            emit("user_rank_result", {"ok": False, "error": "Invalid target_user_id"})
+            return
         target = User.query.get(target_id)
         if not target:
-            return {"ok": False, "error": "User not found"}
+            emit("user_rank_result", {"ok": False, "error": "User not found"})
+            return
         target.rank = rank
         target.is_super_admin = rank == "super_admin"
         db.session.commit()
         _audit_log(user_id, "set_user_rank", "user", target_id, {"target_username": target.username, "rank": rank})
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
         logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
-        return {"ok": True, "target_username": target.username, "rank": rank}
+        emit("user_rank_result", {"ok": True, "target_user_id": target_id, "target_username": target.username, "rank": rank})
 
     @socketio.on("delete_user")
     def on_delete_user(data):
