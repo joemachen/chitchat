@@ -1134,8 +1134,8 @@
                                         <button type="button" @click="window.chitchat && window.chitchat.settingsWipeRoom && window.chitchat.settingsWipeRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>
                                     </span>
                                 </div>
-                                <h2>Users — Rankings</h2>
-                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user rankings (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
+                                <h2>Users — Roles</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user roles (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
                                 <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
                                     <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRankPending && window.chitchat.settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
@@ -1147,7 +1147,7 @@
                                     <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
                                 </div>
                                 <div class="user-row" style="margin-top:0.75rem;">
-                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveUserRanks && window.chitchat.settingsSaveUserRanks()" :disabled="!Object.keys(state.pendingRankChanges || {}).length" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save rankings</button>
+                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveUserRanks && window.chitchat.settingsSaveUserRanks()" :disabled="!Object.keys(state.pendingRankChanges || {}).length" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
                                     <span v-if="Object.keys(state.pendingRankChanges || {}).length" style="color:#a1a1aa;font-size:0.85rem;margin-left:0.5rem;">{{ Object.keys(state.pendingRankChanges || {}).length }} change(s) pending</span>
                                 </div>
                                 <h2>Audit log</h2>
@@ -3095,8 +3095,9 @@ chitchatApp.mount('#app');
     function settingsSetUserRankPending(userId, rank) {
         if (!rank) return;
         var r = (rank || '').trim().toLowerCase();
-        if (!state.pendingRankChanges) state.pendingRankChanges = {};
-        state.pendingRankChanges[userId] = r;
+        var pending = Object.assign({}, state.pendingRankChanges || {});
+        pending[userId] = r;
+        state.pendingRankChanges = pending;
     }
     function settingsSaveUserRanks() {
         var pending = state.pendingRankChanges || {};
@@ -3105,7 +3106,7 @@ chitchatApp.mount('#app');
         var toast = document.createElement('div');
         toast.className = 'ping-toast';
         toast.style.background = '#6366f1';
-        toast.textContent = 'Saving ' + ids.length + ' rank change(s)...';
+        toast.textContent = 'Saving ' + ids.length + ' role change(s)...';
         getToastContainer().appendChild(toast);
         setTimeout(function() { toast.remove(); }, 2000);
         for (var i = 0; i < ids.length; i++) {
@@ -3598,7 +3599,6 @@ chitchatApp.mount('#app');
     socket.on('user_list_updated', function(data) {
         if (data.users) {
             state.allUsersWithStatus = data.users;
-            state.pendingRankChanges = {};
             var me = data.users.find(function(u) { return u.id === currentUserId; });
             if (me && me.display_name !== undefined) state.userDisplayName = me.display_name || '';
         }
@@ -3613,7 +3613,11 @@ chitchatApp.mount('#app');
             toast.textContent = rankLabel + ' set for ' + (res.target_username || 'user');
             getToastContainer().appendChild(toast);
             setTimeout(function() { toast.remove(); }, 3000);
-            if (res.target_user_id !== undefined) delete state.pendingRankChanges[res.target_user_id];
+            if (res.target_user_id !== undefined) {
+                var p = Object.assign({}, state.pendingRankChanges || {});
+                delete p[res.target_user_id];
+                state.pendingRankChanges = p;
+            }
         } else {
             var msg = (res && res.error) || 'Failed to save rank';
             var toast = document.createElement('div');
