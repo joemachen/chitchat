@@ -929,11 +929,22 @@ def register_socket_handlers(socketio):
             else:
                 room_mute_set = _get_room_mutes_for_user(user_id, room_id)
             cached = get_cached_messages(room_id, 100)
+            # DEBUG_SYSTEM_EVENTS: remove after resolving empty history issue
+            _is_sys_events = room_obj.name.strip() == "System Events"
+            if _is_sys_events:
+                _sys_room_by_name = Room.query.filter_by(name="System Events").first()
+                _db_total = Message.query.filter_by(room_id=room_id).count()
+                logger.info("DEBUG_SYSTEM_EVENTS: join room_id=%s name=%r sys_events_room_id=%s cache_len=%s db_total=%s",
+                            room_id, room_obj.name, _sys_room_by_name.id if _sys_room_by_name else None,
+                            len(cached) if cached else 0, _db_total)
             if cached and len(cached) > 0:
                 filtered = [m for m in cached if m.get("user_id") not in room_mute_set]
                 history = filtered[-50:]
                 has_more = len(filtered) >= 50
                 messages = None  # For last_msg_id we may need DB
+                if _is_sys_events:
+                    logger.info("DEBUG_SYSTEM_EVENTS: used CACHE filtered=%s history_len=%s first=%r",
+                                len(filtered), len(history), (history[0].get("content", "")[:60] if history else "empty"))
             else:
                 cached = None
                 q = Message.query.filter_by(room_id=room_id)
@@ -944,6 +955,9 @@ def register_socket_handlers(socketio):
                 messages = messages[:50]
                 messages.reverse()
                 history = [m.to_dict() for m in messages]
+                if _is_sys_events:
+                    logger.info("DEBUG_SYSTEM_EVENTS: used DB messages=%s history_len=%s first=%r",
+                                len(messages), len(history), (history[0].get("content", "")[:60] if history else "empty"))
                 # Populate cache for future joins
                 for d in history:
                     cache_append(room_id, d)
