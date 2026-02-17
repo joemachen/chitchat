@@ -54,8 +54,6 @@ def _post_deploy_announcement(app: Flask) -> None:
             last_announced = row.value if row and row.value else None
             if last_announced == VERSION:
                 logger.debug("Skipping deploy announcement: version %s already announced", VERSION)
-                # DEBUG_SYSTEM_EVENTS: remove after resolving empty history issue
-                logger.info("DEBUG_SYSTEM_EVENTS: deploy SKIPPED (already announced v%s)", VERSION)
                 return
 
             sys_room = Room.query.filter_by(name="System Events").first()
@@ -77,13 +75,8 @@ def _post_deploy_announcement(app: Flask) -> None:
                     db.session.add(AppSetting(key="last_deploy_announced_version", value=VERSION))
                 db.session.commit()
                 logger.info("Posted deploy announcement v%s", VERSION)
-                # DEBUG_SYSTEM_EVENTS: remove after resolving empty history issue
-                logger.info("DEBUG_SYSTEM_EVENTS: deploy posted room_id=%s msg_id=%s content_len=%s",
-                            sys_room.id, msg.id, len(content))
         except Exception as e:
             logger.warning("Deploy announcement skipped: %s", e)
-            # DEBUG_SYSTEM_EVENTS: remove after resolving empty history issue
-            logger.info("DEBUG_SYSTEM_EVENTS: deploy FAILED: %s", e)
 
 
 def _run_message_retention_cleanup(app: Flask) -> None:
