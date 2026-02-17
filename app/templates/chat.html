@@ -1147,7 +1147,7 @@
                                     <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
                                 </div>
                                 <div class="user-row" style="margin-top:0.75rem;">
-                                    <button type="button" @click="saveUserRanks" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
+                                    <button type="button" id="saveRolesBtn" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
                                 </div>
                                 <h2>Audit log</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>
@@ -4059,6 +4059,12 @@ chitchatApp.mount('#app');
         if (isSuperAdmin) { socket.emit('get_role_permissions'); socket.emit('get_audit_log', { limit: 50 }); }
     }
     if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
+
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'saveRolesBtn' || e.target.closest('#saveRolesBtn')) {
+            if (window.chitchat && window.chitchat.settingsSaveUserRanks) window.chitchat.settingsSaveUserRanks();
+        }
+    });
 
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
