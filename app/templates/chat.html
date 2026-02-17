@@ -360,6 +360,9 @@
         .user-item.invisible .user-avatar { border: 2px solid #71717a; }
         .user-item.offline .user-avatar { border: 2px solid #52525b; }
         .user-item.me { color: #818cf8; font-weight: 500; }
+        .user-bot-app-tag { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; padding: 0.15rem 0.4rem; border-radius: 4px; background: #5865f2; color: #fff; flex-shrink: 0; margin-left: auto; }
+        .user-item.bot-item .user-item-name { color: #4ade80; }
+        .user-item.bot-item.offline .user-item-name { color: #71717a; }
         .user-list .muted { color: #71717a; font-size: 0.85rem; }
         .mobile-room-name { display: none; padding: 0.4rem 1rem; font-size: 0.95rem; font-weight: 600; color: #818cf8; background: #1c1c1f; border-bottom: 1px solid #27272a; }
         .channel-topic { padding: 0.5rem 1rem; background: #1c1c1f; border-bottom: 1px solid #27272a; font-size: 0.85rem; color: #a1a1aa; user-select: text; -webkit-user-select: text; }
@@ -394,6 +397,8 @@
         body.theme-light .status { color: #52525b; }
         body.theme-light .room-list, body.theme-light .user-list { background: #e4e4e7; border-color: #d4d4d8; }
         body.theme-light .room-list-title, body.theme-light .user-list-title { border-color: #d4d4d8; color: #52525b; }
+        body.theme-light .user-item.bot-item .user-item-name { color: #15803d; }
+        body.theme-light .user-item.bot-item.offline .user-item-name { color: #71717a; }
         body.theme-light .room-item:hover { background: #d4d4d8; }
         body.theme-light .room-item.active .room-item-name { color: #15803d; }
         body.theme-light .room-list-footer-sticky { border-color: #d4d4d8; }
@@ -659,8 +664,18 @@
     <div v-if="state.mobilePresenceSheetOpen" class="mobile-presence-sheet" role="dialog" aria-label="Users online and offline" aria-modal="true">
         <div class="mobile-presence-sheet-handle" aria-hidden="true" role="button" tabindex="0" aria-label="Swipe down or tap to close" title="Swipe down or tap to close" @click="state.mobilePresenceSheetOpen = false" @touchstart="mobilePresenceSheetTouchStart" @touchmove="mobilePresenceSheetTouchMove" @touchend="mobilePresenceSheetTouchEnd"></div>
         <div class="mobile-presence-sheet-content">
+            <div class="user-list-section" v-if="botUsers.length">
+                <div class="user-list-title">Bots — {{ botUsers.length }}</div>
+                <template v-if="botUsers.length">
+                    <div v-for="u in botUsers" :key="u.id" :class="['user-item', 'bot-item', userStatusClass(u, false), { online: u.online }]" :data-user-id="u.id" :data-username="u.username || ''">
+                        <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
+                        <span class="user-item-name" :title="userDisplayLabel(u, false, true)">{{ userDisplayLabel(u, false, true) }}</span>
+                        <span class="user-bot-app-tag" title="Application">APP</span>
+                    </div>
+                </template>
+            </div>
             <div class="user-list-section">
-                <div class="user-list-title">Online</div>
+                <div class="user-list-title">Online — {{ onlineUsers.length }}</div>
                 <template v-if="onlineUsers.length">
                     <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                         <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
@@ -670,7 +685,7 @@
                 <div v-else class="user-item offline"><span class="user-dot"></span><span class="muted">No one online</span></div>
             </div>
             <div class="user-list-section">
-                <div class="user-list-title">Offline</div>
+                <div class="user-list-title">Offline — {{ offlineUsers.length }}</div>
                 <template v-if="offlineUsers.length">
                     <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
                         <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
@@ -1222,8 +1237,18 @@
         </section>
         <aside class="user-list" id="userList" aria-label="Users">
             <div class="user-list-title">Users</div>
+            <div class="user-list-section" id="userListBots" v-if="botUsers.length">
+                <div class="user-list-title">Bots — {{ botUsers.length }}</div>
+                <div id="userListBotItems">
+                    <div v-for="u in botUsers" :key="u.id" :class="['user-item', 'bot-item', userStatusClass(u, false), { online: u.online }]" :data-user-id="u.id" :data-username="u.username || ''">
+                        <div class="user-avatar" :style="{ backgroundColor: getAvatarBgColor(u.id, u.username, u.avatar_bg_color) }" :aria-hidden="true">{{ getAvatarInitial((u.display_name && u.display_name.trim()) ? u.display_name : u.username) }}</div>
+                        <span class="user-item-name" :title="userDisplayLabel(u, false, true)">{{ userDisplayLabel(u, false, true) }}</span>
+                        <span class="user-bot-app-tag" title="Application">APP</span>
+                    </div>
+                </div>
+            </div>
             <div class="user-list-section" id="userListOnline">
-                <div class="user-list-title">Online</div>
+                <div class="user-list-title">Online — {{ onlineUsers.length }}</div>
                 <div id="userListOnlineItems">
                     <template v-if="onlineUsers.length">
                         <div v-for="u in onlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
@@ -1235,7 +1260,7 @@
                 </div>
             </div>
             <div class="user-list-section" id="userListOffline">
-                <div class="user-list-title">Offline</div>
+                <div class="user-list-title">Offline — {{ offlineUsers.length }}</div>
                 <div id="userListOfflineItems">
                     <template v-if="offlineUsers.length">
                         <div v-for="u in offlineUsers" :key="u.id" :class="['user-item', userStatusClass(u, u.id === currentUserId), { me: u.id === currentUserId }]" :data-user-id="u.id" :data-username="u.username || ''">
@@ -1372,9 +1397,14 @@ const chitchatApp = createApp({
             return (state.roomNotificationMuted[room.id] ? '🔇 ' : '') + base;
         });
         const showChannelTopic = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
+        function isBotUser(u) { return (u.is_bot === true || ['AcroBot','Homer','Prof Frink'].indexOf(u.username) >= 0) && !u.is_system_user; }
+        const botUsers = computed(() => {
+            var users = state.allUsersWithStatus || [];
+            return users.filter(isBotUser);
+        });
         const filteredUsers = computed(() => {
             var users = state.allUsersWithStatus || [];
-            return users.filter(function(u) { return !u.is_system_user; });
+            return users.filter(function(u) { return !u.is_system_user && !isBotUser(u); });
         });
         const onlineUsers = computed(() => filteredUsers.value.filter(function(u) { return u.online; }));
         const offlineUsers = computed(() => filteredUsers.value.filter(function(u) { return !u.online; }));
@@ -1382,9 +1412,9 @@ const chitchatApp = createApp({
             if (u.online) return u.user_status === 'away' ? 'away' : u.user_status === 'dnd' ? 'dnd' : u.user_status === 'invisible' ? 'invisible' : 'online';
             return (u.user_status === 'invisible' && isMe) ? 'invisible' : 'offline';
         }
-        function userDisplayLabel(u, isMe) {
+        function userDisplayLabel(u, isMe, inBotSection) {
             var displayLabel = (u.display_name && u.display_name.trim()) ? u.display_name : u.username;
-            var botSuffix = (u.username === 'AcroBot' || u.username === 'Homer' || u.username === 'Prof Frink' || u.username === 'System') ? ' (bot)' : '';
+            var botSuffix = (!inBotSection && (u.username === 'AcroBot' || u.username === 'Homer' || u.username === 'Prof Frink' || u.username === 'System')) ? ' (bot)' : '';
             return displayLabel + botSuffix + (isMe ? ' (you)' : '');
         }
         var AVATAR_PALETTE = ['#5865F2','#57F287','#FEE75C','#ED4245','#EB459E','#3BA55D','#FAA61A','#9B59B6'];

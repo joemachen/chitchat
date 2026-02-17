@@ -104,6 +104,7 @@ def _get_users_with_online_status():
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": False,
+                "is_bot": True,
                 "user_status": "online",
                 "current_room_name": None,
             })
@@ -117,6 +118,7 @@ def _get_users_with_online_status():
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": True,
+                "is_bot": True,
                 "user_status": "online",
                 "current_room_name": None,
             })
@@ -125,10 +127,12 @@ def _get_users_with_online_status():
                 "id": u.id,
                 "username": u.username,
                 "display_name": None,
+                "avatar_bg_color": None,
                 "online": is_homer_active(),
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": False,
+                "is_bot": True,
                 "user_status": "online",
                 "current_room_name": None,
             })
@@ -137,10 +141,12 @@ def _get_users_with_online_status():
                 "id": u.id,
                 "username": u.username,
                 "display_name": None,
+                "avatar_bg_color": None,
                 "online": is_frink_active(),
                 "is_super_admin": getattr(u, "is_super_admin", False),
                 "rank": rank,
                 "is_system_user": False,
+                "is_bot": True,
                 "user_status": "online",
                 "current_room_name": None,
             })
@@ -158,6 +164,7 @@ def _get_users_with_online_status():
                     "is_super_admin": getattr(u, "is_super_admin", False),
                     "rank": rank,
                     "is_system_user": False,
+                    "is_bot": False,
                     "user_status": "invisible",
                     "current_room_name": None,
                 })
@@ -171,6 +178,7 @@ def _get_users_with_online_status():
                     "is_super_admin": getattr(u, "is_super_admin", False),
                     "rank": rank,
                     "is_system_user": False,
+                    "is_bot": False,
                     "user_status": st,
                     "current_room_name": r[1] if r else None,
                 })
