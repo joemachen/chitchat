@@ -1147,7 +1147,7 @@
                                     <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
                                 </div>
                                 <div class="user-row" style="margin-top:0.75rem;">
-                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveUserRanks && window.chitchat.settingsSaveUserRanks()" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
+                                    <button type="button" @click="saveUserRanks" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
                                 </div>
                                 <h2>Audit log</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>
@@ -1885,11 +1885,12 @@ const chitchatApp = createApp({
         function setBgColor(val) { if (window.chitchat && window.chitchat.setBgColor) window.chitchat.setBgColor(val); }
         function setFont(val) { if (window.chitchat && window.chitchat.setFont) window.chitchat.setFont(val); }
         function deleteUser(userId, username) { if (window.chitchat && window.chitchat.settingsDeleteUser) window.chitchat.settingsDeleteUser(userId, username); }
+        function saveUserRanks() { if (window.chitchat && window.chitchat.settingsSaveUserRanks) window.chitchat.settingsSaveUserRanks(); }
         var mobilePresenceSheetTouchStartY = null;
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -3099,8 +3100,9 @@ chitchatApp.mount('#app');
         state.pendingRankChanges = pending;
     }
     function settingsSaveUserRanks() {
+        try {
         var changes = [];
-        var selects = document.querySelectorAll('#settingsViewContainer select[data-user-id]');
+        var selects = document.querySelectorAll('select[data-user-id]');
         var usersById = {};
         (state.allUsersWithStatus || []).forEach(function(u) { usersById[u.id] = u; });
         for (var i = 0; i < selects.length; i++) {
@@ -3124,7 +3126,7 @@ chitchatApp.mount('#app');
         var toast = document.createElement('div');
         toast.className = 'ping-toast';
         toast.style.background = '#6366f1';
-        toast.textContent = 'Saving ' + ids.length + ' role change(s)...';
+        toast.textContent = 'Saving ' + changes.length + ' role change(s)...';
         getToastContainer().appendChild(toast);
         setTimeout(function() { toast.remove(); }, 2000);
         fetch('/api/set-user-roles', {
@@ -3170,6 +3172,14 @@ chitchatApp.mount('#app');
             getToastContainer().appendChild(t);
             setTimeout(function() { t.remove(); }, 5000);
         });
+        } catch (err) {
+            var t = document.createElement('div');
+            t.className = 'ping-toast';
+            t.style.background = '#7f1d1d';
+            t.textContent = 'Error: ' + (err.message || 'Could not save');
+            (document.getElementById('toastContainer') || document.body).appendChild(t);
+            setTimeout(function() { t.remove(); }, 5000);
+        }
     }
     function settingsDeleteUser(userId, username) {
         showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {
