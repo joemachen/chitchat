@@ -3,10 +3,12 @@
 ## v3.5.1 — System Events history, unread indicator fixes
 
 **System Events history**
-- System Events channel now always shows historical messages. Previously, if the System user was muted in that room, all messages were filtered out and history appeared empty. System user messages are no longer filtered in System Events.
+- System Events channel now always shows full message history. Room-mute filtering is skipped entirely for System Events so deploy announcements, "came online", "went offline", and other system messages are never hidden.
 
 **Unread indicator (red dot)**
-- Red dot now clears correctly when leaving a channel. Previously, viewing a channel and then switching away could cause the indicator to reappear because `UserRoomRead` was only updated on join, not when new messages arrived while viewing. The server now updates read position when you receive messages in the room you're viewing.
+- Red dot now clears correctly when leaving a channel. Root causes fixed:
+  - **On join**: `last_message_id` now uses the actual max message id in the room (not the last in filtered history), so muted users' messages no longer cause a phantom unread when you leave.
+  - **While viewing**: Server updates `UserRoomRead` when you receive new messages in the room you're viewing.
 - Client ignores `unread_incremented` for the room you're currently viewing (defensive guard).
 
 ---

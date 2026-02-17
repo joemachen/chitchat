@@ -924,12 +924,10 @@ def register_socket_handlers(socketio):
             logger.info("User %s joined stats room", user_id)
         else:
             # Paginate: try cache first, else DB. Server-side room-mute filter.
-            room_mute_set = _get_room_mutes_for_user(user_id, room_id)
-            # System Events: never filter out System user's messages (deploy announcements, etc.)
             if room_obj.name.strip() == "System Events":
-                sys_user = User.query.filter_by(username="System").first()
-                if sys_user:
-                    room_mute_set = room_mute_set - {sys_user.id}
+                room_mute_set = set()  # Never filter System Events (deploy announcements, came online, etc.)
+            else:
+                room_mute_set = _get_room_mutes_for_user(user_id, room_id)
             cached = get_cached_messages(room_id, 100)
             if cached and len(cached) > 0:
                 filtered = [m for m in cached if m.get("user_id") not in room_mute_set]
@@ -949,10 +947,16 @@ def register_socket_handlers(socketio):
                 # Populate cache for future joins
                 for d in history:
                     cache_append(room_id, d)
+            # Use actual max message id in room so unread stays cleared when leaving (avoids muted-user edge case)
             if messages is not None:
                 last_msg_id = messages[-1].id if messages else 0
+            elif cached and len(cached) > 0:
+                last_msg_id = max(m.get("id", 0) for m in cached)
             else:
                 last_msg_id = history[-1]["id"] if history else 0
+            max_in_room = db.session.query(func.max(Message.id)).filter_by(room_id=room_id).scalar()
+            if max_in_room is not None and max_in_room > last_msg_id:
+                last_msg_id = max_in_room
             pinned = (
                 PinnedMessage.query.filter_by(room_id=room_id)
                 .order_by(PinnedMessage.pinned_at.desc())
