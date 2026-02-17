@@ -2788,37 +2788,32 @@ def register_socket_handlers(socketio):
 
     @socketio.on("set_user_rank")
     def on_set_user_rank(data):
-        """Set a user's rank (rookie, bro, fam, super_admin). Caller must be Super Admin. Broadcast user_list_updated."""
+        """Set a user's rank (rookie, bro, fam, super_admin). Caller must have permission. Returns {ok, error} for callback."""
         user_id = session.get("user_id")
         if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
+            return {"ok": False, "error": "Not authenticated"}
         if not _has_permission(user_id, "set_user_rank"):
-            emit("error", {"message": "Only admins can set user rankings (or your role needs this permission)"})
-            return
+            return {"ok": False, "error": "Only admins can set user rankings (or your role needs this permission)"}
         target_id = (data or {}).get("target_user_id")
         rank = ((data or {}).get("rank") or "").strip().lower()
         if target_id is None:
-            emit("error", {"message": "target_user_id required"})
-            return
+            return {"ok": False, "error": "target_user_id required"}
         if rank not in ("rookie", "bro", "fam", "super_admin"):
-            emit("error", {"message": "rank must be one of: rookie, bro, fam, super_admin"})
-            return
+            return {"ok": False, "error": "rank must be one of: rookie, bro, fam, super_admin"}
         try:
             target_id = int(target_id)
         except (TypeError, ValueError):
-            emit("error", {"message": "Invalid target_user_id"})
-            return
+            return {"ok": False, "error": "Invalid target_user_id"}
         target = User.query.get(target_id)
         if not target:
-            emit("error", {"message": "User not found"})
-            return
+            return {"ok": False, "error": "User not found"}
         target.rank = rank
         target.is_super_admin = rank == "super_admin"
         db.session.commit()
         _audit_log(user_id, "set_user_rank", "user", target_id, {"target_username": target.username, "rank": rank})
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
         logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
+        return {"ok": True, "target_username": target.username, "rank": rank}
 
     @socketio.on("delete_user")
     def on_delete_user(data):

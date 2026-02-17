@@ -3090,11 +3090,34 @@ chitchatApp.mount('#app');
     function settingsSetUserRank(userId, rank) {
         if (!rank) return;
         var r = (rank || '').trim().toLowerCase();
-        if (r && state.allUsersWithStatus) {
+        var prevRank = null;
+        if (state.allUsersWithStatus) {
             var u = state.allUsersWithStatus.find(function(x) { return x.id === userId; });
-            if (u) u.rank = r;
+            if (u) { prevRank = (u.rank || 'rookie').toLowerCase(); u.rank = r; }
         }
-        socket.emit('set_user_rank', { target_user_id: userId, rank: rank });
+        socket.emit('set_user_rank', { target_user_id: userId, rank: rank }, function(res) {
+            if (res && res.ok) {
+                var rankLabel = { rookie: 'Rookie', bro: 'Bro', fam: 'Fam', super_admin: 'Super Admin' }[(res.rank || r).toLowerCase()] || (res.rank || r);
+                var toast = document.createElement('div');
+                toast.className = 'ping-toast';
+                toast.style.background = '#166534';
+                toast.textContent = rankLabel + ' set for ' + (res.target_username || 'user');
+                (document.getElementById('toastContainer') || document.body).appendChild(toast);
+                setTimeout(function() { toast.remove(); }, 3000);
+            } else {
+                if (prevRank && state.allUsersWithStatus) {
+                    var u = state.allUsersWithStatus.find(function(x) { return x.id === userId; });
+                    if (u) u.rank = prevRank;
+                }
+                var msg = (res && res.error) || 'Failed to save rank';
+                var toast = document.createElement('div');
+                toast.className = 'ping-toast';
+                toast.style.background = '#7f1d1d';
+                toast.textContent = msg;
+                (document.getElementById('toastContainer') || document.body).appendChild(toast);
+                setTimeout(function() { toast.remove(); }, 5000);
+            }
+        });
     }
     function settingsDeleteUser(userId, username) {
         showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {
