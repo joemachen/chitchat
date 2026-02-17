@@ -1,5 +1,19 @@
 # Release notes
 
+## v3.5.2 — Prof Frink and Homer quote expansion
+
+**Prof Frink**
+- **FRINK_QUOTES** — 48 classic show quotes (Frinkometer, waffle iron soul extractor, Debulking Ray, etc.) added to vocabulary.
+- **FRINKISMS** — New exclamations: Glaven!, Hoyvin-mayvin!, Flavin!
+- **DM replies** — 40% chance of a random show quote when DMing Prof Frink.
+- **Ridicule & hot streaks** — New phrases when nobody gets trivia right or when users hit correct-answer streaks.
+
+**Homer**
+- **SIMPSONS_QUOTES** — 26 new quotes from the show (71 total): "Stupid sexy Flanders!", "Me fail English? That's unpossible.", "I have three kids and no money...", "To the Bee-mobile!", "Mmm... organized crime.", etc.
+- **HOMER_DM_REPLIES** — 6 new DM replies based on show quotes.
+
+---
+
 ## v3.5.1 — System Events history, unread indicator fixes
 
 **System Events history**

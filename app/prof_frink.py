@@ -15,7 +15,10 @@ TRIVIA_API_URL: Optional[str] = None  # Set in config when API is available
 
 FRINKISMS = [
     "Glavin!",
+    "Glaven!",
     "Hoyvin!",
+    "Hoyvin-mayvin!",
+    "Flavin!",
     "Flayvin!",
     "Glaaven!",
     "Shabooey!",
@@ -33,6 +36,58 @@ FRINKISMS = [
     "Shabooey-shabooey!",
     "The mathematics never lie!",
     "A most scientific occurrence!",
+]
+
+# Longer Frink quotes from the show — used in DMs, ridicule, hot streaks
+FRINK_QUOTES = [
+    "With the running and the jumping and the hitting and the pain!",
+    '"Glavin, out!"',
+    '"Oh, the biting and the scratching and the hair-pulling! Oh, I\'m in such pain!"',
+    "With the shouting and the shoving and the hoo-ha!",
+    "Pi is exactly three!",
+    '"Good morning, ma\'am. Good morning, sir. Good morning, thing."',
+    '"I\'ve predicted that within ten years, computers will be twice as powerful, ten thousand times larger, and so expensive that only the five richest kings of Europe will own them."',
+    '"This is the Frinkometer! It measures the gaseous emissions of the... oh, it\'s just a glorified sneeze-detector."',
+    '"I\'ve invented a machine that can actually extract the essence of a person\'s soul! Unfortunately, it looks exactly like a waffle iron."',
+    '"Behold! The Debulking Ray! It will turn this giant donut into a tiny, digestible pill!"',
+    '"This is my Laughter-Induced-Death Ray! It\'s not finished yet, but it\'s already quite ticklish."',
+    '"Behold the Hover-Bike! It stays three inches off the ground, unless you weigh more than a squirrel."',
+    '"I\'ve created a Sarcasm Detector. Oh, that\'s a real useful invention!"',
+    '"The Matter Transporter! It\'s 99% safe! But that 1%... oh, the horror. The teleporting horror!"',
+    "I've designed this Electronic Marriage Counselor. It uses logic to determine who is wrong. See? Science!",
+    '"Behold! A ray that turns people into... well, smaller people!"',
+    '"This is my Gamma-Ray Tanning Bed! It gives you a deep, healthy glow, and a third ear for better hearing!"',
+    '"The Automatic Dog-Walker! It never gets tired, though it does occasionally try to bury the dog."',
+    '"He\'s gone into... the Third Dimension! It\'s a world where things have length, width, and even depth!"',
+    "It's like he's reached into the very fabric of reality and pulled out a... a... glaven!",
+    '"I\'ll just use this shrink ray to go inside Homer\'s stomach. It\'s a dark, moist, donut-filled wonderland!"',
+    '"I must warn you, the re-animation process can lead to some mild side effects, like an insatiable hunger for brains and a slight limp."',
+    '"I\'ve invented a way to look into the future! It turns out we all die. Oops, spoilers!"',
+    '"According to my calculations, the comet will collide with Springfield with the force of a billion billion... oh, let\'s just say it\'ll be a big boom."',
+    '"The fireball is headed straight for us! Quickly, everyone into the Lead-Lined Bunker! No, wait, that\'s just a cardboard box with gray paint."',
+    '"It\'s elementary physics, really. If you increase the velocity, you increase the hoo-ha!"',
+    '"I\'m sorry, I can\'t hear you over the sound of my own genius!"',
+    '"You see, the liquid nitrogen freezes the molecules, causing a state of... oh, look at the pretty blue ice!"',
+    "The wobbling is caused by the gravitational pull of the... thingy.",
+    "I've discovered a new element! I call it Frinkium. It's highly unstable and smells like burnt toast.",
+    '"My data shows that if we don\'t act now, the town will be underwater by Tuesday. Or maybe Wednesday. My watch is a bit slow."',
+    '"If we hit the \'Enter\' key, we will either save the world or blow up the local laundromat."',
+    '"I\'m a lonely man, but I have my robots! They don\'t love me, but they do make excellent toast."',
+    "I was just... uh... testing the structural integrity of this locker. From the inside.",
+    '"I have a date! A real, live human date! I must calculate the optimal amount of eye contact."',
+    "Why won't people listen to my warnings? Is it the glasses? The bow tie? The way I say 'glaven'?",
+    "I'm not a dork! I'm a highly sophisticated intellectual with a specialized vocabulary!",
+    '"Oh, I\'ve spilled my chemicals! Now I\'ll have to start my 20-year experiment all over again. Glavin."',
+    '"I\'ve calculated that my chances of getting a second date are exactly... zero point zero zero... oh, dear."',
+    '"I\'m not crying, my eyes are just leaking saline solution due to a localized emotional disturbance."',
+    '"I\'ve discovered that the secret to eternal life is... oh, wait, I forgot to carry the one."',
+    '"The monster is attacking! Quickly, hand me my Anti-Monster Spray! No, that\'s hairspray! Now he looks fabulous, but he\'s still biting!"',
+    "Science is like a beautiful woman. Except she's made of numbers and doesn't reject me as much.",
+    '"I\'ve analyzed the DNA, and it turns out the killer is... a bear? No, wait, it\'s a very hairy man."',
+    "Don't touch that! It's a Prototype Death-Ray! Or a very powerful flashlight. I forget which.",
+    '"I\'m working on a way to turn lead into gold, but so far I\'ve only turned gold into slightly cheaper gold."',
+    '"The laws of physics do not apply to me! Well, except for gravity. That one is quite insistent."',
+    "Everything is under control! Except for the screaming and the fire!",
 ]
 
 # Simpsons trivia: (question, answer, difficulty, season)
@@ -547,6 +602,10 @@ RIDICULE_PHRASES = [
     "The mathematics never lie—and neither does the answer you all missed!",
     "Fascinating! Absolutely fascinating how wrong everyone was!",
     "Yes, yes! The flux capacitor—I mean, your brains—need a tune-up!",
+    "I've invented a way to look into the future! It turns out nobody got it. Oops, spoilers!",
+    "Why won't people listen to my warnings? Is it the glasses? The bow tie? The way I say 'glaven'?",
+    "I'm sorry, I can't hear you over the sound of my own genius! ...and your wrong answers.",
+    "Everything is under control! Except for the screaming and the wrong answers!",
 ]
 
 HOT_STREAK_PHRASES = [
@@ -561,6 +620,9 @@ HOT_STREAK_PHRASES = [
     "Eureka! The thingamajig is buzzing with approval!",
     "By science—a most favorable outcome!",
     "The flux capacitor never lies! Glaaven!",
+    "It's elementary physics, really. If you increase the velocity, you increase the hoo-ha!",
+    "I'm sorry, I can't hear you over the sound of my own genius! ...and your correct answers!",
+    "The mathematics never lie—and neither do you!",
 ]
 
 
@@ -656,7 +718,7 @@ def format_frink_reply(text: str, include_frinkism: bool = True) -> str:
 
 
 def get_frink_dm_reply() -> str:
-    """Return a random Frink-y reply for DMs."""
+    """Return a random Frink-y reply for DMs. Mix of greetings and show quotes."""
     dm_replies = [
         "Glavin! The flux capacitor is buzzing! What can this humble scientist do for you?",
         "Hoyvin! A message! Ooh, the mathematics of communication!",
@@ -669,6 +731,9 @@ def get_frink_dm_reply() -> str:
         "The flux capacitor approves of your correspondence! Hoyvin!",
         "A message! The mathematics of friendship are most favorable!",
     ]
+    # 40% chance of a classic Frink quote from the show
+    if random.random() < 0.4 and FRINK_QUOTES:
+        return format_frink_reply(random.choice(FRINK_QUOTES), include_frinkism=random.random() < 0.3)
     return random.choice(dm_replies)
 
 
