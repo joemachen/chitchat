@@ -146,6 +146,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Login**: POST `/login` with username/password; session stores `user_id` and `username`; optional “remember me” sets a signed cookie (`chitchat_remember`) and optionally a token file in `instance/` for standalone.
 - **Before request**: `routes.py`’s `before_request` restores session from remember-me cookie or from disk if cookie is missing (e.g. standalone window).
 - **Socket.IO**: No separate socket auth; the client connects after loading the chat page (which requires an active session). Session is used in each socket handler via `session.get("user_id")`; connection is rejected if not authenticated (`on_connect` returns `False`).
+- **Login page server status**: Fetches `/health` on load; shows "Server online" or "Server offline"; when offline, login button disabled and prominent warning shown.
 - **Password reset**: `/reset-password` with username, invite code, and new password (invite code required).
 - **Security**: `SECRET_KEY` and `INVITE_CODE` should be set via environment in production; default values are for development only.
 
