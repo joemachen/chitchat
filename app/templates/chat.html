@@ -1138,7 +1138,7 @@
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user roles (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
                                 <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
-                                    <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" @change="window.chitchat && window.chitchat.settingsSetUserRankPending && window.chitchat.settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
+                                    <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" :data-user-id="u.id" @change="window.chitchat && window.chitchat.settingsSetUserRankPending && window.chitchat.settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
                                         <option value="rookie">Rookie</option>
                                         <option value="bro">Bro</option>
                                         <option value="fam">Fam</option>
@@ -1147,8 +1147,7 @@
                                     <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
                                 </div>
                                 <div class="user-row" style="margin-top:0.75rem;">
-                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveUserRanks && window.chitchat.settingsSaveUserRanks()" :disabled="!Object.keys(state.pendingRankChanges || {}).length" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
-                                    <span v-if="Object.keys(state.pendingRankChanges || {}).length" style="color:#a1a1aa;font-size:0.85rem;margin-left:0.5rem;">{{ Object.keys(state.pendingRankChanges || {}).length }} change(s) pending</span>
+                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveUserRanks && window.chitchat.settingsSaveUserRanks()" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
                                 </div>
                                 <h2>Audit log</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Recent admin and moderation actions.</p>
@@ -3100,19 +3099,77 @@ chitchatApp.mount('#app');
         state.pendingRankChanges = pending;
     }
     function settingsSaveUserRanks() {
-        var pending = state.pendingRankChanges || {};
-        var ids = Object.keys(pending);
-        if (ids.length === 0) return;
+        var changes = [];
+        var selects = document.querySelectorAll('#settingsViewContainer select[data-user-id]');
+        var usersById = {};
+        (state.allUsersWithStatus || []).forEach(function(u) { usersById[u.id] = u; });
+        for (var i = 0; i < selects.length; i++) {
+            var sel = selects[i];
+            if (sel.disabled) continue;
+            var uid = parseInt(sel.getAttribute('data-user-id'), 10) || sel.getAttribute('data-user-id');
+            var u = usersById[uid];
+            var currentRank = (u && (u.rank || 'rookie')) ? String(u.rank || 'rookie').toLowerCase() : 'rookie';
+            var selectedRank = (sel.value || 'rookie').toLowerCase();
+            if (selectedRank && selectedRank !== currentRank) changes.push({ user_id: uid, rank: selectedRank });
+        }
+        if (changes.length === 0) {
+            var t = document.createElement('div');
+            t.className = 'ping-toast';
+            t.style.background = '#71717a';
+            t.textContent = 'No role changes to save';
+            getToastContainer().appendChild(t);
+            setTimeout(function() { t.remove(); }, 2000);
+            return;
+        }
         var toast = document.createElement('div');
         toast.className = 'ping-toast';
         toast.style.background = '#6366f1';
         toast.textContent = 'Saving ' + ids.length + ' role change(s)...';
         getToastContainer().appendChild(toast);
         setTimeout(function() { toast.remove(); }, 2000);
-        for (var i = 0; i < ids.length; i++) {
-            var uid = parseInt(ids[i], 10) || ids[i];
-            socket.emit('set_user_rank', { target_user_id: uid, rank: pending[ids[i]] });
-        }
+        fetch('/api/set-user-roles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ changes: changes })
+        }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); }).then(function(res) {
+            if (res.ok && res.data && res.data.ok) {
+                state.pendingRankChanges = {};
+                (res.data.results || []).forEach(function(r) {
+                    if (r.ok) {
+                        var t = document.createElement('div');
+                        t.className = 'ping-toast';
+                        t.style.background = '#166534';
+                        var rankLabel = { rookie: 'Rookie', bro: 'Bro', fam: 'Fam', super_admin: 'Super Admin' }[(r.rank || '').toLowerCase()] || r.rank;
+                        t.textContent = rankLabel + ' set for ' + (r.target_username || 'user');
+                        getToastContainer().appendChild(t);
+                        setTimeout(function() { t.remove(); }, 3000);
+                    } else {
+                        var t = document.createElement('div');
+                        t.className = 'ping-toast';
+                        t.style.background = '#7f1d1d';
+                        t.textContent = (r.error || 'Failed') + (r.target_username ? ' for ' + r.target_username : '');
+                        getToastContainer().appendChild(t);
+                        setTimeout(function() { t.remove(); }, 5000);
+                    }
+                });
+            } else {
+                var err = (res.data && res.data.error) || 'Failed to save roles (status ' + res.status + ')';
+                var t = document.createElement('div');
+                t.className = 'ping-toast';
+                t.style.background = '#7f1d1d';
+                t.textContent = err;
+                getToastContainer().appendChild(t);
+                setTimeout(function() { t.remove(); }, 5000);
+            }
+        }).catch(function(e) {
+            var t = document.createElement('div');
+            t.className = 'ping-toast';
+            t.style.background = '#7f1d1d';
+            t.textContent = 'Network error: ' + (e.message || 'Could not save');
+            getToastContainer().appendChild(t);
+            setTimeout(function() { t.remove(); }, 5000);
+        });
     }
     function settingsDeleteUser(userId, username) {
         showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {

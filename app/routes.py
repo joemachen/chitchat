@@ -1,6 +1,7 @@
 """
 HTTP routes: auth (register, login, logout), chat page, and health check.
 """
+import json
 import uuid
 from pathlib import Path
 
@@ -358,6 +359,58 @@ def register_routes(app):
         resp = make_response(redirect(url_for("login_page") + "?deleted=1"))
         resp.set_cookie(_REMEMBER_COOKIE_NAME, "", max_age=0, path="/")
         return resp
+
+    @app.route("/api/set-user-roles", methods=["POST"])
+    def api_set_user_roles():
+        """Set user roles. Requires set_user_rank permission. Accepts JSON: { changes: [{ user_id, rank }, ...] }."""
+        if not session.get("user_id"):
+            return jsonify({"ok": False, "error": "Not authenticated"}), 401
+        user = get_user_by_id(session["user_id"])
+        if not user:
+            return jsonify({"ok": False, "error": "User not found"}), 401
+        perms = _user_permissions(user)
+        if not perms.get("set_user_rank"):
+            return jsonify({"ok": False, "error": "Only admins can set user roles"}), 403
+        data = request.get_json(silent=True) or {}
+        changes = data.get("changes") or []
+        if not isinstance(changes, list):
+            return jsonify({"ok": False, "error": "changes must be an array"}), 400
+        results = []
+        for item in changes:
+            target_id = item.get("user_id") if isinstance(item, dict) else None
+            rank = (item.get("rank") or "").strip().lower() if isinstance(item, dict) else ""
+            if target_id is None or not rank:
+                results.append({"user_id": target_id, "ok": False, "error": "user_id and rank required"})
+                continue
+            try:
+                target_id = int(target_id)
+            except (TypeError, ValueError):
+                results.append({"user_id": target_id, "ok": False, "error": "Invalid user_id"})
+                continue
+            if rank not in ("rookie", "bro", "fam", "super_admin"):
+                results.append({"user_id": target_id, "ok": False, "error": "rank must be rookie, bro, fam, or super_admin"})
+                continue
+            target = User.query.get(target_id)
+            if not target:
+                results.append({"user_id": target_id, "ok": False, "error": "User not found"})
+                continue
+            target.rank = rank
+            target.is_super_admin = rank == "super_admin"
+            db.session.add(AuditLog(
+                user_id=session["user_id"],
+                action="set_user_rank",
+                target_type="user",
+                target_id=target_id,
+                details=json.dumps({"target_username": target.username, "rank": rank}),
+            ))
+            results.append({"user_id": target_id, "ok": True, "target_username": target.username, "rank": rank})
+        db.session.commit()
+        try:
+            from app.sockets import broadcast_user_list_updated
+            broadcast_user_list_updated()
+        except Exception:
+            pass
+        return jsonify({"ok": True, "results": results})
 
     @app.errorhandler(OperationalError)
     def handle_operational_error(e):
