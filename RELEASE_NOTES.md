@@ -1,5 +1,24 @@
 # Release notes
 
+## v3.5.0 — Room roles, message cache, Matrix-inspired features
+
+**Room roles**
+- **Per-room roles** — Owner, moderator, member. Room creator is owner; owner can assign moderators.
+- **Room-level kick** — Owner or moderator can ban a user from a room (banned user cannot send messages). New socket: `kick_from_room`.
+- **Set moderator** — Owner can promote/demote moderators via `set_room_moderator`.
+- **Edit/delete** — Room owner or moderator can edit room (e.g. topic); owner can delete (with existing permission checks).
+
+**Last N messages cache**
+- **In-memory cache** — Last 100 messages per room cached; join/reconnect uses cache when available for faster response.
+- **Cache invalidation** — New messages append; edits update; deletes and wipe clear cache.
+
+**Matrix-inspired**
+- **Private user data** — Key/value store per user for preferences (`get_private_data`, `set_private_data`). No new DB columns per setting.
+- **Room aliases** — Human-readable aliases (e.g. `#general`, `#acrophobia`) resolve to room IDs. Join by alias: `join_room({ alias: "general" })`.
+- **Payload validation** — Reject messages over 50KB (Matrix-inspired size limit).
+
+---
+
 ## v3.4.0 — Prof Frink trivia fixes, set-seasons alias
 
 **Prof Frink trivia**

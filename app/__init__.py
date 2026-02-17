@@ -9,7 +9,7 @@ from flask_socketio import SocketIO
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash
 
-from app.models import AppSetting, Message, Room, User, db
+from app.models import AppSetting, Message, Room, RoomAlias, RoomMember, User, db
 from app.version import VERSION
 
 logger = logging.getLogger("chitchat")
@@ -174,6 +174,26 @@ def _seed_default_data(app: Flask) -> None:
                     if hasattr(user, "rank"):
                         user.rank = "super_admin"
                     db.session.commit()
+
+            # Room roles: backfill RoomMember for rooms with created_by_id
+            if hasattr(db, "session"):
+                try:
+                    from app.room_roles import add_room_member
+                    for room in Room.query.filter(Room.created_by_id.isnot(None), Room.dm_with_id.is_(None)).all():
+                        if not RoomMember.query.filter_by(room_id=room.id, user_id=room.created_by_id).first():
+                            add_room_member(room.id, room.created_by_id, "owner")
+                except Exception:
+                    pass  # Tables may not exist yet (pre-migration)
+
+            # Room aliases: seed default aliases for known rooms
+            try:
+                from app.room_aliases import set_room_alias
+                for rname, alias in [("general", "general"), ("Acrophobia", "acrophobia"), ("Trivia", "trivia"), ("Stats", "stats"), ("System Events", "system")]:
+                    r = Room.query.filter_by(name=rname).first()
+                    if r and r.dm_with_id is None:
+                        set_room_alias(r.id, alias)
+            except Exception:
+                pass
         except Exception as e:
             logger.warning("Seed default data skipped or partial: %s", e)
             db.session.rollback()

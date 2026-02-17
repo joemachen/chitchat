@@ -84,6 +84,11 @@ class Room(db.Model):
     messages = db.relationship("Message", backref="room", lazy="dynamic", cascade="all, delete-orphan")
 
     def to_dict(self) -> dict:
+        try:
+            from app.room_aliases import get_room_aliases
+            aliases = get_room_aliases(self.id)
+        except Exception:
+            aliases = []
         return {
             "id": self.id,
             "name": self.name,
@@ -98,6 +103,7 @@ class Room(db.Model):
             "is_dm": self.dm_with_id is not None,
             "dm_with_username": self.dm_with.username if self.dm_with else None,
             "is_protected": getattr(self, "is_protected", False),
+            "aliases": aliases,
         }
 
 
@@ -221,6 +227,66 @@ class RoomMute(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("room_id", "muted_user_id", "muted_by_id", name="uq_room_mute"),)
+
+
+class RoomMember(db.Model):
+    """Per-room role: owner, moderator, or member. Owner can assign moderators; moderator can kick from room."""
+    __tablename__ = "room_members"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)  # owner | moderator | member
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_room_member"),)
+
+    room = db.relationship("Room", backref="members")
+    user = db.relationship("User", backref="room_memberships")
+
+
+class RoomBan(db.Model):
+    """User banned from a room; cannot send messages. Set by room owner or moderator."""
+    __tablename__ = "room_bans"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    banned_user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False, index=True)
+    banned_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("room_id", "banned_user_id", name="uq_room_ban"),)
+
+    room = db.relationship("Room", backref="bans")
+    banned_user = db.relationship("User", foreign_keys=[banned_user_id])
+    banned_by = db.relationship("User", foreign_keys=[banned_by_id])
+
+
+class UserPrivateData(db.Model):
+    """Key/value store per user for preferences (theme, notification toggles, etc.). Matrix-inspired."""
+    __tablename__ = "user_private_data"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key = db.Column(db.String(80), nullable=False)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_private_data"),)
+
+    user = db.relationship("User", backref="private_data")
+
+
+class RoomAlias(db.Model):
+    """Human-readable alias for a room (e.g. #general -> room_id). Matrix-inspired; for shareable links."""
+    __tablename__ = "room_aliases"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    alias = db.Column(db.String(80), nullable=False, unique=True, index=True)  # lowercase, no #
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    room = db.relationship("Room", backref="aliases")
 
 
 class UserRoomNotificationMute(db.Model):

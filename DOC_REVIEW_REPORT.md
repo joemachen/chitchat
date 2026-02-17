@@ -87,4 +87,4 @@ Several documentation files were outdated. Key gaps addressed: Vue migration ref
 
 | Status |
 |--------|
-| No critical updates needed |
+| Merged into ROADMAP.md (Plus-up / backlog section); file removed |

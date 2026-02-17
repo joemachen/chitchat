@@ -25,7 +25,9 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 | **!Simpsons** | Homer replies with a random Simpsons quote (when Homer is online). |
 | **/em** &lt;text&gt; or **/me** &lt;text&gt; | Send an emote: “* username text” in italics. |
 
-**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a room to **Edit room** (name, topic), **Move up/down** (reorder), **Mute notifications**, or **Unmute users** (if muted). Right-click other users for Whois, Message, Mute, etc. Right-click a message for Reply, Add reaction, **Pin/Unpin** (Fam+; max 2 per room), Edit, Delete, Hide, Report, etc. Menus stay within the viewport on desktop and mobile.
+**Context menus** — Right-click (or long-press on mobile) your name to **Edit profile** (status, away message). Right-click a room to **Edit room** (name, topic), **Move up/down** (reorder), **Mute notifications**, or **Unmute users** (if muted). Right-click other users for Whois, Message, Mute, Kick (admin or room moderator). Right-click a message for Reply, Add reaction, **Pin/Unpin** (Fam+; max 2 per room), Edit, Delete, Hide, Report, etc. Menus stay within the viewport on desktop and mobile.
+
+**Room roles** — Room creator is owner; owner can assign moderators. Owner or moderator can kick users from a room (banned users cannot send messages). Room aliases (e.g. `#general`, `#acrophobia`) resolve to room IDs for shareable links.
 
 **Shortcuts** — **Ctrl+K** opens the room switcher; **Esc** closes modals.
 
