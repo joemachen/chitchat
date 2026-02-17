@@ -24,6 +24,9 @@
         {% if error %}
         <p class="error">{{ error }}</p>
         {% endif %}
+        <p class="server-offline-warning" id="serverOfflineWarning" style="display: none;" role="alert">
+            ⛔ 🚨 Server offline for maintenance. Please try again later.
+        </p>
         <form method="post" action="{{ url_for('login_page') }}">
             <label for="username">Username</label>
             <input id="username" name="username" type="text" required autocomplete="username">
@@ -33,13 +36,44 @@
                 <input type="checkbox" name="remember" value="1" id="remember" checked>
                 Remember me
             </label>
-            <button type="submit">Log in</button>
+            <button type="submit" id="loginBtn" disabled>Log in</button>
         </form>
         <p class="footer">
             <a href="{{ url_for('reset_password_page') }}">Forgot password?</a>
             &nbsp;·&nbsp;
             <a href="{{ url_for('register_page') }}">Register</a>
         </p>
+        <p class="server-status" id="serverStatus" aria-live="polite">
+            <span class="server-status-dot" id="serverStatusDot" aria-hidden="true"></span>
+            <span id="serverStatusText">Checking…</span>
+        </p>
     </main>
+    <script>
+(function() {
+    var dot = document.getElementById('serverStatusDot');
+    var text = document.getElementById('serverStatusText');
+    var warning = document.getElementById('serverOfflineWarning');
+    var loginBtn = document.getElementById('loginBtn');
+    if (!dot || !text || !loginBtn) return;
+    function setOnline() {
+        dot.className = 'server-status-dot server-status-online';
+        text.textContent = 'Server online';
+        if (warning) warning.style.display = 'none';
+        loginBtn.disabled = false;
+    }
+    function setOffline() {
+        dot.className = 'server-status-dot server-status-offline';
+        text.textContent = 'Server offline';
+        if (warning) warning.style.display = 'block';
+        loginBtn.disabled = true;
+    }
+    fetch('{{ url_for("health") }}', { method: 'GET', credentials: 'same-origin' })
+        .then(function(r) {
+            if (r.ok) setOnline();
+            else setOffline();
+        })
+        .catch(setOffline);
+})();
+    </script>
 </body>
 </html>

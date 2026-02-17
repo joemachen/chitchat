@@ -58,3 +58,10 @@ body {
 .footer { margin-top: 1.5rem; text-align: center; }
 .footer a { color: #818cf8; text-decoration: none; }
 .footer a:hover { text-decoration: underline; }
+.server-offline-warning { font-size: 1.1rem; font-weight: 600; color: #f87171; text-align: center; margin: 0 0 1rem; padding: 0.75rem; background: rgba(248, 113, 113, 0.1); border-radius: 8px; border: 1px solid rgba(248, 113, 113, 0.3); }
+.auth-card button:disabled { background: #52525b; cursor: not-allowed; opacity: 0.7; }
+.auth-card button:disabled:hover { background: #52525b; }
+.server-status { margin-top: 1rem; font-size: 0.8rem; color: #71717a; display: flex; align-items: center; justify-content: center; gap: 0.4rem; }
+.server-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #52525b; }
+.server-status-dot.server-status-online { background: #4ade80; }
+.server-status-dot.server-status-offline { background: #f87171; }

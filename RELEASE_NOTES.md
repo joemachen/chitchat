@@ -1,5 +1,20 @@
 # Release notes
 
+## v3.5.3 — Login server status, bot isolation, AcroBot status
+
+**Login page**
+- **Server status** — Fetches `/health` on load; shows "Server online" (green) or "Server offline" (red).
+- **Offline handling** — When server is offline: login button disabled, prominent red banner "⛔ 🚨 Server offline for maintenance. Please try again later."
+
+**User list**
+- **Discord-style bot isolation** — Bots (AcroBot, Homer, Prof Frink) in separate "Bots — N" section at top; Online/Offline show only real users.
+- **APP badge** — Purple pill badge on bots for visual identification.
+
+**AcroBot**
+- **Status line** — Seed sets AcroBot's whois status to "QOKPJCKOSJAFHOFASNJK".
+
+---
+
 ## v3.5.2 — Prof Frink and Homer quote expansion
 
 **Prof Frink**

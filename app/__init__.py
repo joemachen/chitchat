@@ -124,12 +124,17 @@ def _seed_default_data(app: Flask) -> None:
                     db.session.commit()
 
             acrobot = User.query.filter_by(username="AcroBot").first()
+            acrobot_status = "QOKPJCKOSJAFHOFASNJK"
             if not acrobot:
                 acrobot = User(
                     username="AcroBot",
                     password_hash=generate_password_hash("system-bot-no-login"),
+                    status_line=acrobot_status,
                 )
                 db.session.add(acrobot)
+                db.session.commit()
+            elif getattr(acrobot, "status_line", None) != acrobot_status:
+                acrobot.status_line = acrobot_status
                 db.session.commit()
             system_user = User.query.filter_by(username="System").first()
             if not system_user:
