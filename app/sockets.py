@@ -414,6 +414,21 @@ def _broadcast_new_message_impl(socket_io, room_id, msg_dict):
     if socket_io:
         socket_io.emit("new_message", msg_dict, room=f"room_{room_id}")
         current_viewing = {uid: rid for uid, (rid, _) in _user_id_to_room.items()}
+        # Update UserRoomRead for users currently viewing this room so unread stays accurate when they leave
+        msg_id = msg_dict.get("id")
+        if msg_id:
+            for uid in set(_sid_to_user_id.values()):
+                if current_viewing.get(uid) == room_id:
+                    urr = UserRoomRead.query.filter_by(user_id=uid, room_id=room_id).first()
+                    if urr:
+                        if urr.last_message_id < msg_id:
+                            urr.last_message_id = msg_id
+                    else:
+                        db.session.add(UserRoomRead(user_id=uid, room_id=room_id, last_message_id=msg_id))
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         sender_id = msg_dict.get("user_id")
         try:
             muted_user_ids = {r.user_id for r in UserRoomNotificationMute.query.filter_by(room_id=room_id).all()}
@@ -910,6 +925,11 @@ def register_socket_handlers(socketio):
         else:
             # Paginate: try cache first, else DB. Server-side room-mute filter.
             room_mute_set = _get_room_mutes_for_user(user_id, room_id)
+            # System Events: never filter out System user's messages (deploy announcements, etc.)
+            if room_obj.name.strip() == "System Events":
+                sys_user = User.query.filter_by(username="System").first()
+                if sys_user:
+                    room_mute_set = room_mute_set - {sys_user.id}
             cached = get_cached_messages(room_id, 100)
             if cached and len(cached) > 0:
                 filtered = [m for m in cached if m.get("user_id") not in room_mute_set]

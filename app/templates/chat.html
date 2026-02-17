@@ -3542,7 +3542,7 @@ chitchatApp.mount('#app');
     });
 
     socket.on('unread_incremented', function(data) {
-        if (data && data.room_id) addUnreadForRoom(data.room_id);
+        if (data && data.room_id && (!state.currentRoom || state.currentRoom.id !== data.room_id)) addUnreadForRoom(data.room_id);
     });
 
     socket.on('reaction_updated', function(data) {

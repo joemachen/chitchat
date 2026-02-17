@@ -1,5 +1,16 @@
 # Release notes
 
+## v3.5.1 — System Events history, unread indicator fixes
+
+**System Events history**
+- System Events channel now always shows historical messages. Previously, if the System user was muted in that room, all messages were filtered out and history appeared empty. System user messages are no longer filtered in System Events.
+
+**Unread indicator (red dot)**
+- Red dot now clears correctly when leaving a channel. Previously, viewing a channel and then switching away could cause the indicator to reappear because `UserRoomRead` was only updated on join, not when new messages arrived while viewing. The server now updates read position when you receive messages in the room you're viewing.
+- Client ignores `unread_incremented` for the room you're currently viewing (defensive guard).
+
+---
+
 ## v3.5.0 — Room roles, message cache, Matrix-inspired features
 
 **Room roles**
