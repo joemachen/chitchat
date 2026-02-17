@@ -242,17 +242,27 @@ def create_app() -> Flask:
     # Skip when gunicorn_run already ran maintenance (faster startup for Koyeb health checks)
     if not os.environ.get("CHITCHAT_MAINTENANCE_DONE"):
         with app.app_context():
+            migrations_ok = True
             try:
                 from flask_migrate import upgrade
                 upgrade()
+            except Exception as e:
+                logger.exception("Migrations on startup failed: %s", e)
+                migrations_ok = False
+                # Continue to seed/deploy — schema may be partially applied; core tables usually exist
+            try:
                 _seed_default_data(app)
                 _run_message_retention_cleanup(app)
                 _post_deploy_announcement(app)
             except Exception as e:
-                logger.exception("Migrations/seed on startup failed: %s", e)
+                logger.exception("Seed/deploy on startup failed: %s", e)
                 raise RuntimeError(
-                    f"Database migrations failed: {e}. Run 'flask db upgrade' manually, or fix the error above."
+                    f"Database seed/deploy failed: {e}. Check logs and run 'flask db upgrade' if needed."
                 ) from e
+            if not migrations_ok:
+                logger.warning(
+                    "App started with migration failures. Run 'flask db upgrade' manually to fix."
+                )
 
     from app.routes import register_routes
     register_routes(app)
