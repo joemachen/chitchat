@@ -229,39 +229,6 @@ class RoomMute(db.Model):
     __table_args__ = (UniqueConstraint("room_id", "muted_user_id", "muted_by_id", name="uq_room_mute"),)
 
 
-class RoomMember(db.Model):
-    """Per-room role: owner, moderator, or member. Owner can assign moderators; moderator can kick from room."""
-    __tablename__ = "room_members"
-
-    id = db.Column(db.Integer, primary_key=True)
-    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    role = db.Column(db.String(20), nullable=False)  # owner | moderator | member
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_room_member"),)
-
-    room = db.relationship("Room", backref="members")
-    user = db.relationship("User", backref="room_memberships")
-
-
-class RoomBan(db.Model):
-    """User banned from a room; cannot send messages. Set by room owner or moderator."""
-    __tablename__ = "room_bans"
-
-    id = db.Column(db.Integer, primary_key=True)
-    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
-    banned_user_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False, index=True)
-    banned_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (UniqueConstraint("room_id", "banned_user_id", name="uq_room_ban"),)
-
-    room = db.relationship("Room", backref="bans")
-    banned_user = db.relationship("User", foreign_keys=[banned_user_id])
-    banned_by = db.relationship("User", foreign_keys=[banned_by_id])
-
-
 class UserPrivateData(db.Model):
     """Key/value store per user for preferences (theme, notification toggles, etc.). Matrix-inspired."""
     __tablename__ = "user_private_data"

@@ -30,9 +30,7 @@
 ## v3.5.0 — Room roles, message cache, Matrix-inspired features
 
 **Room roles**
-- **Per-room roles** — Owner, moderator, member. Room creator is owner; owner can assign moderators.
-- **Room-level kick** — Owner or moderator can ban a user from a room (banned user cannot send messages). New socket: `kick_from_room`.
-- **Set moderator** — Owner can promote/demote moderators via `set_room_moderator`.
+- **Server-level roles only** — Roles (rookie, bro, fam, super_admin) set by Super Admin in Settings; permissions (create_room, update_room, delete_room, kick_user, etc.) are role-based.
 - **Edit/delete** — Room owner or moderator can edit room (e.g. topic); owner can delete (with existing permission checks).
 
 **Last N messages cache**

@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room roles** (owner, moderator; room-level kick/ban), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
 
@@ -59,14 +59,13 @@ chitchat/
 │   ├── __init__.py        # App factory, DB init, migrations, SocketIO init, route/socket registration
 │   ├── config.py          # Config class (SECRET_KEY, DB, INVITE_CODE, session)
 │   ├── logging_config.py  # File handlers for app.log and errors.log; no console by default
-│   ├── models.py          # User, Room, Message, RoomMember, RoomBan, UserPrivateData, RoomAlias, AcroScore, AppSetting, ...
+│   ├── models.py          # User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, ...
 │   ├── auth.py            # Invite validation, register, login, remember token, password reset
 │   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat, /upload, /health, /export, /delete-account
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
 │   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
 │   ├── homer.py           # Homer bot (!Simpsons trigger, random quotes, online/offline toggle)
 │   ├── prof_frink.py      # Prof Frink trivia bot (!trivia, !daily, !set-difficulty, !set-seasons / /set seasons)
-│   ├── room_roles.py      # Room roles (owner, moderator); room-level kick/ban
 │   ├── room_aliases.py    # Room aliases (#general → room_id); join by alias
 │   ├── user_private_data.py # Key/value preferences per user (Matrix-inspired)
 │   ├── message_cache.py  # In-memory cache of last 100 messages per room
@@ -175,11 +174,11 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `send_message` | `on_send_message` | Yes | Slash-command handling and/or persist message; broadcast `new_message`. |
 | `create_room` | `on_create_room` | Super Admin or create_room | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
 | `update_room` | `on_update_room` | Super Admin or update_room | Rename room; emit `topic_updated`-style update. Protected channels: only Super Admin can rename. |
-| `delete_room` | `on_delete_room` | Super Admin or delete_room | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
+| `delete_room` | `on_delete_room` | Super Admin or delete_room or DM participant | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
 | `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
 | `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
 | `get_or_create_dm` | `on_get_or_create_dm` | Yes | Find or create DM room between current user and `other_user_id`; emit `dm_room`; if created, broadcast `rooms_updated`. |
-| `kick_user` | `on_kick_user` | Super Admin or kick_user | Emit `kicked_from_room` to target’s socket(s). AcroBot and Homer: Super Admin only. |
+| `kick_user` | `on_kick_user` | Super Admin or kick_user | Emit `kicked_from_app` to target’s socket(s). AcroBot and Homer: Super Admin only. |
 | `set_super_admin` | `on_set_super_admin` | Super Admin only | Set/unset `is_super_admin`; broadcast `user_list_updated`. |
 | `get_acrobot_status` | `on_get_acrobot_status` | Any | Emit `acrobot_status` (active flag). |
 | `set_acrobot_active` | `on_set_acrobot_active` | Super Admin or acrobot_control | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
@@ -250,7 +249,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 - **Authentication**: All socket handlers that need a user check `session.get("user_id")`; unauthenticated connect is rejected.
 - **Super Admin** (top role, `rank='super_admin'`): Checked via `_is_super_admin(user_id)` (User.is_super_admin). Full access; only Super Admin can assign Super Admin (`set_super_admin`) and configure role permissions. Other actions use `_has_permission()`: Super Admin always allowed; else checks `role_permissions` table (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all).
-- **Room membership**: No per-room membership table; any authenticated user can join any room and send messages. Kick only notifies the target client (`kicked_from_room`) and does not remove from DB “membership” (there is none).
+- **Room membership**: No per-room membership table; any authenticated user can join any room and send messages. Server-level kick (`kick_user`) disconnects target and redirects to login. No per-room membership (`kicked_from_app`) and does not remove from DB “membership” (there is none).
 - **Input**: Slash commands are parsed server-side; message content is stored as-is (no rich HTML from client). Frontend escapes/links content (e.g. linkify) when rendering.
 - **CORS**: `cors_allowed_origins=[]` (same-origin only by default).
 - **Secrets**: SECRET_KEY and INVITE_CODE should be overridden in production; no secrets in repo.
@@ -282,14 +281,13 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
 | `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.0); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
-| `app/models.py` | User, Room, Message, RoomMember, RoomBan, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
+| `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account; before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
 | `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting, L'il Bro/Homey nicknames), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
 | `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote, get_homer_dm_reply; !Simpsons trigger in any room; DM replies. |
 | `app/prof_frink.py` | Prof Frink trivia bot: !trivia (45s per question), !daily, !set-difficulty, !set-seasons / /set seasons, !settings; hot streaks; DM replies. |
-| `app/room_roles.py` | Room roles (owner, moderator); is_room_owner, is_room_moderator, is_banned_from_room; add_room_member, ban_user_from_room, set_room_moderator. |
 | `app/room_aliases.py` | resolve_alias, get_room_aliases, set_room_alias; join_room accepts alias. |
 | `app/user_private_data.py` | get_private_data, set_private_data; key/value preferences per user (Matrix-inspired). |
 | `app/message_cache.py` | In-memory cache of last 100 messages per room; cache_append, get_cached_messages; used on join/reconnect. |

@@ -58,7 +58,6 @@ from app.logging_config import get_logger
 from app.message_cache import cache_append, cache_clear_room, cache_remove, cache_update, get_cached_messages, validate_message_payload
 from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, PinnedMessage, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
 from app.room_aliases import get_room_aliases, resolve_alias, set_room_alias
-from app.room_roles import add_room_member, ban_user_from_room, get_room_moderators, is_banned_from_room, is_room_moderator, is_room_owner, set_room_moderator, unban_user_from_room
 from app.user_private_data import get_all_private_data, get_private_data, set_private_data
 
 logger = get_logger()
@@ -1068,10 +1067,6 @@ def register_socket_handlers(socketio):
         room_obj = Room.query.get(room_id)
         if not room_obj:
             emit("error", {"message": "Room not found"})
-            return
-        # Room ban: non-DM rooms only
-        if room_obj.dm_with_id is None and is_banned_from_room(room_id, user_id):
-            emit("error", {"message": "You are banned from this room"})
             return
         # Matrix-inspired: reject oversized payloads
         if not validate_message_payload(content):
@@ -2373,7 +2368,6 @@ def register_socket_handlers(socketio):
         room = Room(name=name, created_by_id=user_id)
         db.session.add(room)
         db.session.commit()
-        add_room_member(room.id, user_id, "owner")
         _audit_log(user_id, "create_room", "room", room.id, {"name": name})
         rooms = Room.query.order_by(Room.name).all()
         socketio.emit("rooms_updated", {"rooms": [r.to_dict() for r in rooms]})
@@ -2403,10 +2397,8 @@ def register_socket_handlers(socketio):
         if not room:
             emit("error", {"message": "Room not found"})
             return
-        is_owner = is_room_owner(room_id, user_id)
-        is_mod = is_room_moderator(room_id, user_id)
-        if not _has_permission(user_id, "update_room") and not is_owner and not is_mod:
-            emit("error", {"message": "Only admins, room owners, or users with edit permission can edit channels"})
+        if not _has_permission(user_id, "update_room"):
+            emit("error", {"message": "Only admins or users with edit permission can edit channels"})
             return
         if getattr(room, "is_protected", False) and name and not _is_super_admin(user_id):
             emit("error", {"message": "Only an admin can rename protected channels"})
@@ -2473,9 +2465,9 @@ def register_socket_handlers(socketio):
         if not room:
             emit("error", {"message": "Room not found"})
             return
-        is_owner = is_room_owner(room_id, user_id) or (room.dm_with_id and (room.created_by_id == user_id or room.dm_with_id == user_id))
-        if not _has_permission(user_id, "delete_room") and not is_owner:
-            emit("error", {"message": "Only admins, room owners, or users with delete permission can delete channels"})
+        is_dm_participant = room.dm_with_id and (room.created_by_id == user_id or room.dm_with_id == user_id)
+        if not _has_permission(user_id, "delete_room") and not is_dm_participant:
+            emit("error", {"message": "Only admins, users with delete permission, or DM participants can delete"})
             return
         general = Room.query.filter_by(name="general").first()
         if general and room.id == general.id:
@@ -2714,73 +2706,6 @@ def register_socket_handlers(socketio):
                 socketio_disconnect(sid)
                 logger.info("User %s kicked user %s out of the app", user_id, target_id)
                 break
-
-    @socketio.on("kick_from_room")
-    def on_kick_from_room(data):
-        """Ban user from room (room-level kick). Room owner or moderator only."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        room_id = (data or {}).get("room_id")
-        target_id = (data or {}).get("target_user_id")
-        if not room_id or not target_id:
-            emit("error", {"message": "room_id and target_user_id required"})
-            return
-        try:
-            room_id = int(room_id)
-            target_id = int(target_id)
-        except (TypeError, ValueError):
-            emit("error", {"message": "Invalid ids"})
-            return
-        if not is_room_moderator(room_id, user_id) and not _has_permission(user_id, "kick_user"):
-            emit("error", {"message": "Only room owner, moderator, or admin can kick from room"})
-            return
-        room = Room.query.get(room_id)
-        if not room or room.dm_with_id:
-            emit("error", {"message": "Room not found or DMs cannot be kicked"})
-            return
-        if target_id == user_id:
-            emit("error", {"message": "Cannot kick yourself"})
-            return
-        ban_user_from_room(room_id, target_id, user_id)
-        _audit_log(user_id, "kick_from_room", "user", target_id, {"room_id": room_id})
-        emit("user_kicked_from_room", {"room_id": room_id, "target_user_id": target_id})
-        socketio.emit("user_kicked_from_room", {"room_id": room_id, "target_user_id": target_id}, room=f"room_{room_id}")
-        logger.info("User %s kicked user %s from room %s", user_id, target_id, room_id)
-
-    @socketio.on("set_room_moderator")
-    def on_set_room_moderator(data):
-        """Set or unset room moderator. Room owner only."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        room_id = (data or {}).get("room_id")
-        target_id = (data or {}).get("target_user_id")
-        is_mod = (data or {}).get("is_moderator", True)
-        if not room_id or not target_id:
-            emit("error", {"message": "room_id and target_user_id required"})
-            return
-        try:
-            room_id = int(room_id)
-            target_id = int(target_id)
-        except (TypeError, ValueError):
-            emit("error", {"message": "Invalid ids"})
-            return
-        if not is_room_owner(room_id, user_id):
-            emit("error", {"message": "Only room owner can set moderators"})
-            return
-        room = Room.query.get(room_id)
-        if not room or room.dm_with_id:
-            emit("error", {"message": "Room not found or DMs have no moderators"})
-            return
-        if set_room_moderator(room_id, target_id, is_mod):
-            mods = get_room_moderators(room_id)
-            emit("room_moderators_updated", {"room_id": room_id, "moderators": mods})
-            socketio.emit("room_moderators_updated", {"room_id": room_id, "moderators": mods}, room=f"room_{room_id}")
-        else:
-            emit("error", {"message": "Cannot demote room owner"})
 
     @socketio.on("get_private_data")
     def on_get_private_data(data):

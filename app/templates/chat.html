@@ -1553,13 +1553,12 @@ const chitchatApp = createApp({
         function canEditRoom(r) {
             if (!r) return false;
             var isProtected = r.is_protected === true;
-            var isOwner = r.created_by_id === currentUserIdNum;
-            return isProtected ? isSuperAdminFlag : (isSuperAdminFlag || isOwner || (userPermissionsObj && userPermissionsObj.update_room));
+            return isProtected ? isSuperAdminFlag : (isSuperAdminFlag || (userPermissionsObj && userPermissionsObj.update_room));
         }
         function canDeleteRoom(r) {
             if (!r || r.is_protected || r.name === 'general') return false;
-            var isOwner = r.created_by_id === currentUserIdNum;
-            return (isSuperAdminFlag || isOwner || (userPermissionsObj && userPermissionsObj.delete_room));
+            var isDmParticipant = r.is_dm && (r.created_by_id === currentUserIdNum || r.dm_with_id === currentUserIdNum);
+            return (isSuperAdminFlag || isDmParticipant || (userPermissionsObj && userPermissionsObj.delete_room));
         }
         function onRoomClick(rid, ev) {
             if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
@@ -2291,12 +2290,12 @@ chitchatApp.mount('#app');
             }
         }
         var editBtn = roomContextMenuEl.querySelector('[data-action="room-edit"]');
-        if (editBtn) editBtn.style.display = (!room.is_dm && (room.is_protected ? isSuperAdmin : (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.update_room)))) ? 'block' : 'none';
+        if (editBtn) editBtn.style.display = (!room.is_dm && (room.is_protected ? isSuperAdmin : (isSuperAdmin || (userPermissions && userPermissions.update_room)))) ? 'block' : 'none';
         if (roomToggleProtectedBtn) {
             roomToggleProtectedBtn.style.display = isSuperAdmin ? 'block' : 'none';
             roomToggleProtectedBtn.textContent = room.is_protected ? 'Unmark as protected' : 'Mark as protected';
         }
-        if (roomDeleteBtn) roomDeleteBtn.style.display = (!room.is_dm && room.name !== 'general' && !room.is_protected && (isSuperAdmin || room.created_by_id === currentUserId || (userPermissions && userPermissions.delete_room))) ? 'block' : 'none';
+        if (roomDeleteBtn) roomDeleteBtn.style.display = (!room.is_dm && room.name !== 'general' && !room.is_protected && (isSuperAdmin || (userPermissions && userPermissions.delete_room))) || (room.is_dm && (room.created_by_id === currentUserId || room.dm_with_id === currentUserId)) ? 'block' : 'none';
         if (roomMuteNotificationsBtn) {
             roomMuteNotificationsBtn.style.display = 'block';
             roomMuteNotificationsBtn.textContent = state.roomNotificationMuted[room.id] ? 'Unmute notifications' : 'Mute notifications';
@@ -3422,14 +3421,6 @@ chitchatApp.mount('#app');
     socket.on('user_stats', function(data) {
         if (!data) return;
         if (state.activeSettingsTab === 'profile') state.profileUserStats = data;
-    });
-
-    socket.on('kicked_from_room', function(data) {
-        if (data.room_id && state.currentRoom && state.currentRoom.id === data.room_id) {
-            var general = state.allRooms.find(function(r) { return r.name === 'general'; });
-            if (general) switchRoom(general.id);
-            showPingToast('You were kicked from ' + (state.currentRoom ? state.currentRoom.name : '') + '.');
-        }
     });
 
     socket.on('kicked_from_app', function(data) {
