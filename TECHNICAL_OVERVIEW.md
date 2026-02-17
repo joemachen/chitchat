@@ -52,7 +52,7 @@ chitchat/
 ├── run_standalone.py      # Optional: pywebview wrapper
 ├── run.bat / run-standalone.bat
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–025
+├── migrations/            # Flask-Migrate (Alembic) versions 001–026
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -61,7 +61,7 @@ chitchat/
 │   ├── logging_config.py  # File handlers for app.log and errors.log; no console by default
 │   ├── models.py          # User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, ...
 │   ├── auth.py            # Invite validation, register, login, remember token, password reset
-│   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat, /upload, /health, /export, /delete-account
+│   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat, /upload, /health, /export, /delete-account, /api/set-user-roles
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
 │   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
 │   ├── homer.py           # Homer bot (!Simpsons trigger, random quotes, online/offline toggle)
@@ -85,13 +85,13 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–025), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–026), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="gevent"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color` on `users`; `room_id`, `message_type` on `messages`). Versions 001–025. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color` on `users`; `room_id`, `message_type` on `messages`). Versions 001–026. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
 
 ### 3.3 Design principles
 
@@ -223,7 +223,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `3.1.0`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `3.5.4`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 
@@ -280,18 +280,18 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.0); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.4); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
-| `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account; before_request (restore session from remember); context_processor (inject user). |
+| `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account, POST /api/set-user-roles (role changes); before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
 | `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting, L'il Bro/Homey nicknames), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
 | `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote, get_homer_dm_reply; !Simpsons trigger in any room; DM replies. |
 | `app/prof_frink.py` | Prof Frink trivia bot: !trivia (45s per question), !daily, !set-difficulty, !set-seasons / /set seasons, !settings; hot streaks; DM replies. |
 | `app/room_aliases.py` | resolve_alias, get_room_aliases, set_room_alias; join_room accepts alias. |
 | `app/user_private_data.py` | get_private_data, set_private_data; key/value preferences per user (Matrix-inspired). |
-| `app/message_cache.py` | In-memory cache of last 100 messages per room; cache_append, get_cached_messages; used on join/reconnect. |
+| `app/message_cache.py` | In-memory cache of last 100 messages per room; cache_append, get_cached_messages; returns ascending order (oldest first); used on join/reconnect. |
 | `app/link_preview.py` | get_previews_for_message_content; OG metadata and YouTube oEmbed for link previews. |
 | `app/templates/chat.html` | Full chat UI (Vue 3): room list, messages, user list, context menu, Settings view, socket listeners, modals (profile, whois, edit message/room, search, room switcher Ctrl+K). |
 

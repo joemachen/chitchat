@@ -63,10 +63,8 @@ def get_cached_messages(room_id: int, limit: int = 50) -> list[dict] | None:
         q = _cache.get(room_id)
         if not q or len(q) == 0:
             return None
-        # deque is newest at right; we want oldest first for display
-        msgs = list(q)[-limit:]
-        msgs.reverse()
-        return msgs
+        # deque is newest at right; [-limit:] gives last N in ascending order (oldest first)
+        return list(q)[-limit:]
 
 
 def validate_message_payload(content: str | None, max_len: int = MAX_CONTENT_LEN) -> bool:

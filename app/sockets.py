@@ -1495,7 +1495,7 @@ def register_socket_handlers(socketio):
                 "• Right-click message → Reply, Add reaction, Pin/Unpin (Fam+), Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message",
                 "• Right-click user → Whois, Message, Mute, Kick (admin or kick_user permission); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",
                 "• Right-click room → Move up, Move down, Mute notifications, Edit room, Unmute users (if muted); long-press on mobile",
-                "• Server-level roles — Super Admin sets roles (rookie, bro, fam) and permissions in Settings; kick_user = server-level kick",
+                "• Server-level roles — Super Admin sets roles (rookie, bro, fam) and permissions in Settings → Users - Roles; click Save rankings to apply; kick_user = server-level kick",
                 "• Settings → Profile — nick, status, visibility, away message, bio, avatar color, notification prefs, Log out",
                 "• Mobile: Log out in Settings tab or room list footer (scroll to bottom of Rooms/DMs); long-press room for context menu",
                 "• Ctrl+K — room switcher; Esc — close modals; destructive actions use in-app confirm dialogs",

@@ -1,5 +1,17 @@
 # Release notes
 
+## v3.5.4 — Message order fix, role save improvements
+
+**Message order**
+- **Cache bug fix** — Room messages loaded from the in-memory cache were incorrectly reversed (newest at top, oldest at bottom). `get_cached_messages` now returns ascending order (oldest first) for display, matching the DB path.
+
+**Settings → Users - Roles**
+- **Save rankings** — Explicit Save rankings button to persist role changes; success/error toasts; reverts on failure.
+- **HTTP API** — Role changes now use POST `/api/set-user-roles` instead of socket; fixes Vue reactivity and persistence for new users.
+- **Tab rename** — Settings tab renamed to "Users - Roles" for clarity.
+
+---
+
 ## v3.5.3 — Login server status, bot isolation, AcroBot status
 
 **Login page**
