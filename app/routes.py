@@ -274,6 +274,11 @@ def register_routes(app):
             remember = request.form.get("remember") == "1"
             user, err = register_user(username, password, invite_code)
             if user:
+                try:
+                    from app.sockets import broadcast_user_list_updated
+                    broadcast_user_list_updated()
+                except Exception:
+                    pass
                 return _login_success_response(user, remember)
             return render_template("register.html", error=err)
         return render_template("register.html")

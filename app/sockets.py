@@ -680,6 +680,17 @@ def _start_daily_trivia_scheduler(socket_io):
     logger.info("Daily trivia scheduler started; first post in %d seconds (%.1f h)", secs, secs / 3600)
 
 
+def broadcast_user_list_updated():
+    """Broadcast user list to all connected clients. Call from routes (e.g. after registration)."""
+    from flask import current_app
+    socketio_instance = getattr(current_app, "socketio", None)
+    if socketio_instance:
+        try:
+            socketio_instance.emit("user_list_updated", {"users": _get_users_with_online_status()})
+        except Exception as e:
+            logger.warning("broadcast_user_list_updated failed: %s", e)
+
+
 def _periodic_presence_broadcast(socketio):
     """Broadcast user list periodically to correct any stale presence state on clients."""
     try:

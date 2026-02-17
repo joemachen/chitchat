@@ -3088,7 +3088,13 @@ chitchatApp.mount('#app');
         });
     }
     function settingsSetUserRank(userId, rank) {
-        if (rank) socket.emit('set_user_rank', { target_user_id: userId, rank: rank });
+        if (!rank) return;
+        var r = (rank || '').trim().toLowerCase();
+        if (r && state.allUsersWithStatus) {
+            var u = state.allUsersWithStatus.find(function(x) { return x.id === userId; });
+            if (u) u.rank = r;
+        }
+        socket.emit('set_user_rank', { target_user_id: userId, rank: rank });
     }
     function settingsDeleteUser(userId, username) {
         showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {
