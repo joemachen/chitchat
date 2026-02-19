@@ -263,13 +263,20 @@ def _get_bot_user_ids():
 
 
 def _get_stats():
-    """Compute stats from Message table: top typers, active hours, favorite words per user (top 10s). Real users only (no bots)."""
+    """Compute stats from Message table: top typers, active hours, favorite words per user (top 10s). Excludes bots."""
     bot_ids = _get_bot_user_ids()
-    # Top 10 typers (message count per user)
-    q_typers = db.session.query(Message.user_id, func.count(Message.id).label("count")).group_by(Message.user_id)
+    # Top 10 typers (message count per user) - fetch extra then filter bots in Python
+    top_typers_q = (
+        db.session.query(Message.user_id, func.count(Message.id).label("count"))
+        .group_by(Message.user_id)
+        .order_by(func.count(Message.id).desc())
+        .limit(100)
+        .all()
+    )
     if bot_ids:
-        q_typers = q_typers.filter(~Message.user_id.in_(bot_ids))
-    top_typers_q = q_typers.order_by(func.count(Message.id).desc()).limit(10).all()
+        top_typers_q = [(uid, c) for uid, c in top_typers_q if uid not in bot_ids][:10]
+    else:
+        top_typers_q = top_typers_q[:10]
     user_ids = [r[0] for r in top_typers_q]
     users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
     top_typers = [
