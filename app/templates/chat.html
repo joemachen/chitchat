@@ -179,8 +179,8 @@
         .stats-chart-wrap > div:first-child { display: flex; align-items: stretch; }
         .stats-chart-y-axis { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.7rem; color: #71717a; padding-right: 0.5rem; min-width: 1.5rem; }
         .stats-chart-bars-wrap { display: flex; align-items: stretch; gap: 2px; flex: 1; min-height: 120px; height: 120px; }
-        .stats-chart-hour-group { display: flex; align-items: flex-end; justify-content: center; gap: 1px; flex: 1; min-width: 0; height: 100%; }
-        .stats-chart-bar { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; transition: height 0.2s; }
+        .stats-chart-hour-group { display: flex; align-items: flex-end; justify-content: center; gap: 1px; flex: 1; min-width: 4px; height: 100%; }
+        .stats-chart-bar { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; transition: height 0.2s; flex-shrink: 0; }
         .stats-chart-x-axis { display: flex; font-size: 0.7rem; color: #71717a; }
         .stats-chart-x-label { text-align: center; }
         .stats-chart-legend { font-size: 0.75rem; color: #71717a; margin-top: 0.25rem; }
@@ -237,6 +237,8 @@
         .msg-attachment { margin-top: 0.35rem; }
         .msg-attachment img { max-width: 280px; max-height: 200px; width: auto; height: auto; object-fit: contain; border-radius: 6px; display: block; cursor: pointer; }
         .msg-inline-gif { max-width: 280px; max-height: 200px; width: auto; height: auto; object-fit: contain; border-radius: 6px; display: block; cursor: pointer; }
+        .msg-inline-media-wrap { display: inline-block; }
+        .msg-inline-fallback { cursor: pointer; text-decoration: underline; }
         .msg-attachment a.attachment-file { color: #818cf8; text-decoration: none; font-size: 0.9rem; }
         .msg-attachment a.attachment-file:hover { text-decoration: underline; }
         .form-wrap input:focus, .form-wrap textarea:focus { outline: none; border-color: #6366f1; }
@@ -987,8 +989,8 @@
                         <div class="stats-chart-wrap">
                             <div class="stats-chart-y-axis"><span>{{ statsMaxCount }}</span><span>0</span></div>
                             <div class="stats-chart-bars-wrap">
-                                <div v-for="hour in 24" :key="hour" class="stats-chart-hour-group" :title="(hour === 1 ? '12' : hour > 12 ? hour - 12 : hour) + (hour < 12 ? 'am' : 'pm')">
-                                    <div v-for="(d, di) in statsActiveHours" :key="d.day" class="stats-chart-bar" :style="{ height: (statsMaxCount ? 100 * ((d.counts || [])[hour - 1] || 0) / statsMaxCount : 0) + '%', background: statsDayColors[di] || '#6366f1' }" :title="d.day + ': ' + ((d.counts || [])[hour - 1] || 0)"></div>
+                                <div v-for="n in 24" :key="'h'+n" class="stats-chart-hour-group" :title="formatHourLabel(n-1)">
+                                    <div v-for="(d, di) in statsActiveHours" :key="d.day" class="stats-chart-bar" :style="{ height: (statsMaxCount > 0 ? 100 * ((d.counts || [])[n-1] || 0) / statsMaxCount : 0) + '%', background: statsDayColors[di] || '#6366f1' }" :title="d.day + ': ' + ((d.counts || [])[n-1] || 0)"></div>
                                 </div>
                             </div>
                             <div class="stats-chart-x-axis">
@@ -1691,6 +1693,17 @@ const chitchatApp = createApp({
             if (!url) return false;
             return /\.gif(\?|$)/i.test(url) || /\.mp4(\?|$)/i.test(url) || /giphy\.com/i.test(url) || /tenor\.com/i.test(url) || /media\.giphy\.com/i.test(url) || /i\.giphy\.com/i.test(url);
         }
+        function getVideoUrlForInline(url) {
+            if (!url) return null;
+            if (/\.mp4(\?|$)/i.test(url)) return url;
+            if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url))
+                return url.replace(/\.gif(\?|$)/i, '.mp4$1');
+            if (/media\.tenor\.com/i.test(url) && !/\.(gif|mp4|webm)(\?|$)/i.test(url)) {
+                var q = url.indexOf('?');
+                return q >= 0 ? url.slice(0, q) + '.mp4' + url.slice(q) : url + '.mp4';
+            }
+            return null;
+        }
         function linkPreviewsForMessage(msg) {
             var raw = msg && msg.link_previews;
             var previews = [];
@@ -1711,14 +1724,9 @@ const chitchatApp = createApp({
             // Replace marked's autolink <a href="GIF_URL">...</a> with inline playing GIF
             html = html.replace(/<a href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi, function(match, url) {
                 if (isGifUrl(url)) {
-                    var videoUrl = null;
-                    if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url)) {
-                        videoUrl = url.replace(/\.gif(\?|$)/i, '.mp4$1');
-                    } else if (/\.mp4(\?|$)/i.test(url)) {
-                        videoUrl = url;
-                    }
+                    var videoUrl = getVideoUrlForInline(url);
                     if (videoUrl) {
-                        return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(videoUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
+                        return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer" class="msg-inline-media-wrap"><video src="' + escA(videoUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline preload="metadata" title="Click to pause" onclick="this.paused?this.play():this.pause();" onerror="this.style.display=\'none\';var s=this.nextElementSibling;if(s)s.style.display=\'inline\';"></video><span class="msg-inline-fallback" style="display:none;color:#818cf8;font-size:0.9rem;">Open video</span></a>';
                     }
                     return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
                 }
@@ -1730,13 +1738,8 @@ const chitchatApp = createApp({
                 url = (url || match).replace(/[.,;:)]+$/, '');
                 var isGif = isGifUrl(url);
                 if (isGif) {
-                    var vUrl = null;
-                    if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url)) {
-                        vUrl = url.replace(/\.gif(\?|$)/i, '.mp4$1');
-                    } else if (/\.mp4(\?|$)/i.test(url)) {
-                        vUrl = url;
-                    }
-                    if (vUrl) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(vUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
+                    var vUrl = getVideoUrlForInline(url);
+                    if (vUrl) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer" class="msg-inline-media-wrap"><video src="' + escA(vUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline preload="metadata" title="Click to pause" onclick="this.paused?this.play():this.pause();" onerror="this.style.display=\'none\';var s=this.nextElementSibling;if(s)s.style.display=\'inline\';"></video><span class="msg-inline-fallback" style="display:none;color:#818cf8;font-size:0.9rem;">Open video</span></a>';
                     return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
                 }
                 return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>';

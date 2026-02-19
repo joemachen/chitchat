@@ -254,12 +254,22 @@ def _rooms_sorted_for_user(user_id):
     return ordered + remaining
 
 
+def _get_bot_user_ids():
+    """Return set of user IDs for bots (AcroBot, Homer, Prof Frink, System). Excluded from stats."""
+    bot_users = User.query.filter(
+        User.username.in_(["AcroBot", "Homer", "Prof Frink", "System"])
+    ).all()
+    return {u.id for u in bot_users}
+
+
 def _get_stats():
-    """Compute stats from Message table: top typers, active hours, favorite words per user (top 10s)."""
+    """Compute stats from Message table: top typers, active hours, favorite words per user (top 10s). Real users only (no bots)."""
+    bot_ids = _get_bot_user_ids()
     # Top 10 typers (message count per user)
-    top_typers_q = (
-        db.session.query(Message.user_id, func.count(Message.id).label("count"))
-        .group_by(Message.user_id)
+    q_typers = db.session.query(Message.user_id, func.count(Message.id).label("count")).group_by(Message.user_id)
+    if bot_ids:
+        q_typers = q_typers.filter(~Message.user_id.in_(bot_ids))
+    top_typers_q = q_typers.order_by(func.count(Message.id).desc()).limit(10).all()
         .order_by(func.count(Message.id).desc())
         .limit(10)
         .all()
@@ -281,11 +291,10 @@ def _get_stats():
         else:
             dow_expr = func.strftime("%w", Message.created_at)  # 0=Sun, returns string
             hour_expr = func.strftime("%H", Message.created_at)
-        rows = (
-            db.session.query(dow_expr.label("dow"), hour_expr.label("hour"), func.count(Message.id).label("count"))
-            .group_by(dow_expr, hour_expr)
-            .all()
-        )
+        q_hours = db.session.query(dow_expr.label("dow"), hour_expr.label("hour"), func.count(Message.id).label("count")).group_by(dow_expr, hour_expr)
+        if bot_ids:
+            q_hours = q_hours.filter(~Message.user_id.in_(bot_ids))
+        rows = q_hours.all()
         # Build {dow: {hour: count}}
         by_day = {d: {h: 0 for h in range(24)} for d in range(7)}
         for dow, hour, count in rows:
@@ -305,7 +314,10 @@ def _get_stats():
     except Exception:
         active_hours_by_day = [{"day": day_names[d], "day_num": d, "counts": [0] * 24} for d in range(7)]
     # Favorite words per user (top 5 users, top 10 words each; exclude stop words)
-    all_msgs = Message.query.filter(Message.message_type == "chat").with_entities(Message.user_id, Message.content).all()
+    q_all = Message.query.filter(Message.message_type == "chat").with_entities(Message.user_id, Message.content)
+    if bot_ids:
+        q_all = q_all.filter(~Message.user_id.in_(bot_ids))
+    all_msgs = q_all.all()
     word_re = re.compile(r"[a-z0-9']+", re.I)
     user_words = {}
     for uid, content in all_msgs:
@@ -321,22 +333,28 @@ def _get_stats():
         favorite_words.append(
             {"user_id": uid, "username": u.username if u else "?", "words": [{"word": w, "count": c} for w, c in counts]}
         )
-    # Acrophobia leaderboard (Acrophobia room only)
+    # Acrophobia leaderboard (Acrophobia room only; real users only)
     acro_room = Room.query.filter_by(name="Acrophobia").first()
     acro_leaderboard = []
     if acro_room:
-        acro_rows = AcroScore.query.filter_by(room_id=acro_room.id).order_by(AcroScore.wins.desc()).limit(10).all()
+        acro_q = AcroScore.query.filter_by(room_id=acro_room.id).order_by(AcroScore.wins.desc()).limit(10)
+        if bot_ids:
+            acro_q = acro_q.filter(~AcroScore.user_id.in_(bot_ids))
+        acro_rows = acro_q.all()
         acro_user_ids = [r.user_id for r in acro_rows]
         acro_users = {u.id: u.username for u in User.query.filter(User.id.in_(acro_user_ids)).all()}
         acro_leaderboard = [
             {"user_id": r.user_id, "username": acro_users.get(r.user_id) or "?", "wins": r.wins}
             for r in acro_rows
         ]
-    # Trivia leaderboard (Trivia room only)
+    # Trivia leaderboard (Trivia room only; real users only)
     trivia_room = Room.query.filter_by(name="Trivia").first()
     trivia_leaderboard = []
     if trivia_room:
-        trivia_rows = TriviaScore.query.filter_by(room_id=trivia_room.id).order_by(TriviaScore.correct.desc()).limit(10).all()
+        trivia_q = TriviaScore.query.filter_by(room_id=trivia_room.id).order_by(TriviaScore.correct.desc()).limit(10)
+        if bot_ids:
+            trivia_q = trivia_q.filter(~TriviaScore.user_id.in_(bot_ids))
+        trivia_rows = trivia_q.all()
         trivia_user_ids = [r.user_id for r in trivia_rows]
         trivia_users = {u.id: u.username for u in User.query.filter(User.id.in_(trivia_user_ids)).all()}
         trivia_leaderboard = [
