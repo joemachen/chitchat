@@ -270,10 +270,6 @@ def _get_stats():
     if bot_ids:
         q_typers = q_typers.filter(~Message.user_id.in_(bot_ids))
     top_typers_q = q_typers.order_by(func.count(Message.id).desc()).limit(10).all()
-        .order_by(func.count(Message.id).desc())
-        .limit(10)
-        .all()
-    )
     user_ids = [r[0] for r in top_typers_q]
     users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
     top_typers = [
