@@ -166,20 +166,20 @@ def register_routes(app):
         upload_dir = Path(Config.UPLOAD_FOLDER)
         return send_from_directory(upload_dir, filename, as_attachment=False)
 
-    _MEDIA_PROXY_ALLOWED_HOSTS = frozenset(
-        ("media.tenor.com", "media1.tenor.com", "media2.tenor.com", "media3.tenor.com",
-         "tenor.com", "i.giphy.com", "media.giphy.com")
-    )
-
     def _is_allowed_media_host(host: str) -> bool:
-        """Allow listed hosts or any *.tenor.com subdomain."""
-        if host in _MEDIA_PROXY_ALLOWED_HOSTS:
+        """Allow listed hosts or any *.tenor.com / *.giphy.com subdomain."""
+        if not host:
+            return False
+        h = host.lower()
+        if h in ("tenor.com", "giphy.com", "www.giphy.com", "i.giphy.com", "media.giphy.com",
+                 "media.tenor.com", "media1.tenor.com", "media2.tenor.com", "media3.tenor.com",
+                 "media1.giphy.com", "media2.giphy.com", "media3.giphy.com"):
             return True
-        return host == "tenor.com" or host.endswith(".tenor.com")
+        return h.endswith(".tenor.com") or h.endswith(".giphy.com")
     _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    def _resolve_tenor_view_url(page_url: str) -> str | None:
-        """Fetch tenor.com/view/ page and return og:video or og:image (mp4 preferred)."""
+    def _resolve_og_media(page_url: str) -> str | None:
+        """Fetch page and return og:video or og:image (mp4 preferred) for Tenor/Giphy."""
         try:
             r = requests.get(page_url, timeout=10, headers={"User-Agent": _USER_AGENT})
             r.raise_for_status()
@@ -203,9 +203,7 @@ def register_routes(app):
 
     @app.route("/media-proxy")
     def media_proxy():
-        """Proxy external media (Tenor, Giphy) to bypass CORS. Requires login."""
-        if not session.get("user_id"):
-            return jsonify({"error": "Not authenticated"}), 401
+        """Proxy external media (Tenor, Giphy) to bypass CORS. No auth required for allowed hosts."""
         url = request.args.get("url")
         if not url or not url.startswith(("http://", "https://")):
             return jsonify({"error": "Invalid url"}), 400
@@ -217,12 +215,19 @@ def register_routes(app):
         except Exception:
             return jsonify({"error": "Invalid url"}), 400
         fetch_url = url
-        if "tenor.com" in host and "/view/" in (parsed.path or ""):
-            resolved = _resolve_tenor_view_url(url)
+        path = (parsed.path or "").lower()
+        if "tenor.com" in host and "/view/" in path:
+            resolved = _resolve_og_media(url)
             if resolved:
                 fetch_url = resolved
             else:
                 return jsonify({"error": "Could not resolve Tenor media"}), 502
+        elif "giphy.com" in host and "/gifs/" in path:
+            resolved = _resolve_og_media(url)
+            if resolved:
+                fetch_url = resolved
+            else:
+                return jsonify({"error": "Could not resolve Giphy media"}), 502
         try:
             r = requests.get(fetch_url, stream=True, timeout=15, headers={"User-Agent": _USER_AGENT})
             r.raise_for_status()

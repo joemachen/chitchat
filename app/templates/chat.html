@@ -1700,13 +1700,13 @@ const chitchatApp = createApp({
         }
         function isGifUrl(url) {
             if (!url) return false;
-            return /\.gif(\?|$)/i.test(url) || /\.mp4(\?|$)/i.test(url) || /giphy\.com/i.test(url) || /tenor\.com/i.test(url) || /media\.giphy\.com/i.test(url) || /i\.giphy\.com/i.test(url);
+            return /\.gif(\?|$)/i.test(url) || /\.mp4(\?|$)/i.test(url) || /giphy\.com/i.test(url) || /tenor\.com/i.test(url) || /media\.giphy\.com/i.test(url) || /media\d*\.giphy\.com/i.test(url) || /i\.giphy\.com/i.test(url) || /media\d*\.tenor\.com/i.test(url);
         }
         function getVideoUrlForInline(url) {
             if (!url) return null;
             if (/\.mp4(\?|$)/i.test(url)) return url;
-            if (/tenor\.com\/view\//i.test(url)) return url;
-            if (/\.gif(\?|$)/i.test(url) && /(?:giphy|tenor)\.com|media\d*\.(?:giphy|tenor)\.com|i\.giphy\.com/i.test(url))
+            if (/tenor\.com\/view\//i.test(url) || /giphy\.com\/gifs\//i.test(url)) return url;
+            if (/\.gif(\?|$)/i.test(url) && /(?:giphy|tenor)\.com|media\.giphy\.com|media\d*\.(?:giphy|tenor)\.com|i\.giphy\.com/i.test(url))
                 return url.replace(/\.gif(\?|$)/i, '.mp4$1');
             if (/tenor\.com/i.test(url) && !/\.(gif|mp4|webm)(\?|$)/i.test(url)) {
                 var q = url.indexOf('?');
@@ -1717,7 +1717,7 @@ const chitchatApp = createApp({
         function getVideoSrcForDisplay(url) {
             if (!url) return url;
             if (/^\//.test(url) || (window.location.origin && url.indexOf(window.location.origin) === 0)) return url;
-            if (/(?:tenor|media\d*\.tenor|giphy|media\.giphy|i\.giphy)\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+            if (/tenor\.com|media\d*\.tenor\.com|giphy\.com|media\.giphy\.com|media\d*\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
             return url;
         }
         function linkPreviewsForMessage(msg) {
@@ -1736,7 +1736,9 @@ const chitchatApp = createApp({
             var result = [];
             previews.forEach(function(p) {
                 if (!p || !p.url || !isGifUrl(p.url)) return;
-                if (content.indexOf(p.url) !== -1) return;
+                var inContent = content.indexOf(p.url) !== -1;
+                var contentHasVideo = inContent && getVideoUrlForInline(p.url);
+                if (inContent && contentHasVideo) return;
                 var fromImage = p.image && isGifUrl(p.image) ? getVideoUrlForInline(p.image) : null;
                 var fromUrl = getVideoUrlForInline(p.url);
                 var videoUrl = fromImage || fromUrl;
@@ -3556,7 +3558,7 @@ chitchatApp.mount('#app');
     }
     function mediaProxyUrl(url) {
         if (!url || /^\//.test(url)) return url;
-        if (/(?:tenor|media\d*\.tenor|giphy|media\.giphy|i\.giphy)\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+        if (/tenor\.com|media\d*\.tenor\.com|giphy\.com|media\.giphy\.com|media\d*\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
         return url;
     }
     function showImageLightbox(url, isVideo) {
