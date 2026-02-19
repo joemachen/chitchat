@@ -412,6 +412,45 @@ def register_routes(app):
             pass
         return jsonify({"ok": True, "results": results})
 
+    @app.route("/api/set-role-permissions", methods=["POST"])
+    def api_set_role_permissions():
+        """Set role permissions. Super Admin only. Accepts JSON: { permissions: { role: { permission: bool }, ... } }."""
+        if not session.get("user_id"):
+            return jsonify({"ok": False, "error": "Not authenticated"}), 401
+        user = get_user_by_id(session["user_id"])
+        if not user:
+            return jsonify({"ok": False, "error": "User not found"}), 401
+        if not getattr(user, "is_super_admin", False):
+            return jsonify({"ok": False, "error": "Only Super Admin can configure role permissions"}), 403
+        data = request.get_json(silent=True) or {}
+        perms = data.get("permissions") or {}
+        if not isinstance(perms, dict):
+            return jsonify({"ok": False, "error": "permissions must be an object"}), 400
+        valid_roles = ("rookie", "bro", "fam")
+        valid_perms = ("create_room", "update_room", "delete_room", "kick_user", "set_user_rank", "acrobot_control", "homer_control", "frink_control", "reset_stats", "export_all")
+        for role, role_perms in perms.items():
+            if role not in valid_roles:
+                continue
+            if not isinstance(role_perms, dict):
+                continue
+            for permission, allowed in role_perms.items():
+                if permission not in valid_perms:
+                    continue
+                rp = RolePermission.query.filter_by(role=role, permission=permission).first()
+                if rp:
+                    rp.allowed = bool(allowed)
+                else:
+                    db.session.add(RolePermission(role=role, permission=permission, allowed=bool(allowed)))
+        db.session.add(AuditLog(
+            user_id=session["user_id"],
+            action="set_role_permissions",
+            target_type=None,
+            target_id=None,
+            details=json.dumps({"permissions": perms}),
+        ))
+        db.session.commit()
+        return jsonify({"ok": True})
+
     @app.errorhandler(OperationalError)
     def handle_operational_error(e):
         """If DB error looks like missing column (e.g. rank), return friendly 'run migrations' page."""

@@ -896,6 +896,7 @@
                     </div>
                 </div>
                 <div class="mobile-channel-list-footer" style="flex-shrink:0;padding:0.75rem 1rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+                    <button v-if="canCreateRoom" type="button" id="mobileNewRoomBtn" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">+ New room</button>
                     <form action="{% endraw %}{{ url_for('logout') }}{% raw %}" method="post" style="display:inline;">
                         <button type="submit" style="background:none;border:none;color:#a1a1aa;cursor:pointer;font-size:0.9rem;padding:0.25rem 0;">Log out</button>
                     </form>
@@ -1178,6 +1179,9 @@
                                         <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;vertical-align:middle;"><label style="display:flex;align-items:center;justify-content:center;cursor:pointer;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></label></td>
                                     </tr>
                                 </table>
+                                <div class="user-row" style="margin-top:0.75rem;">
+                                    <button type="button" id="saveRolePermissionsBtn" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save permissions</button>
+                                </div>
                             </template>
                             <div class="user-row" style="margin-top:1.5rem;"><button type="button" @click="window.chitchat && window.chitchat.settingsSave && window.chitchat.settingsSave()" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>
                         </template>
@@ -1594,6 +1598,7 @@ const chitchatApp = createApp({
             var isDmParticipant = r.is_dm && (r.created_by_id === currentUserIdNum || r.dm_with_id === currentUserIdNum);
             return (isSuperAdminFlag || isDmParticipant || (userPermissionsObj && userPermissionsObj.delete_room));
         }
+        const canCreateRoom = isSuperAdminFlag || (userPermissionsObj && userPermissionsObj.create_room);
         function onRoomClick(rid, ev) {
             if (ev.target.closest('.room-item-actions') || ev.target.closest('.room-item-grip')) return;
             state.showingSettings = false;
@@ -1684,7 +1689,7 @@ const chitchatApp = createApp({
         }
         function isGifUrl(url) {
             if (!url) return false;
-            return /\.gif(\?|$)/i.test(url) || /giphy\.com/i.test(url) || /tenor\.com/i.test(url) || /media\.giphy\.com/i.test(url) || /i\.giphy\.com/i.test(url);
+            return /\.gif(\?|$)/i.test(url) || /\.mp4(\?|$)/i.test(url) || /giphy\.com/i.test(url) || /tenor\.com/i.test(url) || /media\.giphy\.com/i.test(url) || /i\.giphy\.com/i.test(url);
         }
         function linkPreviewsForMessage(msg) {
             var raw = msg && msg.link_previews;
@@ -1709,6 +1714,8 @@ const chitchatApp = createApp({
                     var videoUrl = null;
                     if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url)) {
                         videoUrl = url.replace(/\.gif(\?|$)/i, '.mp4$1');
+                    } else if (/\.mp4(\?|$)/i.test(url)) {
+                        videoUrl = url;
                     }
                     if (videoUrl) {
                         return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(videoUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
@@ -1726,6 +1733,8 @@ const chitchatApp = createApp({
                     var vUrl = null;
                     if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url)) {
                         vUrl = url.replace(/\.gif(\?|$)/i, '.mp4$1');
+                    } else if (/\.mp4(\?|$)/i.test(url)) {
+                        vUrl = url;
                     }
                     if (vUrl) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(vUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
                     return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
@@ -1890,7 +1899,7 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -3181,6 +3190,54 @@ chitchatApp.mount('#app');
             setTimeout(function() { t.remove(); }, 5000);
         }
     }
+    function settingsSaveRolePermissions() {
+        try {
+            var perms = state.rolePermissions || {};
+            var toast = document.createElement('div');
+            toast.className = 'ping-toast';
+            toast.style.background = '#6366f1';
+            toast.textContent = 'Saving permissions...';
+            getToastContainer().appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 2000);
+            fetch('/api/set-role-permissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ permissions: perms })
+            }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); }).then(function(res) {
+                if (res.ok && res.data && res.data.ok) {
+                    var t = document.createElement('div');
+                    t.className = 'ping-toast';
+                    t.style.background = '#166534';
+                    t.textContent = 'Permissions saved.';
+                    getToastContainer().appendChild(t);
+                    setTimeout(function() { t.remove(); }, 3000);
+                } else {
+                    var err = (res.data && res.data.error) || 'Failed to save permissions (status ' + res.status + ')';
+                    var t = document.createElement('div');
+                    t.className = 'ping-toast';
+                    t.style.background = '#7f1d1d';
+                    t.textContent = err;
+                    getToastContainer().appendChild(t);
+                    setTimeout(function() { t.remove(); }, 5000);
+                }
+            }).catch(function(e) {
+                var t = document.createElement('div');
+                t.className = 'ping-toast';
+                t.style.background = '#7f1d1d';
+                t.textContent = 'Network error: ' + (e.message || 'Could not save');
+                getToastContainer().appendChild(t);
+                setTimeout(function() { t.remove(); }, 5000);
+            });
+        } catch (err) {
+            var t = document.createElement('div');
+            t.className = 'ping-toast';
+            t.style.background = '#7f1d1d';
+            t.textContent = 'Error: ' + (err.message || 'Could not save');
+            (document.getElementById('toastContainer') || document.body).appendChild(t);
+            setTimeout(function() { t.remove(); }, 5000);
+        }
+    }
     function settingsDeleteUser(userId, username) {
         showConfirm('Permanently delete user "' + username + '"? This cannot be undone.', { destructive: true, primaryLabel: 'Delete' }).then(function(ok) {
             if (ok) socket.emit('delete_user', { target_user_id: userId });
@@ -3424,7 +3481,7 @@ chitchatApp.mount('#app');
         lb.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRankPending: settingsSetUserRankPending, settingsSaveUserRanks: settingsSaveUserRanks, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRankPending: settingsSetUserRankPending, settingsSaveUserRanks: settingsSaveUserRanks, settingsSaveRolePermissions: settingsSaveRolePermissions, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -4047,6 +4104,11 @@ chitchatApp.mount('#app');
     });
 
     if (newRoomBtn) newRoomBtn.addEventListener('click', showNewRoomPrompt);
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'mobileNewRoomBtn' || e.target.closest('#mobileNewRoomBtn')) {
+            showNewRoomPrompt();
+        }
+    });
 
     function showSettings() {
         state.showingSettings = true;
@@ -4063,6 +4125,9 @@ chitchatApp.mount('#app');
     document.addEventListener('click', function(e) {
         if (e.target.id === 'saveRolesBtn' || e.target.closest('#saveRolesBtn')) {
             if (window.chitchat && window.chitchat.settingsSaveUserRanks) window.chitchat.settingsSaveUserRanks();
+        }
+        if (e.target.id === 'saveRolePermissionsBtn' || e.target.closest('#saveRolePermissionsBtn')) {
+            if (window.chitchat && window.chitchat.settingsSaveRolePermissions) window.chitchat.settingsSaveRolePermissions();
         }
     });
 

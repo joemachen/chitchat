@@ -1,5 +1,19 @@
 # Release notes
 
+## v3.5.5 — Role permissions persistence, mobile New room, MP4 inline playback
+
+**Settings → Users - Roles**
+- **Save permissions** — Role Permissions table now has explicit Save permissions button; uses POST `/api/set-role-permissions` for reliable persistence (fixes role permission changes not sticking on desktop and mobile).
+- **HTTP API** — Role permissions persist via HTTP instead of socket-only; same pattern as Save roles.
+
+**Mobile**
+- **+ New room** — Mobile channel list (Rooms tab) now shows + New room button for users with create_room permission; previously only visible in sidebar.
+
+**Chat**
+- **MP4 inline playback** — Direct MP4 URLs (e.g. Tenor) now render as inline video with autoplay, loop, muted (like GIFs); previously showed blank when used as img src.
+
+---
+
 ## v3.5.4 — Message order fix, role save improvements
 
 **Message order**
