@@ -167,8 +167,15 @@ def register_routes(app):
         return send_from_directory(upload_dir, filename, as_attachment=False)
 
     _MEDIA_PROXY_ALLOWED_HOSTS = frozenset(
-        ("media.tenor.com", "tenor.com", "i.giphy.com", "media.giphy.com")
+        ("media.tenor.com", "media1.tenor.com", "media2.tenor.com", "media3.tenor.com",
+         "tenor.com", "i.giphy.com", "media.giphy.com")
     )
+
+    def _is_allowed_media_host(host: str) -> bool:
+        """Allow listed hosts or any *.tenor.com subdomain."""
+        if host in _MEDIA_PROXY_ALLOWED_HOSTS:
+            return True
+        return host == "tenor.com" or host.endswith(".tenor.com")
     _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     def _resolve_tenor_view_url(page_url: str) -> str | None:
@@ -205,7 +212,7 @@ def register_routes(app):
         try:
             parsed = urlparse(url)
             host = (parsed.netloc or "").lower()
-            if host not in _MEDIA_PROXY_ALLOWED_HOSTS:
+            if not _is_allowed_media_host(host):
                 return jsonify({"error": "Domain not allowed"}), 403
         except Exception:
             return jsonify({"error": "Invalid url"}), 400

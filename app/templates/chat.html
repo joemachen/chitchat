@@ -1707,7 +1707,7 @@ const chitchatApp = createApp({
             if (/\.mp4(\?|$)/i.test(url)) return url;
             if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url))
                 return url.replace(/\.gif(\?|$)/i, '.mp4$1');
-            if (/media\.tenor\.com/i.test(url) && !/\.(gif|mp4|webm)(\?|$)/i.test(url)) {
+            if (/tenor\.com/i.test(url) && !/\.(gif|mp4|webm)(\?|$)/i.test(url)) {
                 var q = url.indexOf('?');
                 return q >= 0 ? url.slice(0, q) + '.mp4' + url.slice(q) : url + '.mp4';
             }
@@ -2455,13 +2455,9 @@ chitchatApp.mount('#app');
         if (linkContextMenuEl) linkContextMenuEl.style.display = 'none';
         linkContextTarget = null;
     }
-    function copyToClipboard(text) {
+    function copyToClipboard(text, showToast) {
         if (!text) return;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).catch(function() {
-                document.execCommand('copy', false, null);
-            });
-        } else {
+        function fallbackCopy() {
             var ta = document.createElement('textarea');
             ta.value = text;
             ta.style.position = 'fixed';
@@ -2470,6 +2466,24 @@ chitchatApp.mount('#app');
             ta.select();
             try { document.execCommand('copy'); } catch (err) {}
             document.body.removeChild(ta);
+        }
+        function showCopiedToast() {
+            if (!showToast) return;
+            var el = document.createElement('div');
+            el.className = 'ping-toast';
+            el.style.background = '#166534';
+            el.textContent = 'Link copied';
+            (document.getElementById('toastContainer') || document.body).appendChild(el);
+            setTimeout(function() { el.remove(); }, 2000);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function() { showCopiedToast(); }).catch(function() {
+                fallbackCopy();
+                showCopiedToast();
+            });
+        } else {
+            fallbackCopy();
+            showCopiedToast();
         }
     }
     messagesEl.addEventListener('click', function(e) {
@@ -2787,7 +2801,7 @@ chitchatApp.mount('#app');
     if (linkContextMenuEl) {
         linkContextMenuEl.querySelector('[data-action="copy-link"]').addEventListener('click', function(e) {
             e.stopPropagation();
-            if (linkContextTarget) copyToClipboard(linkContextTarget);
+            if (linkContextTarget) copyToClipboard(linkContextTarget, true);
             hideLinkContextMenu();
         });
         linkContextMenuEl.querySelector('[data-action="open-link"]').addEventListener('click', function(e) {
