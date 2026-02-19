@@ -1099,7 +1099,7 @@
                         <template v-else-if="state.activeSettingsTab === 'general'">
                             <h2>Account</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>
-                            <div class="user-row"><a href="{{ url_for('delete_account') }}" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>
+                            <div class="user-row"><a href="{% endraw %}{{ url_for('delete_account') }}{% raw %}" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>
                             <h2>Chat history</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Delete your messages or set auto-delete after a period.</p>
                             <div class="user-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">
