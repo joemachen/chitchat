@@ -3556,7 +3556,7 @@ chitchatApp.mount('#app');
     }
     function mediaProxyUrl(url) {
         if (!url || /^\//.test(url)) return url;
-        if (/tenor\.com|media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+        if (/(?:tenor|media\d*\.tenor|giphy|media\.giphy|i\.giphy)\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
         return url;
     }
     function showImageLightbox(url, isVideo) {
