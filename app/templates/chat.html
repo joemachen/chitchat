@@ -627,6 +627,10 @@
     <div id="selectionContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Selection context menu">
         <button type="button" role="menuitem" data-action="copy-selection">Copy</button>
     </div>
+    <div id="linkContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Link context menu">
+        <button type="button" role="menuitem" data-action="copy-link">Copy link</button>
+        <button type="button" role="menuitem" data-action="open-link">Open in new tab</button>
+    </div>
     <div id="messageContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Message context menu">
         <button type="button" role="menuitem" data-action="copy" id="messageContextCopy" style="display:none;">Copy</button>
         <button type="button" role="menuitem" data-action="reply-to-message">Reply</button>
@@ -1707,12 +1711,13 @@ const chitchatApp = createApp({
                 var q = url.indexOf('?');
                 return q >= 0 ? url.slice(0, q) + '.mp4' + url.slice(q) : url + '.mp4';
             }
+            if (/tenor\.com\/view\//i.test(url)) return url;
             return null;
         }
         function getVideoSrcForDisplay(url) {
             if (!url) return url;
             if (/^\//.test(url) || (window.location.origin && url.indexOf(window.location.origin) === 0)) return url;
-            if (/media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+            if (/tenor\.com|media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
             return url;
         }
         function linkPreviewsForMessage(msg) {
@@ -2394,7 +2399,7 @@ chitchatApp.mount('#app');
     }
 
     document.addEventListener('contextmenu', function(e) {
-        if (e.target.closest('#contextMenu') || e.target.closest('#messageContextMenu') || e.target.closest('#selectionContextMenu') || e.target.closest('#roomContextMenu')) return;
+        if (e.target.closest('#contextMenu') || e.target.closest('#messageContextMenu') || e.target.closest('#selectionContextMenu') || e.target.closest('#roomContextMenu') || e.target.closest('#linkContextMenu')) return;
         var presenceUser = e.target.closest('.mobile-presence-sheet .user-item[data-user-id]');
         if (presenceUser) {
             e.preventDefault();
@@ -2422,6 +2427,7 @@ chitchatApp.mount('#app');
         if (!e.target.closest('#messageContextMenu')) hideMessageContextMenu();
         if (!e.target.closest('#selectionContextMenu')) hideSelectionContextMenu();
         if (!e.target.closest('#roomContextMenu')) hideRoomContextMenu();
+        if (!e.target.closest('#linkContextMenu')) hideLinkContextMenu();
     });
 
     var selectionContextMenuEl = document.getElementById('selectionContextMenu');
@@ -2433,6 +2439,21 @@ chitchatApp.mount('#app');
     }
     function hideSelectionContextMenu() {
         if (selectionContextMenuEl) selectionContextMenuEl.style.display = 'none';
+    }
+    var linkContextMenuEl = document.getElementById('linkContextMenu');
+    var linkContextTarget = null;
+    var linkContextMenuShownAt = 0;
+    function showLinkContextMenu(x, y, href) {
+        linkContextTarget = href;
+        linkContextMenuShownAt = Date.now();
+        var pos = clampContextMenuPosition(x, y, linkContextMenuEl);
+        linkContextMenuEl.style.left = pos.x + 'px';
+        linkContextMenuEl.style.top = pos.y + 'px';
+        linkContextMenuEl.style.display = 'block';
+    }
+    function hideLinkContextMenu() {
+        if (linkContextMenuEl) linkContextMenuEl.style.display = 'none';
+        linkContextTarget = null;
     }
     function copyToClipboard(text) {
         if (!text) return;
@@ -2465,6 +2486,7 @@ chitchatApp.mount('#app');
         }
         var a = e.target.closest('a[href]');
         if (a && a.href && (a.target === '_blank' || a.getAttribute('target') === '_blank') && /^https?:\/\//i.test(a.href)) {
+            if (Date.now() - linkContextMenuShownAt < 400) return;
             e.preventDefault();
             window.open(a.href, '_blank', 'noopener,noreferrer');
         }
@@ -2472,7 +2494,20 @@ chitchatApp.mount('#app');
     (function() {
         var msgLongPressTimer = null;
         var msgLongPressEl = null;
+        var linkLongPressTimer = null;
+        var linkLongPressEl = null;
         messagesEl.addEventListener('touchstart', function(e) {
+            var linkEl = e.target.closest('a[href]');
+            if (linkEl && linkEl.href && /^https?:\/\//i.test(linkEl.href)) {
+                linkLongPressEl = linkEl;
+                linkLongPressTimer = setTimeout(function() {
+                    linkLongPressTimer = null;
+                    e.preventDefault();
+                    var rect = linkLongPressEl.getBoundingClientRect();
+                    showLinkContextMenu(rect.left + rect.width / 2, rect.top + 20, linkLongPressEl.href);
+                }, 500);
+                return;
+            }
             var el = e.target.closest('.msg-username');
             if (!el) return;
             msgLongPressEl = el;
@@ -2486,8 +2521,14 @@ chitchatApp.mount('#app');
                 }
             }, 500);
         }, { passive: true });
-        messagesEl.addEventListener('touchend', function() { if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; } }, { passive: true });
-        messagesEl.addEventListener('touchmove', function() { if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; } }, { passive: true });
+        messagesEl.addEventListener('touchend', function() {
+            if (linkLongPressTimer) { clearTimeout(linkLongPressTimer); linkLongPressTimer = null; }
+            if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; }
+        }, { passive: true });
+        messagesEl.addEventListener('touchmove', function() {
+            if (linkLongPressTimer) { clearTimeout(linkLongPressTimer); linkLongPressTimer = null; }
+            if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; }
+        }, { passive: true });
     })();
     messagesEl.addEventListener('contextmenu', function(e) {
         var sel = window.getSelection ? window.getSelection().toString().trim() : '';
@@ -2497,6 +2538,15 @@ chitchatApp.mount('#app');
             var uid = parseInt(userEl.getAttribute('data-user-id'), 10);
             var uname = userEl.getAttribute('data-username') || '';
             if (uid) showContextMenu(e.clientX, e.clientY, uid, uname);
+            return;
+        }
+        var linkEl = e.target.closest('a[href]');
+        if (linkEl && linkEl.href && /^https?:\/\//i.test(linkEl.href)) {
+            e.preventDefault();
+            hideContextMenu();
+            hideMessageContextMenu();
+            hideSelectionContextMenu();
+            showLinkContextMenu(e.clientX, e.clientY, linkEl.href);
             return;
         }
         var msgEl = e.target.closest('.msg[data-msg-id]');
@@ -2734,6 +2784,18 @@ chitchatApp.mount('#app');
         copyToClipboard(sel);
         hideSelectionContextMenu();
     });
+    if (linkContextMenuEl) {
+        linkContextMenuEl.querySelector('[data-action="copy-link"]').addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (linkContextTarget) copyToClipboard(linkContextTarget);
+            hideLinkContextMenu();
+        });
+        linkContextMenuEl.querySelector('[data-action="open-link"]').addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (linkContextTarget) window.open(linkContextTarget, '_blank', 'noopener,noreferrer');
+            hideLinkContextMenu();
+        });
+    }
     if (messageContextCopyBtn) messageContextCopyBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         var sel = window.getSelection ? window.getSelection().toString() : '';
@@ -3478,7 +3540,7 @@ chitchatApp.mount('#app');
     }
     function mediaProxyUrl(url) {
         if (!url || /^\//.test(url)) return url;
-        if (/media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+        if (/tenor\.com|media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
         return url;
     }
     function showImageLightbox(url, isVideo) {

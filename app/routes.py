@@ -2,6 +2,7 @@
 HTTP routes: auth (register, login, logout), chat page, and health check.
 """
 import json
+import re
 import uuid
 from pathlib import Path
 from urllib.parse import urlparse
@@ -166,8 +167,32 @@ def register_routes(app):
         return send_from_directory(upload_dir, filename, as_attachment=False)
 
     _MEDIA_PROXY_ALLOWED_HOSTS = frozenset(
-        ("media.tenor.com", "i.giphy.com", "media.giphy.com")
+        ("media.tenor.com", "tenor.com", "i.giphy.com", "media.giphy.com")
     )
+    _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+    def _resolve_tenor_view_url(page_url: str) -> str | None:
+        """Fetch tenor.com/view/ page and return og:video or og:image (mp4 preferred)."""
+        try:
+            r = requests.get(page_url, timeout=10, headers={"User-Agent": _USER_AGENT})
+            r.raise_for_status()
+            html = r.text
+            og_video = re.search(r'<meta\s+property="og:video"[^>]*content="([^"]+)"', html, re.I)
+            if og_video:
+                u = og_video.group(1).strip()
+                if u and u.startswith(("http://", "https://")) and ".mp4" in u.lower():
+                    return u
+            og_image = re.search(r'<meta\s+property="og:image"[^>]*content="([^"]+)"', html, re.I)
+            if og_image:
+                u = og_image.group(1).strip()
+                if u and u.startswith(("http://", "https://")):
+                    if ".mp4" in u.lower():
+                        return u
+                    u = re.sub(r"\.gif(\?|$)", r".mp4\1", u, flags=re.I)
+                    return u
+        except Exception:
+            pass
+        return None
 
     @app.route("/media-proxy")
     def media_proxy():
@@ -184,8 +209,15 @@ def register_routes(app):
                 return jsonify({"error": "Domain not allowed"}), 403
         except Exception:
             return jsonify({"error": "Invalid url"}), 400
+        fetch_url = url
+        if "tenor.com" in host and "/view/" in (parsed.path or ""):
+            resolved = _resolve_tenor_view_url(url)
+            if resolved:
+                fetch_url = resolved
+            else:
+                return jsonify({"error": "Could not resolve Tenor media"}), 502
         try:
-            r = requests.get(url, stream=True, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; Chitchat/1.0)"})
+            r = requests.get(fetch_url, stream=True, timeout=15, headers={"User-Agent": _USER_AGENT})
             r.raise_for_status()
             content_type = r.headers.get("Content-Type") or "video/mp4"
             return Response(r.iter_content(chunk_size=8192), content_type=content_type)
