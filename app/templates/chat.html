@@ -1705,19 +1705,19 @@ const chitchatApp = createApp({
         function getVideoUrlForInline(url) {
             if (!url) return null;
             if (/\.mp4(\?|$)/i.test(url)) return url;
-            if (/\.gif(\?|$)/i.test(url) && /giphy\.com|media\.giphy\.com|i\.giphy\.com|tenor\.com|media\.tenor\.com/i.test(url))
+            if (/tenor\.com\/view\//i.test(url)) return url;
+            if (/\.gif(\?|$)/i.test(url) && /(?:giphy|tenor)\.com|media\d*\.(?:giphy|tenor)\.com|i\.giphy\.com/i.test(url))
                 return url.replace(/\.gif(\?|$)/i, '.mp4$1');
             if (/tenor\.com/i.test(url) && !/\.(gif|mp4|webm)(\?|$)/i.test(url)) {
                 var q = url.indexOf('?');
                 return q >= 0 ? url.slice(0, q) + '.mp4' + url.slice(q) : url + '.mp4';
             }
-            if (/tenor\.com\/view\//i.test(url)) return url;
             return null;
         }
         function getVideoSrcForDisplay(url) {
             if (!url) return url;
             if (/^\//.test(url) || (window.location.origin && url.indexOf(window.location.origin) === 0)) return url;
-            if (/tenor\.com|media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+            if (/(?:tenor|media\d*\.tenor|giphy|media\.giphy|i\.giphy)\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
             return url;
         }
         function linkPreviewsForMessage(msg) {
@@ -1737,7 +1737,9 @@ const chitchatApp = createApp({
             previews.forEach(function(p) {
                 if (!p || !p.url || !isGifUrl(p.url)) return;
                 if (content.indexOf(p.url) !== -1) return;
-                var videoUrl = getVideoUrlForInline(p.url) || (p.image && isGifUrl(p.image) ? getVideoUrlForInline(p.image) : null);
+                var fromImage = p.image && isGifUrl(p.image) ? getVideoUrlForInline(p.image) : null;
+                var fromUrl = getVideoUrlForInline(p.url);
+                var videoUrl = fromImage || fromUrl;
                 if (videoUrl) result.push({ url: p.url, videoUrl: videoUrl, videoSrc: getVideoSrcForDisplay(videoUrl) });
             });
             return result;
