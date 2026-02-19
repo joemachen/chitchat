@@ -45,22 +45,24 @@
         .auth-confirm-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
         .auth-confirm-cancel { padding: 0.5rem 1rem; background: #3f3f46; color: #e4e4e7; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
         .auth-confirm-cancel:hover { background: #52525b; }
-        .auth-confirm-ok { padding: 0.5rem 1rem; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
+        .auth-confirm-ok { padding: 0.5rem 1rem; background: #7f1d1d; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
     </style>
     <script>
         (function() {
             var form = document.getElementById('deleteForm');
             var modal = document.getElementById('confirmModal');
-            var cancelBtn = modal.querySelector('.auth-confirm-cancel');
-            var okBtn = modal.querySelector('.auth-confirm-ok');
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
-                modal.hidden = false;
+                modal.removeAttribute('hidden');
             });
-            cancelBtn.addEventListener('click', function() { modal.hidden = true; });
-            okBtn.addEventListener('click', function() {
-                modal.hidden = true;
-                form.submit();
+            modal.addEventListener('click', function(e) {
+                var t = e.target;
+                if (t === modal || t.classList.contains('auth-confirm-cancel')) {
+                    modal.setAttribute('hidden', '');
+                } else if (t.classList.contains('auth-confirm-ok')) {
+                    modal.setAttribute('hidden', '');
+                    form.submit();
+                }
             });
         })();
     </script>
