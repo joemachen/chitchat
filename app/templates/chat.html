@@ -931,7 +931,7 @@
                                     <div class="msg-header"><span class="msg-username" :data-user-id="msg.user_id" :data-username="msg.username || ''">{{ getMessageDisplayName(msg) }}</span> <span class="msg-time">{{ formatMessageTime(msg.created_at) }}</span></div>
                                     <div class="msg-quote" v-if="msg.parent_id && (msg.parent_content != null || msg.parent_username != null)" :data-parent-id="String(msg.parent_id)" title="Jump to original message" @click="onScrollToMessage(msg.parent_id)"><strong>{{ (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?') }}</strong>: {{ (msg.parent_content || '').slice(0, 200) }}{{ (msg.parent_content || '').length > 200 ? '…' : '' }}</div>
                                     <div class="msg-content" v-html="getMessageContentHtml(msg)"></div>
-                                    <div class="msg-inline-videos" v-if="linkPreviewsForInlineVideo(msg).length"><a v-for="(p, pi) in linkPreviewsForInlineVideo(msg)" :key="'iv'+pi" :href="p.url || ''" target="_blank" rel="noopener noreferrer"><video :src="p.videoUrl" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)"></video></a></div>
+                                    <div class="msg-inline-videos" v-if="linkPreviewsForInlineVideo(msg).length"><a v-for="(p, pi) in linkPreviewsForInlineVideo(msg)" :key="'iv'+pi" :href="p.url || ''" target="_blank" rel="noopener noreferrer"><video :src="p.videoSrc" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)"></video></a></div>
                                     <div class="msg-attachment" v-if="msg.attachment_url"><a v-if="['png','jpg','jpeg','gif','webp','svg'].indexOf((msg.attachment_filename || '').split('.').pop().toLowerCase()) !== -1" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><img :src="msg.attachment_url" :alt="msg.attachment_filename || ''"></a><a v-else-if="(msg.attachment_filename || '').toLowerCase().endsWith('.mp4')" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><video :src="msg.attachment_url" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)"></video></a><a v-else class="attachment-file" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer">📎 {{ msg.attachment_filename || 'Attachment' }}</a></div>
                                     <div class="msg-link-previews" v-if="linkPreviewsForMessage(msg).length"><div v-for="(p, pi) in linkPreviewsForMessage(msg)" :key="pi" class="msg-link-preview" :data-url="p.url || ''"><div class="link-preview-header"><a :href="p.url || ''" target="_blank" rel="noopener noreferrer">{{ (p.url || '').replace(/^https?:\/\//, '') }}</a></div><div class="link-preview-body"><div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div><div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div><img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt=""></div></div></div>
                                 </div>
@@ -953,7 +953,7 @@
                                 <strong>{{ (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?') }}</strong>: {{ (msg.parent_content || '').slice(0, 200) }}{{ (msg.parent_content || '').length > 200 ? '…' : '' }}
                             </div>
                             <div class="msg-content" v-html="getMessageContentHtml(msg)"></div>
-                            <div class="msg-inline-videos" v-if="linkPreviewsForInlineVideo(msg).length"><a v-for="(p, pi) in linkPreviewsForInlineVideo(msg)" :key="'iv'+pi" :href="p.url || ''" target="_blank" rel="noopener noreferrer"><video :src="p.videoUrl" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)"></video></a></div>
+                            <div class="msg-inline-videos" v-if="linkPreviewsForInlineVideo(msg).length"><a v-for="(p, pi) in linkPreviewsForInlineVideo(msg)" :key="'iv'+pi" :href="p.url || ''" target="_blank" rel="noopener noreferrer"><video :src="p.videoSrc" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)"></video></a></div>
                             <div class="msg-attachment" v-if="msg.attachment_url">
                                 <a v-if="['png','jpg','jpeg','gif','webp','svg'].indexOf((msg.attachment_filename || '').split('.').pop().toLowerCase()) !== -1" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><img :src="msg.attachment_url" :alt="msg.attachment_filename || ''"></a>
                                 <a v-else-if="(msg.attachment_filename || '').toLowerCase().endsWith('.mp4')" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><video :src="msg.attachment_url" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)"></video></a>
@@ -1709,6 +1709,12 @@ const chitchatApp = createApp({
             }
             return null;
         }
+        function getVideoSrcForDisplay(url) {
+            if (!url) return url;
+            if (/^\//.test(url) || (window.location.origin && url.indexOf(window.location.origin) === 0)) return url;
+            if (/media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+            return url;
+        }
         function linkPreviewsForMessage(msg) {
             var raw = msg && msg.link_previews;
             var previews = [];
@@ -1727,7 +1733,7 @@ const chitchatApp = createApp({
                 if (!p || !p.url || !isGifUrl(p.url)) return;
                 if (content.indexOf(p.url) !== -1) return;
                 var videoUrl = getVideoUrlForInline(p.url) || (p.image && isGifUrl(p.image) ? getVideoUrlForInline(p.image) : null);
-                if (videoUrl) result.push({ url: p.url, videoUrl: videoUrl });
+                if (videoUrl) result.push({ url: p.url, videoUrl: videoUrl, videoSrc: getVideoSrcForDisplay(videoUrl) });
             });
             return result;
         }
@@ -1746,7 +1752,8 @@ const chitchatApp = createApp({
                 if (isGifUrl(url)) {
                     var videoUrl = getVideoUrlForInline(url);
                     if (videoUrl) {
-                        return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(videoUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
+                        var src = getVideoSrcForDisplay(videoUrl);
+                        return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(src) + '" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
                     }
                     return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
                 }
@@ -1759,7 +1766,7 @@ const chitchatApp = createApp({
                 var isGif = isGifUrl(url);
                 if (isGif) {
                     var vUrl = getVideoUrlForInline(url);
-                    if (vUrl) return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(vUrl) + '" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>';
+                    if (vUrl) { var src = getVideoSrcForDisplay(vUrl); return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><video src="' + escA(src) + '" class="msg-inline-gif" autoplay loop muted playsinline preload="auto" title="Click to pause" onclick="this.paused?this.play():this.pause();"></video></a>'; }
                     return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer"><img src="' + escA(url) + '" class="msg-inline-gif" alt="GIF" loading="lazy"></a>';
                 }
                 return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>';
@@ -2446,7 +2453,7 @@ chitchatApp.mount('#app');
     }
     messagesEl.addEventListener('click', function(e) {
         if (e.button !== 0) return;
-        var img = e.target.closest('.msg-attachment a img') || e.target.closest('.msg-content a img') || e.target.closest('.msg-content a video');
+        var img = e.target.closest('.msg-attachment a img') || e.target.closest('.msg-attachment a video') || e.target.closest('.msg-content a img') || e.target.closest('.msg-content a video') || e.target.closest('.msg-inline-videos a video');
         var linkPreviewImg = e.target.closest('.link-preview-img');
         if (img || linkPreviewImg) {
             e.preventDefault();
@@ -3469,8 +3476,17 @@ chitchatApp.mount('#app');
             });
         });
     }
+    function mediaProxyUrl(url) {
+        if (!url || /^\//.test(url)) return url;
+        if (/media\.tenor\.com|media\.giphy\.com|i\.giphy\.com/i.test(url)) return '/media-proxy?url=' + encodeURIComponent(url);
+        return url;
+    }
     function showImageLightbox(url, isVideo) {
-        if (!url || !/^https?:\/\//i.test(url)) return;
+        if (!url) return;
+        var displayUrl = url;
+        if (/^https?:\/\//i.test(url)) displayUrl = url;
+        else if (/^\//.test(url)) displayUrl = (window.location.origin || '') + url;
+        else return;
         var lb = document.getElementById('imageLightbox');
         var imgEl = document.getElementById('imageLightboxImg');
         var videoEl = document.getElementById('imageLightboxVideo');
@@ -3478,14 +3494,15 @@ chitchatApp.mount('#app');
         if (!lb || !imgEl || !videoEl || !openTabEl) return;
         imgEl.style.display = isVideo ? 'none' : 'block';
         videoEl.style.display = isVideo ? 'block' : 'none';
+        var videoSrc = isVideo ? mediaProxyUrl(displayUrl) : displayUrl;
         if (isVideo) {
-            videoEl.src = url;
+            videoEl.src = videoSrc;
             videoEl.play().catch(function() {});
         } else {
-            imgEl.src = url;
+            imgEl.src = displayUrl;
             imgEl.alt = 'Enlarged image';
         }
-        openTabEl.href = url;
+        openTabEl.href = displayUrl;
         lb.classList.add('visible');
         lb.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';

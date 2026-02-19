@@ -4,8 +4,10 @@ HTTP routes: auth (register, login, logout), chat page, and health check.
 import json
 import uuid
 from pathlib import Path
+from urllib.parse import urlparse
 
-from flask import jsonify, make_response, redirect, render_template, request, send_from_directory, session, url_for
+import requests
+from flask import Response, jsonify, make_response, redirect, render_template, request, send_from_directory, session, url_for
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 
@@ -162,6 +164,33 @@ def register_routes(app):
         """Serve uploaded files from instance/uploads/."""
         upload_dir = Path(Config.UPLOAD_FOLDER)
         return send_from_directory(upload_dir, filename, as_attachment=False)
+
+    _MEDIA_PROXY_ALLOWED_HOSTS = frozenset(
+        ("media.tenor.com", "i.giphy.com", "media.giphy.com")
+    )
+
+    @app.route("/media-proxy")
+    def media_proxy():
+        """Proxy external media (Tenor, Giphy) to bypass CORS. Requires login."""
+        if not session.get("user_id"):
+            return jsonify({"error": "Not authenticated"}), 401
+        url = request.args.get("url")
+        if not url or not url.startswith(("http://", "https://")):
+            return jsonify({"error": "Invalid url"}), 400
+        try:
+            parsed = urlparse(url)
+            host = (parsed.netloc or "").lower()
+            if host not in _MEDIA_PROXY_ALLOWED_HOSTS:
+                return jsonify({"error": "Domain not allowed"}), 403
+        except Exception:
+            return jsonify({"error": "Invalid url"}), 400
+        try:
+            r = requests.get(url, stream=True, timeout=15, headers={"User-Agent": "Mozilla/5.0 (compatible; Chitchat/1.0)"})
+            r.raise_for_status()
+            content_type = r.headers.get("Content-Type") or "video/mp4"
+            return Response(r.iter_content(chunk_size=8192), content_type=content_type)
+        except requests.RequestException as e:
+            return jsonify({"error": str(e)}), 502
 
     @app.route("/health")
     def health():
