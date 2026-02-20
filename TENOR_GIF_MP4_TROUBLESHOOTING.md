@@ -109,7 +109,12 @@ This document tracks fixes and troubleshooting for Tenor (and Giphy) .gif and .m
   - Proxy sends `Referer: https://tenor.com/` when fetching from Tenor/Giphy.
 - **Result:** No change in behavior. Tenor links still fail to display in chat and lightbox.
 
-### 11. Media resolver + modern User-Agent (Feb 2026)
+### 11. Fetch-blob fallback (Feb 2026)
+
+- **Approach:** Instead of `video.src = proxyUrl`, fetch the proxy URL, convert to Blob, use `URL.createObjectURL(blob)` as the video source. Treats the video as a local file, bypassing streaming/range and cross-origin issues.
+- **Implementation:** `loadVideoAsBlob(msgId, pi, proxyUrl)` fetches, creates blob URL, stores in `state.blobVideoUrls`. `revokeBlobVideoUrl` cleans up on unmount. Video uses `:src="state.blobVideoUrls[key]"` and `:ref` triggers fetch on mount. On fetch error, falls back to GIF via `onVideoError`.
+
+### 12. Media resolver + modern User-Agent (Feb 2026)
 
 - **Approach:** Treat `/media-proxy` as a Media Resolver: identify view pages, scrape og:video/og:image, fetch raw binary, stream with correct Content-Type and Accept-Ranges.
 - **Changes:**
