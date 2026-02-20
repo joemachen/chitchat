@@ -109,6 +109,16 @@ This document tracks fixes and troubleshooting for Tenor (and Giphy) .gif and .m
   - Proxy sends `Referer: https://tenor.com/` when fetching from Tenor/Giphy.
 - **Result:** No change in behavior. Tenor links still fail to display in chat and lightbox.
 
+### 11. Media resolver + modern User-Agent (Feb 2026)
+
+- **Approach:** Treat `/media-proxy` as a Media Resolver: identify view pages, scrape og:video/og:image, fetch raw binary, stream with correct Content-Type and Accept-Ranges.
+- **Changes:**
+  - `_is_view_page()`: Explicitly identifies Tenor `tenor.com/view/` and Giphy `giphy.com/gifs/` as view pages requiring resolution.
+  - `_resolve_og_media()`: Uses `_BROWSER_HEADERS` (Chrome 131 User-Agent, Accept, Accept-Language) and page-specific Referer when scraping to avoid "Bot Blocked".
+  - Meta tag parsing: Handles both `property="og:video" content="..."` and `content="..." property="og:video"` attribute orders.
+  - Media fetch: User-Agent Chrome 131, Referer (tenor.com or giphy.com), Accept-Language.
+  - Stream: Raw binary with Content-Type from URL extension, Accept-Ranges: bytes, Content-Range/Content-Length forwarded.
+
 ---
 
 ## Current URL Patterns Handled

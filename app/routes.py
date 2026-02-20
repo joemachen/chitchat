@@ -176,34 +176,60 @@ def register_routes(app):
                  "media1.giphy.com", "media2.giphy.com", "media3.giphy.com"):
             return True
         return h.endswith(".tenor.com") or h.endswith(".giphy.com")
-    _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    # Modern browser User-Agent to avoid Tenor/Giphy "Bot Blocked" pages
+    _USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    _BROWSER_HEADERS = {
+        "User-Agent": _USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
-    def _resolve_og_media(page_url: str) -> str | None:
-        """Fetch page and return og:video or og:image (mp4 preferred) for Tenor/Giphy."""
+    def _is_view_page(host: str, path: str) -> bool:
+        """True if URL is a Tenor/Giphy view page (needs og: scraping), not direct media."""
+        path = (path or "").lower()
+        if "tenor.com" in host and "/view/" in path:
+            return True
+        if "giphy.com" in host and "/gifs/" in path:
+            return True
+        return False
+
+    def _resolve_og_media(page_url: str, referer: str) -> str | None:
+        """Scrape page for og:video or og:image meta tags; return actual media URL (mp4 preferred)."""
         try:
-            r = requests.get(page_url, timeout=10, headers={"User-Agent": _USER_AGENT})
+            headers = {**_BROWSER_HEADERS, "Referer": referer}
+            r = requests.get(page_url, timeout=12, headers=headers)
             r.raise_for_status()
             html = r.text
-            og_video = re.search(r'<meta\s+property="og:video"[^>]*content="([^"]+)"', html, re.I)
-            if og_video:
-                u = og_video.group(1).strip()
-                if u and u.startswith(("http://", "https://")) and ".mp4" in u.lower():
-                    return u
-            og_image = re.search(r'<meta\s+property="og:image"[^>]*content="([^"]+)"', html, re.I)
-            if og_image:
-                u = og_image.group(1).strip()
-                if u and u.startswith(("http://", "https://")):
-                    if ".mp4" in u.lower():
+            # Prefer og:video (usually mp4)
+            for pattern in (
+                r'<meta\s+property="og:video"[^>]*content="([^"]+)"',
+                r'<meta\s+content="([^"]+)"[^>]*property="og:video"',
+            ):
+                m = re.search(pattern, html, re.I)
+                if m:
+                    u = m.group(1).strip()
+                    if u and u.startswith(("http://", "https://")) and ".mp4" in u.lower():
                         return u
-                    u = re.sub(r"\.gif(\?|$)", r".mp4\1", u, flags=re.I)
-                    return u
+            # Fallback to og:image (often .gif; convert to .mp4 for video)
+            for pattern in (
+                r'<meta\s+property="og:image"[^>]*content="([^"]+)"',
+                r'<meta\s+content="([^"]+)"[^>]*property="og:image"',
+            ):
+                m = re.search(pattern, html, re.I)
+                if m:
+                    u = m.group(1).strip()
+                    if u and u.startswith(("http://", "https://")):
+                        if ".mp4" in u.lower():
+                            return u
+                        u = re.sub(r"\.gif(\?|$)", r".mp4\1", u, flags=re.I)
+                        return u
         except Exception:
             pass
         return None
 
     @app.route("/media-proxy")
     def media_proxy():
-        """Proxy external media (Tenor, Giphy) to bypass CORS. No auth required for allowed hosts."""
+        """Media resolver + proxy: resolves Tenor/Giphy view pages to raw media, streams with correct headers."""
         url = request.args.get("url")
         if not url or not url.startswith(("http://", "https://")):
             return jsonify({"error": "Invalid url"}), 400
@@ -214,24 +240,22 @@ def register_routes(app):
                 return jsonify({"error": "Domain not allowed"}), 403
         except Exception:
             return jsonify({"error": "Invalid url"}), 400
-        fetch_url = url
         path = (parsed.path or "").lower()
-        if "tenor.com" in host and "/view/" in path:
-            resolved = _resolve_og_media(url)
-            if resolved:
-                fetch_url = resolved
-            else:
-                return jsonify({"error": "Could not resolve Tenor media"}), 502
-        elif "giphy.com" in host and "/gifs/" in path:
-            resolved = _resolve_og_media(url)
-            if resolved:
-                fetch_url = resolved
-            else:
-                return jsonify({"error": "Could not resolve Giphy media"}), 502
+        fetch_url = url
+        # Identify view pages: must scrape og:video/og:image to get real media URL
+        if _is_view_page(host, path):
+            referer = "https://tenor.com/" if "tenor.com" in host else "https://giphy.com/"
+            resolved = _resolve_og_media(url, referer)
+            if not resolved:
+                return jsonify({"error": "Could not resolve media from page"}), 502
+            fetch_url = resolved
         try:
+            referer = "https://tenor.com/" if "tenor.com" in host else "https://giphy.com/"
             req_headers = {
                 "User-Agent": _USER_AGENT,
-                "Referer": "https://tenor.com/",
+                "Referer": referer,
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.9",
             }
             range_hdr = request.headers.get("Range")
             if range_hdr:
