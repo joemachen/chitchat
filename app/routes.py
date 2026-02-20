@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
-from flask import Response, jsonify, make_response, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Response, jsonify, make_response, redirect, render_template, request, send_from_directory, session, stream_with_context, url_for
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 
@@ -250,32 +250,28 @@ def register_routes(app):
                 return jsonify({"error": "Could not resolve media from page"}), 502
             fetch_url = resolved
         try:
-            referer = "https://tenor.com/" if "tenor.com" in host else "https://giphy.com/"
             req_headers = {
                 "User-Agent": _USER_AGENT,
-                "Referer": referer,
+                "Referer": "https://tenor.com/",
                 "Accept": "*/*",
-                "Accept-Language": "en-US,en;q=0.9",
             }
             range_hdr = request.headers.get("Range")
             if range_hdr:
                 req_headers["Range"] = range_hdr
             r = requests.get(fetch_url, stream=True, timeout=15, headers=req_headers)
             r.raise_for_status()
-            # Explicit Content-Type from URL extension (Tenor may return wrong/inconsistent headers)
-            fetch_path = (urlparse(fetch_url).path or "").lower()
-            if ".mp4" in fetch_path or fetch_url.lower().rstrip("/").endswith(".mp4"):
-                content_type = "video/mp4"
-            elif ".gif" in fetch_path or fetch_url.lower().rstrip("/").endswith(".gif"):
-                content_type = "image/gif"
-            else:
-                content_type = r.headers.get("Content-Type") or "video/mp4"
-            resp = Response(r.iter_content(chunk_size=8192), content_type=content_type, status=r.status_code)
-            resp.headers["Accept-Ranges"] = "bytes"
-            if "Content-Range" in r.headers:
-                resp.headers["Content-Range"] = r.headers["Content-Range"]
+            content_type = r.headers.get("Content-Type") or "application/octet-stream"
+            resp = Response(
+                stream_with_context(r.iter_content(chunk_size=1024)),
+                content_type=content_type,
+                status=r.status_code,
+            )
             if "Content-Length" in r.headers:
                 resp.headers["Content-Length"] = r.headers["Content-Length"]
+            if "Content-Range" in r.headers:
+                resp.headers["Content-Range"] = r.headers["Content-Range"]
+            if "Accept-Ranges" in r.headers:
+                resp.headers["Accept-Ranges"] = r.headers["Accept-Ranges"]
             return resp
         except requests.RequestException as e:
             return jsonify({"error": str(e)}), 502
