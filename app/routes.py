@@ -238,7 +238,14 @@ def register_routes(app):
                 req_headers["Range"] = range_hdr
             r = requests.get(fetch_url, stream=True, timeout=15, headers=req_headers)
             r.raise_for_status()
-            content_type = r.headers.get("Content-Type") or "video/mp4"
+            # Explicit Content-Type from URL extension (Tenor may return wrong/inconsistent headers)
+            fetch_path = (urlparse(fetch_url).path or "").lower()
+            if ".mp4" in fetch_path or fetch_url.lower().rstrip("/").endswith(".mp4"):
+                content_type = "video/mp4"
+            elif ".gif" in fetch_path or fetch_url.lower().rstrip("/").endswith(".gif"):
+                content_type = "image/gif"
+            else:
+                content_type = r.headers.get("Content-Type") or "video/mp4"
             resp = Response(r.iter_content(chunk_size=8192), content_type=content_type, status=r.status_code)
             resp.headers["Accept-Ranges"] = "bytes"
             if "Content-Range" in r.headers:

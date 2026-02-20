@@ -98,15 +98,16 @@ This document tracks fixes and troubleshooting for Tenor (and Giphy) .gif and .m
 - **`getVideoSrcForDisplay()` / `mediaProxyUrl()`:** Regex updated to match `tenor.com`, `media\d*\.tenor\.com`, `giphy.com`, `media.giphy.com`, `media\d*\.giphy.com`, `i.giphy.com`.
 - **`linkPreviewsForInlineVideo()` skip logic:** Skips only when URL is in content AND it can be rendered as video; otherwise still shows inline video from link preview.
 
-### 10. Range request and Referer support (Feb 19, 2026)
+### 10. Range request and Referer support (Feb 19, 2026) — **NO EFFECT**
 
 - **Issue:** Tenor GIFs/MP4s (e.g. `media1.tenor.com/m/.../rapper-sjors.gif`) displayed when opening proxy URL in new tab but not when embedded in chat or lightbox.
-- **Cause:** HTML5 `<video>` elements send `Range: bytes=...` requests; without 206 Partial Content support, some browsers fail to play. Tenor may also require a `Referer` header.
-- **Changes:**
+- **Hypothesis:** HTML5 `<video>` elements send `Range: bytes=...` requests; without 206 Partial Content support, some browsers fail to play. Tenor may also require a `Referer` header.
+- **Changes applied:**
   - Proxy forwards incoming `Range` header to upstream (Tenor/Giphy).
   - Proxy forwards upstream `Content-Range` and `Content-Length` when present.
   - Proxy sets `Accept-Ranges: bytes` on all responses.
   - Proxy sends `Referer: https://tenor.com/` when fetching from Tenor/Giphy.
+- **Result:** No change in behavior. Tenor links still fail to display in chat and lightbox.
 
 ---
 
@@ -133,6 +134,26 @@ This document tracks fixes and troubleshooting for Tenor (and Giphy) .gif and .m
 ## Ongoing Issues / Notes
 
 - Tenor uses `/m/` paths (e.g. `media1.tenor.com/m/xxx/name.gif`) for some media; these are handled like other direct media URLs (`.gif`→`.mp4`, proxied).
+- **Current symptom:** Tenor media does not display in chat or lightbox; "Open in new tab" works (proxy URL or direct Tenor URL—needs verification).
+
+---
+
+## Next Suggestions to Try
+
+1. **Verify what "Open in new tab" actually opens**  
+   When the user opens in new tab, is it the proxy URL or the original Tenor URL? The link `<a href="...">` uses the original URL; the lightbox "Open in new tab" uses `displayUrl` which for a video click comes from `img.src` (the proxy URL). If the user is opening the *original* Tenor URL and that works, the proxy may be failing (403/502 from Tenor). Check browser Network tab when embedded video fails: does `/media-proxy?url=...` return 200 or an error?
+
+2. **Try direct Tenor URL (bypass proxy) for embedded playback**  
+   Use the direct Tenor MP4 URL as the video `src` instead of the proxy. Video elements can often play cross-origin media without CORS for playback (CORS mainly affects canvas/script access). If Tenor allows cross-origin video playback, this could work. Revert to proxy only if CORS/blocking is confirmed.
+
+3. **Fetch-blob workaround**  
+   Instead of `video.src = proxyUrl`, fetch the proxy URL via `fetch()`, create a blob, and use `URL.createObjectURL(blob)` as the video src. This avoids Range/streaming quirks and any CDN/proxy buffering issues. Downside: buffers full file in memory.
+
+4. **Fallback to `<img>` with proxied GIF**  
+   If video fails, fall back to `<img src="proxyUrlForGif">` (serve the .gif through proxy, not .mp4). GIFs in img tags are widely supported. Add `onerror` on video to switch to img with the GIF URL.
+
+5. **Platform/deployment quirks**  
+   If deployed on Koyeb or similar, the platform may buffer, strip, or modify responses. Check whether the proxy returns correct `Content-Type`, `Content-Length`, and body when requested from the deployed URL.
 
 ---
 
