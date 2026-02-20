@@ -229,10 +229,23 @@ def register_routes(app):
             else:
                 return jsonify({"error": "Could not resolve Giphy media"}), 502
         try:
-            r = requests.get(fetch_url, stream=True, timeout=15, headers={"User-Agent": _USER_AGENT})
+            req_headers = {
+                "User-Agent": _USER_AGENT,
+                "Referer": "https://tenor.com/",
+            }
+            range_hdr = request.headers.get("Range")
+            if range_hdr:
+                req_headers["Range"] = range_hdr
+            r = requests.get(fetch_url, stream=True, timeout=15, headers=req_headers)
             r.raise_for_status()
             content_type = r.headers.get("Content-Type") or "video/mp4"
-            return Response(r.iter_content(chunk_size=8192), content_type=content_type)
+            resp = Response(r.iter_content(chunk_size=8192), content_type=content_type, status=r.status_code)
+            resp.headers["Accept-Ranges"] = "bytes"
+            if "Content-Range" in r.headers:
+                resp.headers["Content-Range"] = r.headers["Content-Range"]
+            if "Content-Length" in r.headers:
+                resp.headers["Content-Length"] = r.headers["Content-Length"]
+            return resp
         except requests.RequestException as e:
             return jsonify({"error": str(e)}), 502
 

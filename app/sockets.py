@@ -1125,6 +1125,9 @@ def register_socket_handlers(socketio):
             frink_user = User.query.filter_by(username="Prof Frink").first()
             parts = content.strip().split()
             cmd = parts[0].lower() if parts else ""
+            # Normalize "/ cmd" (e.g. "! set-seasons" -> "/ set-seasons") so cmd matches
+            if cmd == "/" and len(parts) >= 2:
+                cmd = (parts[0] + " " + parts[1]).lower()
 
             def _post_next_trivia_round(rid, fid, sock_io, app_obj):
                 """Post one trivia question and schedule reveal/timeout. Used for follow-up rounds."""
@@ -1192,8 +1195,9 @@ def register_socket_handlers(socketio):
             is_trivia_cmd = cmd in ("/trivia", "/ trivia")
             if is_trivia_cmd and is_frink_active() and frink_user:
                 rounds = 1
-                if len(parts) >= 2 and parts[1].isdigit():
-                    r = int(parts[1])
+                rounds_idx = 2 if cmd == "/ trivia" and len(parts) >= 3 else 1
+                if len(parts) > rounds_idx and parts[rounds_idx].isdigit():
+                    r = int(parts[rounds_idx])
                     rounds = max(1, min(7, r))
                 if rounds > 1:
                     set_trivia_rounds_remaining(room_id, rounds - 1, total=rounds)
@@ -1254,7 +1258,7 @@ def register_socket_handlers(socketio):
                 _broadcast_new_message_impl(socketio, room_id, msg.to_dict())
                 return
             if cmd in ("/set-difficulty", "/ set-difficulty") and len(parts) >= 2:
-                diff = parts[1].lower()
+                diff = (parts[2] if cmd == "/ set-difficulty" and len(parts) >= 3 else parts[1]).lower()
                 if diff in ("beginner", "intermediate", "advanced", "master"):
                     set_frink_difficulty(diff)
                     frink_user = User.query.filter_by(username="Prof Frink").first()
@@ -1272,8 +1276,16 @@ def register_socket_handlers(socketio):
             )
             if is_set_seasons:
                 try:
-                    season_parts = parts[2:] if cmd == "/set" else parts[1:]
-                    seasons = [int(p) for p in season_parts if p.isdigit() and 1 <= int(p) <= 20]
+                    # For "/ set-seasons" or "/set seasons", args start at index 2; else at 1
+                    season_parts = parts[2:] if cmd in ("/set", "/ set-seasons") else parts[1:]
+                    # Strip brackets and commas so "!set-seasons [1 2]" or "1, 2, 3" work
+                    seasons = []
+                    for p in season_parts:
+                        c = p.strip("[],")
+                        if c.isdigit():
+                            n = int(c)
+                            if 1 <= n <= 20:
+                                seasons.append(n)
                     set_frink_seasons(seasons if seasons else None)
                     frink_user = User.query.filter_by(username="Prof Frink").first()
                     if frink_user and is_frink_active():
