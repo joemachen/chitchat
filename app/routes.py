@@ -250,9 +250,11 @@ def register_routes(app):
                 return jsonify({"error": "Could not resolve media from page"}), 502
             fetch_url = resolved
         try:
+            fetch_host = (urlparse(fetch_url).netloc or "").lower()
+            referer = "https://giphy.com/" if "giphy.com" in fetch_host else "https://tenor.com/"
             req_headers = {
                 "User-Agent": _USER_AGENT,
-                "Referer": "https://tenor.com/",
+                "Referer": referer,
                 "Accept": "*/*",
             }
             range_hdr = request.headers.get("Range")
