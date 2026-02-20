@@ -72,7 +72,7 @@ This document defines visual and interaction standards for ChitChat's interface.
 
 | Modal | Min width | Max width | Notes |
 |-------|-----------|-----------|-------|
-| Edit message | 320px | 90vw, 480px | Textarea for content |
+| Edit message | 320px | 90vw, 480px | Textarea for content; on mobile: long-press message or tap own message to show Edit button |
 | Edit profile | 320px | 90vw, 480px | Status, away, bio fields |
 | Edit channel | 320px | 90vw, 480px | Name, topic, protected checkbox |
 | Search results | 320px | 90vw | Scrollable list |

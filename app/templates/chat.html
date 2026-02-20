@@ -227,6 +227,7 @@
         .reaction-picker button:hover { background: #3f3f46; }
         @media (max-width: 768px) {
             .msg:hover .msg-hover-bar { display: none !important; }
+            .msg.own.hover-bar-visible .msg-hover-bar { display: flex !important; opacity: 1; }
         }
         .form-wrap { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); background: #18181c; border-top: 1px solid #27272a; flex-shrink: 0; }
         .form-wrap form { display: flex; gap: 0.5rem; align-items: flex-end; }
@@ -928,7 +929,7 @@
                     <div class="load-more-wrap" id="loadMoreWrap" v-show="showMessagesView && state.hasMoreMessages && state.loadMoreAtTop"><button type="button" id="loadMoreBtn">Load older messages</button></div>
                     <div v-if="showMessagesView && state.pinnedMessages && state.pinnedMessages.length" class="pinned-messages-section">
                         <div class="pinned-messages-header">📌 Pinned</div>
-                        <article v-for="msg in state.pinnedMessages" :key="'pinned-'+msg.id" :id="'msg-' + msg.id" :class="['msg', 'msg-pinned', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System' }]" :data-msg-id="msg.id" :data-user-id="msg.user_id">
+                        <article v-for="msg in state.pinnedMessages" :key="'pinned-'+msg.id" :id="'msg-' + msg.id" :class="['msg', 'msg-pinned', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System', 'hover-bar-visible': msg.user_id === currentUserId && state.hoverBarVisibleMsgId === msg.id }]" :data-msg-id="msg.id" :data-user-id="msg.user_id">
                             <div class="msg-row">
                                 <div class="msg-avatar" :style="{ backgroundColor: getMessageAvatarColor(msg) }" :aria-hidden="true">{{ getAvatarInitial(getMessageDisplayName(msg)) }}</div>
                                 <div class="msg-body">
@@ -944,7 +945,7 @@
                     </div>
                     <template v-if="showMessagesView">
                         <article v-for="msg in displayMessages" :key="msg.id" :id="'msg-' + msg.id"
-                            :class="['msg', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System', 'msg-mention-pulse': messageMentionsMe(msg.content), hidden: isMessageRoomHidden(msg), 'msg-user-hidden': isMessageUserHidden(msg.id), mentioned: isMessageMentioned(msg) }]"
+                            :class="['msg', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System', 'msg-mention-pulse': messageMentionsMe(msg.content), hidden: isMessageRoomHidden(msg), 'msg-user-hidden': isMessageUserHidden(msg.id), mentioned: isMessageMentioned(msg), 'hover-bar-visible': msg.user_id === currentUserId && state.hoverBarVisibleMsgId === msg.id }]"
                             :data-msg-id="msg.id" :data-user-id="msg.user_id" :aria-label="'Message from ' + (getMessageDisplayName(msg) || 'unknown')">
                             <div class="msg-collapsed-bar" title="Click to unhide" v-show="isMessageUserHidden(msg.id)" @click.stop="onUnhideMessage(msg.id)">
                                 <span aria-hidden="true">👁️‍🗨️</span> Hidden message — click or right-click to unhide
@@ -1388,7 +1389,8 @@ const state = reactive({
     appAlertModal: null,
     appPromptModal: null,
     pinnedMessages: [],
-    videoErrored: {}  // msgId-pi -> true when video fails, fallback to GIF
+    videoErrored: {},  // msgId-pi -> true when video fails, fallback to GIF
+    hoverBarVisibleMsgId: null  // on mobile: msg id for which hover bar is shown (tap to toggle)
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -2437,6 +2439,7 @@ chitchatApp.mount('#app');
         if (!e.target.closest('#selectionContextMenu')) hideSelectionContextMenu();
         if (!e.target.closest('#roomContextMenu')) hideRoomContextMenu();
         if (!e.target.closest('#linkContextMenu')) hideLinkContextMenu();
+        if (!e.target.closest('.messages')) state.hoverBarVisibleMsgId = null;
     });
 
     var selectionContextMenuEl = document.getElementById('selectionContextMenu');
@@ -2497,6 +2500,13 @@ chitchatApp.mount('#app');
     }
     messagesEl.addEventListener('click', function(e) {
         if (e.button !== 0) return;
+        var msgEl = e.target.closest('.msg[data-msg-id]');
+        if (msgEl && msgEl.classList.contains('own') && !e.target.closest('.msg-hover-bar')) {
+            var mid = parseInt(msgEl.getAttribute('data-msg-id'), 10);
+            state.hoverBarVisibleMsgId = (state.hoverBarVisibleMsgId === mid) ? null : mid;
+        } else if (!msgEl || !msgEl.classList.contains('own')) {
+            state.hoverBarVisibleMsgId = null;
+        }
         var img = e.target.closest('.msg-attachment a img') || e.target.closest('.msg-attachment a video') || e.target.closest('.msg-content a img') || e.target.closest('.msg-content a video') || e.target.closest('.msg-inline-videos a video') || e.target.closest('.msg-inline-videos a img');
         var linkPreviewImg = e.target.closest('.link-preview-img');
         if (img || linkPreviewImg) {
@@ -2571,6 +2581,17 @@ chitchatApp.mount('#app');
             if (msgLongPressTimer) { clearTimeout(msgLongPressTimer); msgLongPressTimer = null; }
         }, { passive: true });
     })();
+    function getMessageContextFromEl(msgEl) {
+        if (!msgEl) return null;
+        var mid = parseInt(msgEl.getAttribute('data-msg-id'), 10);
+        var uid = parseInt(msgEl.getAttribute('data-user-id'), 10);
+        var msg = (state.messages || []).find(function(m) { return m.id === mid; }) || (state.pinnedMessages || []).find(function(m) { return m.id === mid; });
+        var contentEl = msgEl.querySelector('.msg-content');
+        var content = msg && msg.content != null ? String(msg.content) : (contentEl ? contentEl.textContent : '');
+        var headerEl = msgEl.querySelector('.msg-username');
+        var displayName = headerEl ? headerEl.textContent.trim() : '?';
+        return { mid: mid, uid: uid, content: content, displayName: displayName };
+    }
     messagesEl.addEventListener('contextmenu', function(e) {
         var sel = window.getSelection ? window.getSelection().toString().trim() : '';
         var userEl = e.target.closest('.msg-username');
@@ -2595,13 +2616,8 @@ chitchatApp.mount('#app');
             e.preventDefault();
             hideContextMenu();
             hideSelectionContextMenu();
-            var mid = parseInt(msgEl.getAttribute('data-msg-id'), 10);
-            var uid = parseInt(msgEl.getAttribute('data-user-id'), 10);
-            var contentEl = msgEl.querySelector('.msg-content');
-            var content = contentEl ? contentEl.textContent : '';
-            var headerEl = msgEl.querySelector('.msg-username');
-            var displayName = headerEl ? headerEl.textContent.trim() : '?';
-            if (mid) showMessageContextMenu(e.clientX, e.clientY, mid, uid, content, displayName);
+            var ctx = getMessageContextFromEl(msgEl);
+            if (ctx && ctx.mid) showMessageContextMenu(e.clientX, e.clientY, ctx.mid, ctx.uid, ctx.content, ctx.displayName);
             return;
         }
         if (sel && e.target.closest('.messages')) {
@@ -2697,6 +2713,31 @@ chitchatApp.mount('#app');
         }
         document.addEventListener('touchstart', function(e) {
             if (e.target.closest('.mobile-channel-list-panel .room-item[data-room-id]')) handleRoomItemLongPress(e);
+        }, { passive: true });
+        function handleMessageLongPress(e) {
+            var msgEl = e.target.closest('.msg[data-msg-id]');
+            if (!msgEl || e.target.closest('.msg-hover-bar button')) return;
+            longPressEl = msgEl;
+            longPressStartX = e.touches && e.touches[0] ? e.touches[0].clientX : null;
+            longPressStartY = e.touches && e.touches[0] ? e.touches[0].clientY : null;
+            longPressTimer = setTimeout(function() {
+                longPressTimer = null;
+                var ctx = getMessageContextFromEl(longPressEl);
+                if (ctx && ctx.mid) {
+                    var rect = longPressEl.getBoundingClientRect();
+                    hideContextMenu();
+                    hideRoomContextMenu();
+                    showMessageContextMenu(rect.left + rect.width / 2, rect.top + 20, ctx.mid, ctx.uid, ctx.content, ctx.displayName);
+                }
+            }, 500);
+        }
+        if (messagesEl) {
+            messagesEl.addEventListener('touchstart', handleMessageLongPress, { passive: true });
+            messagesEl.addEventListener('touchend', clearLongPress, { passive: true });
+            messagesEl.addEventListener('touchmove', clearLongPress, { passive: true });
+        }
+        document.addEventListener('touchstart', function(e) {
+            if (e.target.closest('#messages .msg[data-msg-id]')) handleMessageLongPress(e);
         }, { passive: true });
         document.addEventListener('touchend', clearLongPress, { passive: true });
         document.addEventListener('touchmove', handleTouchMove, { passive: true });
@@ -2955,7 +2996,12 @@ chitchatApp.mount('#app');
     function focusFirstInModal(selector) {
         nextTick(function() {
             var el = document.querySelector(selector);
-            if (el) el.focus();
+            if (el) {
+                el.focus();
+                if (document.activeElement !== el && typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(function() { el.focus(); });
+                }
+            }
         });
     }
     function showProfileModal(user) {
@@ -2966,6 +3012,7 @@ chitchatApp.mount('#app');
 
     function showEditMessageModal(messageId, content) {
         focusRestoreBeforeModal = document.activeElement;
+        state.hoverBarVisibleMsgId = null;
         state.editMessageModal = { id: messageId, content: content || '' };
         focusFirstInModal('.edit-message-modal textarea');
     }

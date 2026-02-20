@@ -1,5 +1,22 @@
 # Release notes
 
+## v3.5.6 — Message edit on mobile, Giphy lightbox fix, modal focus
+
+**Message editing (mobile & cross-browser)**
+- **Long-press on messages** — Long-press any message (500ms) to open the context menu (Edit, Reply, Add reaction, etc.) on mobile; matches right-click on desktop.
+- **Tap to show edit button** — On mobile, tap your own message to reveal the edit (✎) and reply (↩) buttons; tap elsewhere to hide.
+- **Raw content for Edit** — Edit modal now uses the original message content (preserves markdown like **bold**) instead of rendered text.
+- **Modal focus** — Edit message modal focus hardened for Firefox, Safari, Opera, and Linux Mint; retries focus via requestAnimationFrame when needed.
+
+**Giphy lightbox**
+- **Referer by host** — Media proxy now sends `Referer: https://giphy.com/` when fetching from Giphy, `Referer: https://tenor.com/` for Tenor (fixes Giphy media not loading).
+- **GIF fallback click** — Added `.msg-inline-videos a img` to the lightbox click handler so GIF fallback images open in the lightbox.
+
+**Tenor/Giphy**
+- Media proxy improvements (view-page resolution, binary pass-through, Referer); fetch-blob approach reverted. See `TENOR_GIF_MP4_TROUBLESHOOTING.md`.
+
+---
+
 ## v3.5.5 — Role permissions persistence, mobile New room, MP4 inline playback
 
 **Settings → Users - Roles**
