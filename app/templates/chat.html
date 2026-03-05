@@ -3703,6 +3703,7 @@ chitchatApp.mount('#app');
     socket.on('room_joined', function(data) {
         state.showingSettings = false;
         state.currentRoom = data.room || state.currentRoom;
+        state.messageRetentionDays = data.message_retention_days !== undefined ? data.message_retention_days : state.messageRetentionDays;
         if (state.currentRoom) clearUnreadForRoom(state.currentRoom.id);
         if (data.unread_counts) {
             Object.keys(state.unreadRooms).forEach(function(k) { delete state.unreadRooms[k]; });
