@@ -3239,8 +3239,8 @@ chitchatApp.mount('#app');
     }
     function settingsSetMessageRetention(val) {
         var days = val ? parseInt(val, 10) : null;
-        state.messageRetentionDays = messageRetentionDays = days;
-        socket.emit('set_message_retention', { days: val || null });
+        socket.emit('set_message_retention', { days: days });
+        state.messageRetentionDays = messageRetentionDays = val || null;
     }
     function settingsSetAcrobot(checked) {
         acrobotActive = checked;
@@ -3703,7 +3703,7 @@ chitchatApp.mount('#app');
     socket.on('room_joined', function(data) {
         state.showingSettings = false;
         state.currentRoom = data.room || state.currentRoom;
-        state.messageRetentionDays = data.message_retention_days !== undefined ? data.message_retention_days : state.messageRetentionDays;
+        state.messageRetentionDays = data.message_retention_days !== undefined ? (data.message_retention_days != null ? String(data.message_retention_days) : null) : state.messageRetentionDays;
         if (state.currentRoom) clearUnreadForRoom(state.currentRoom.id);
         if (data.unread_counts) {
             Object.keys(state.unreadRooms).forEach(function(k) { delete state.unreadRooms[k]; });
@@ -4081,7 +4081,7 @@ chitchatApp.mount('#app');
     });
 
     socket.on('message_retention_updated', function(data) {
-        state.messageRetentionDays = messageRetentionDays = data.days !== undefined ? data.days : null;
+        state.messageRetentionDays = messageRetentionDays = data.days != null ? String(data.days) : null;
         setStatus('Auto-delete setting updated.');
     });
 
