@@ -2,6 +2,7 @@
 HTTP routes: auth (register, login, logout), chat page, and health check.
 """
 import json
+import os
 import re
 import uuid
 from pathlib import Path
@@ -28,6 +29,13 @@ from sqlalchemy.exc import OperationalError
 
 from app.config import Config
 from app.models import AcroScore, AuditLog, IgnoreList, Message, MessageReport, RolePermission, Room, RoomMute, User, db
+
+try:
+    import cloudinary
+    import cloudinary.uploader
+    _CLOUDINARY_ENABLED = bool(os.environ.get("CLOUDINARY_URL"))
+except ImportError:
+    _CLOUDINARY_ENABLED = False
 
 
 def _can_export_all(user):
@@ -148,17 +156,26 @@ def register_routes(app):
             return jsonify({"error": "No file selected"}), 400
         if not _allowed_file(file.filename):
             return jsonify({"error": "File type not allowed"}), 400
-        upload_dir = Path(Config.UPLOAD_FOLDER)
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        ext = file.filename.rsplit(".", 1)[-1].lower()
-        safe_name = f"{uuid.uuid4().hex}.{ext}"
-        filepath = upload_dir / safe_name
-        try:
-            file.save(str(filepath))
-        except OSError as e:
-            return jsonify({"error": f"Failed to save file: {e}"}), 500
-        url = f"/uploads/{safe_name}"
-        return jsonify({"url": url, "filename": file.filename})
+
+        if _CLOUDINARY_ENABLED:
+            try:
+                result = cloudinary.uploader.upload(file, folder="chitchat", resource_type="auto")
+                url = result["secure_url"]
+                return jsonify({"url": url, "filename": file.filename})
+            except Exception as e:
+                return jsonify({"error": f"Failed to upload file: {e}"}), 500
+        else:
+            upload_dir = Path(Config.UPLOAD_FOLDER)
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            ext = file.filename.rsplit(".", 1)[-1].lower()
+            safe_name = f"{uuid.uuid4().hex}.{ext}"
+            filepath = upload_dir / safe_name
+            try:
+                file.save(str(filepath))
+            except OSError as e:
+                return jsonify({"error": f"Failed to save file: {e}"}), 500
+            url = f"/uploads/{safe_name}"
+            return jsonify({"url": url, "filename": file.filename})
 
     @app.route("/uploads/<path:filename>")
     def serve_upload(filename):
