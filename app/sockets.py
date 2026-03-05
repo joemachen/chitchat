@@ -931,7 +931,10 @@ def register_socket_handlers(socketio):
             return
         user = User.query.get(user_id)
         # Fresh scalar query to avoid identity-map cache (set_message_retention uses direct UPDATE)
-        message_retention_days = db.session.query(User.message_retention_days).filter_by(id=user_id).scalar()
+        try:
+            message_retention_days = db.session.query(User.message_retention_days).filter_by(id=user_id).scalar()
+        except Exception:
+            message_retention_days = None
         socket_room = f"room_{room_id}"
         socketio_join_room(socket_room)
         if room_obj.name.strip().lower() not in ("stats",):
@@ -2144,9 +2147,15 @@ def register_socket_handlers(socketio):
                 emit("error", {"message": "Invalid retention value"})
                 return
         # Use direct UPDATE to ensure persistence across request/socket contexts
-        User.query.filter_by(id=user_id).update({"message_retention_days": days_value})
-        db.session.commit()
-        emit("message_retention_updated", {"days": days_value})
+        try:
+            User.query.filter_by(id=user_id).update({"message_retention_days": days_value})
+            db.session.commit()
+            db.session.remove()  # Force fresh session for next event (Flask-SocketIO reuses request context)
+            emit("message_retention_updated", {"days": days_value})
+        except Exception as e:
+            db.session.rollback()
+            logger.exception("set_message_retention failed for user %s: %s", user_id, e)
+            emit("error", {"message": "Failed to save. Run migrations (flask db upgrade) if the setting never persists."})
 
     @socketio.on("update_profile")
     def on_update_profile(data):

@@ -429,18 +429,21 @@ def register_routes(app):
         if not session.get("user_id"):
             return redirect(url_for("login_page"))
         user = get_user_by_id(session["user_id"])
-        if user:
-            db.session.refresh(user)  # Ensure fresh data (e.g. message_retention_days set via socket)
         if not user:
             session.clear()
             return redirect(url_for("login_page"))
+        # Direct scalar query for message_retention_days (set via socket; avoid session cache)
+        try:
+            message_retention_days = db.session.query(User.message_retention_days).filter_by(id=user.id).scalar()
+        except Exception:
+            message_retention_days = None
         user_perms = _user_permissions(user)
         return render_template(
             "chat.html",
             user=user,
             user_bio=getattr(user, "bio", None) or "",
             user_avatar_bg_color=getattr(user, "avatar_bg_color", None) or "",
-            message_retention_days=getattr(user, "message_retention_days", None),
+            message_retention_days=message_retention_days,
             server_name=getattr(Config, "SERVER_NAME", "No Homers Club"),
             user_permissions=user_perms,
             socket_polling_only=getattr(Config, "SOCKET_POLLING_ONLY", False),
