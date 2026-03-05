@@ -930,6 +930,8 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Room not found"})
             return
         user = User.query.get(user_id)
+        # Fresh scalar query to avoid identity-map cache (set_message_retention uses direct UPDATE)
+        message_retention_days = db.session.query(User.message_retention_days).filter_by(id=user_id).scalar()
         socket_room = f"room_{room_id}"
         socketio_join_room(socket_room)
         if room_obj.name.strip().lower() not in ("stats",):
@@ -960,7 +962,7 @@ def register_socket_handlers(socketio):
                 "has_more": False,
                 "unread_counts": unread_counts,
                 "room_notification_muted": list(_get_notification_muted_room_ids(user_id)),
-                "message_retention_days": user.message_retention_days if user else None,
+                "message_retention_days": message_retention_days,
             })
             logger.info("User %s joined stats room", user_id)
         else:
@@ -1026,7 +1028,7 @@ def register_socket_handlers(socketio):
                 "has_more": has_more,
                 "unread_counts": unread_counts,
                 "room_notification_muted": list(_get_notification_muted_room_ids(user_id)),
-                "message_retention_days": user.message_retention_days if user else None,
+                "message_retention_days": message_retention_days,
             }
             if room_obj.name.strip() == "Acrophobia":
                 payload["acrophobia"] = acrophobia_get_phase_info(room_id)
