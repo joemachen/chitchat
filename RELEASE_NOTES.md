@@ -1,5 +1,15 @@
 # Release notes
 
+## v3.5.8 — Cloudinary image fix, auto-delete persistence
+
+**Cloudinary**
+- **Attachment URLs** — send_message now accepts Cloudinary URLs (https://res.cloudinary.com/...) in addition to local /uploads/; images uploaded to Cloudinary render correctly in chat.
+
+**Auto-delete (message retention)**
+- **Persistence fix** — Setting now persists across logout/login. Uses direct DB UPDATE in socket handler and refresh in chat route to avoid Flask-SocketIO session context issues.
+
+---
+
 ## v3.5.7 — Auto-delete settings sync and Vue select fix
 
 **Auto-delete (message retention)**

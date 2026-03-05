@@ -1814,9 +1814,14 @@ def register_socket_handlers(socketio):
 
         attachment_url = (data or {}).get("attachment_url") or None
         attachment_filename = (data or {}).get("attachment_filename") or None
-        if attachment_url and not attachment_url.startswith("/uploads/"):
-            attachment_url = None
-            attachment_filename = None
+        if attachment_url:
+            allowed = (
+                attachment_url.startswith("/uploads/")
+                or attachment_url.startswith("https://res.cloudinary.com/")
+            )
+            if not allowed:
+                attachment_url = None
+                attachment_filename = None
 
         if not content and not attachment_url:
             emit("error", {"message": "Message or attachment required"})
@@ -2126,19 +2131,20 @@ def register_socket_handlers(socketio):
             return
         val = (data or {}).get("days")
         if val is None or val == "" or val == "null":
-            user.message_retention_days = None
+            days_value = None
         else:
             try:
-                days = int(val)
-                if days not in (7, 30, 90):
+                days_value = int(val)
+                if days_value not in (7, 30, 90):
                     emit("error", {"message": "Retention must be 7, 30, or 90 days"})
                     return
-                user.message_retention_days = days
             except (TypeError, ValueError):
                 emit("error", {"message": "Invalid retention value"})
                 return
+        # Use direct UPDATE to ensure persistence across request/socket contexts
+        User.query.filter_by(id=user_id).update({"message_retention_days": days_value})
         db.session.commit()
-        emit("message_retention_updated", {"days": user.message_retention_days})
+        emit("message_retention_updated", {"days": days_value})
 
     @socketio.on("update_profile")
     def on_update_profile(data):

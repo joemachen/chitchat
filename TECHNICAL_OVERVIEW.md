@@ -12,7 +12,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
 - **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
 
-**Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/; ephemeral on redeploy).
+**Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/ or Cloudinary when CLOUDINARY_URL is set).
 
 ---
 
@@ -261,7 +261,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 - **Single process**: gevent single-threaded; no horizontal scaling without changing design (e.g. Redis adapter for SocketIO, shared presence).
 - **Message edit/delete**: Supported for own messages via styled modal (textarea, Shift+Enter for new lines); bulk delete on reset stats. Edit accessible via hover bar (desktop), tap-to-show (mobile), or long-press context menu (mobile).
-- **File/image uploads**: Supported (instance/uploads/); configurable size limit.
+- **File/image uploads**: Supported; local disk (instance/uploads/) when CLOUDINARY_URL is unset, or Cloudinary when set. send_message accepts attachment_url from /uploads/ or https://res.cloudinary.com/.
 - **Acrophobia state**: Game state (phase, submissions, votes) is in-memory and lost on restart; scores are persisted in `acro_scores`.
 - **Migrations**: Flask-Migrate (Alembic); versioned migrations in `migrations/versions/`.
 - **Stats reset**: Deleting all messages is irreversible and affects all channels.

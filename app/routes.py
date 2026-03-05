@@ -429,6 +429,8 @@ def register_routes(app):
         if not session.get("user_id"):
             return redirect(url_for("login_page"))
         user = get_user_by_id(session["user_id"])
+        if user:
+            db.session.refresh(user)  # Ensure fresh data (e.g. message_retention_days set via socket)
         if not user:
             session.clear()
             return redirect(url_for("login_page"))
