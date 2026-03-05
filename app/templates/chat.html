@@ -1106,7 +1106,7 @@
                             <div class="user-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">
                                 <button type="button" @click="window.chitchat && window.chitchat.settingsDeleteMyMessages && window.chitchat.settingsDeleteMyMessages()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Delete all my messages now</button>
                                 <div style="display:flex;align-items:center;gap:0.5rem;"><span style="color:#a1a1aa;">Auto-delete my messages after:</span>
-                                    <select :value="state.messageRetentionDays == null ? '' : state.messageRetentionDays" @change="window.chitchat && window.chitchat.settingsSetMessageRetention && window.chitchat.settingsSetMessageRetention($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
+                                    <select v-model="state.messageRetentionDays" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
                                         <option value="">Never</option>
                                         <option value="7">7 days</option>
                                         <option value="30">30 days</option>
@@ -1347,7 +1347,7 @@ const state = reactive({
     acrobotActive: true,
     homerActive: true,
     frinkActive: true,
-    messageRetentionDays: {{ (message_retention_days|default(none))|tojson }},
+    messageRetentionDays: (function(){ var v = {{ (message_retention_days|default(none))|tojson }}; return v != null ? String(v) : ''; })(),
     auditLogEntries: [],
     pendingRankChanges: {},
     botChannels: { acrobot: ['Acrophobia'], homer: null, frink: ['Trivia'] },
@@ -1485,6 +1485,10 @@ const chitchatApp = createApp({
         });
         watch(function() { return [state.showingSettings, state.activeSettingsTab]; }, function() {
             if (state.showingSettings && state.activeSettingsTab === 'profile') loadProfileTab();
+        });
+        watch(function() { return state.messageRetentionDays; }, function(newVal) {
+            if (messageRetentionSkipEmit) return;
+            if (socket) socket.emit('set_message_retention', { days: newVal ? parseInt(newVal, 10) : null });
         });
         const userCreatedAtFormatted = computed(function() {
             var s = state.userCreatedAt;
@@ -1960,7 +1964,7 @@ chitchatApp.mount('#app');
     const isSuperAdmin = {{ 'true' if user.is_super_admin else 'false' }};
     const userRank = {{ (user.rank or 'rookie')|tojson }};
     const canPinMessages = isSuperAdmin || (userRank && ['fam','super_admin'].indexOf(String(userRank).toLowerCase()) !== -1);
-    var messageRetentionDays = {{ (message_retention_days|default(none))|tojson }};
+    var messageRetentionSkipEmit = false;
     const userPermissions = {{ (user_permissions|default({}))|tojson|safe }};
     let socket = null;
     let acrobotActive = true;
@@ -3237,11 +3241,6 @@ chitchatApp.mount('#app');
             socket.emit('delete_my_messages', { confirm: 'DELETE_ALL_MY_MESSAGES' });
         });
     }
-    function settingsSetMessageRetention(val) {
-        var days = val ? parseInt(val, 10) : null;
-        socket.emit('set_message_retention', { days: days });
-        state.messageRetentionDays = messageRetentionDays = val || null;
-    }
     function settingsSetAcrobot(checked) {
         acrobotActive = checked;
         state.acrobotActive = checked;
@@ -3673,7 +3672,7 @@ chitchatApp.mount('#app');
         lb.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
     }
-    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetMessageRetention: settingsSetMessageRetention, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRankPending: settingsSetUserRankPending, settingsSaveUserRanks: settingsSaveUserRanks, settingsSaveRolePermissions: settingsSaveRolePermissions, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
+    window.chitchat = { switchRoom: switchRoom, editRoom: editRoom, deleteRoom: deleteRoom, moveRoomUp: moveRoomUp, moveRoomDown: moveRoomDown, socket: socket, showConfirm: showConfirm, showAlert: showAlert, showPrompt: showPrompt, unhideMessage: unhideMessage, scrollToMessage: scrollToMessage, toggleReaction: toggleReaction, showReactionPicker: showReactionPicker, showEditMessageModal: showEditMessageModal, showProfileModal: showProfileModal, showWhoisModal: showWhoisModal, showSearchResultsModal: showSearchResultsModal, showEditProfileModal: showEditProfileModal, openRoomSwitcher: openRoomSwitcher, replyToMessage: replyToMessage, showImageLightbox: showImageLightbox, hideImageLightbox: hideImageLightbox, getTheme: getTheme, setTheme: setTheme, getBgColor: getBgColor, setBgColor: setBgColor, getFont: getFont, setFont: setFont, hideAllContextMenus: hideAllContextMenus, settingsDeleteMyMessages: settingsDeleteMyMessages, settingsSetAcrobot: settingsSetAcrobot, settingsSetHomer: settingsSetHomer, settingsSetFrink: settingsSetFrink, settingsResetStats: settingsResetStats, settingsSetRoomProtected: settingsSetRoomProtected, settingsDeleteRoom: settingsDeleteRoom, settingsWipeRoom: settingsWipeRoom, settingsSetUserRankPending: settingsSetUserRankPending, settingsSaveUserRanks: settingsSaveUserRanks, settingsSaveRolePermissions: settingsSaveRolePermissions, settingsDeleteUser: settingsDeleteUser, settingsSetDefaultChannel: settingsSetDefaultChannel, settingsSetBotChannels: settingsSetBotChannels, settingsSetRolePermission: settingsSetRolePermission, settingsToggleRoomMute: settingsToggleRoomMute, settingsMuteAllNotifications: settingsMuteAllNotifications, settingsUnmuteAllNotifications: settingsUnmuteAllNotifications, settingsSave: settingsSave };
 
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
@@ -3703,7 +3702,11 @@ chitchatApp.mount('#app');
     socket.on('room_joined', function(data) {
         state.showingSettings = false;
         state.currentRoom = data.room || state.currentRoom;
-        state.messageRetentionDays = data.message_retention_days !== undefined ? (data.message_retention_days != null ? String(data.message_retention_days) : null) : state.messageRetentionDays;
+        if (data.message_retention_days !== undefined) {
+            messageRetentionSkipEmit = true;
+            state.messageRetentionDays = data.message_retention_days != null ? String(data.message_retention_days) : '';
+            messageRetentionSkipEmit = false;
+        }
         if (state.currentRoom) clearUnreadForRoom(state.currentRoom.id);
         if (data.unread_counts) {
             Object.keys(state.unreadRooms).forEach(function(k) { delete state.unreadRooms[k]; });
@@ -4081,7 +4084,9 @@ chitchatApp.mount('#app');
     });
 
     socket.on('message_retention_updated', function(data) {
-        state.messageRetentionDays = messageRetentionDays = data.days != null ? String(data.days) : null;
+        messageRetentionSkipEmit = true;
+        state.messageRetentionDays = data.days != null ? String(data.days) : '';
+        messageRetentionSkipEmit = false;
         setStatus('Auto-delete setting updated.');
     });
 

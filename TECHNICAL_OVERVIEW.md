@@ -171,7 +171,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `connect` | `on_connect` | Session | Reject if no `user_id`; else track presence and post system event. |
 | `disconnect` | `on_disconnect` | — | Remove from presence; post “went offline”. |
 | `get_rooms` | `on_get_rooms` | Yes | Emit `rooms_list` with rooms in user’s order. |
-| `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), room_muted_in_room, users, rooms. |
+| `join_room` | `on_join_room` | Yes | Join socket room; emit `room_joined` with history (or stats for Stats room), room_muted_in_room, users, rooms, message_retention_days. |
 | `send_message` | `on_send_message` | Yes | Slash-command handling and/or persist message; broadcast `new_message`. |
 | `create_room` | `on_create_room` | Super Admin or create_room | Create room; broadcast `rooms_updated`; emit `room_created` and optionally switch. |
 | `update_room` | `on_update_room` | Super Admin or update_room | Rename room; emit `topic_updated`-style update. Protected channels: only Super Admin can rename. |

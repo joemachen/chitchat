@@ -1,5 +1,14 @@
 # Release notes
 
+## v3.5.7 — Auto-delete settings sync and Vue select fix
+
+**Auto-delete (message retention)**
+- **room_joined payload** — Server now includes `message_retention_days` when you join a room (stats or regular). Client state stays in sync when switching rooms or reconnecting.
+- **Vue v-model** — Auto-delete select now uses `v-model` instead of `:value`/`@change`; Vue correctly binds to `<option value>` strings.
+- **Watch-based save** — Selecting a retention value triggers a Vue watch that emits to the server immediately; no separate change handler.
+
+---
+
 ## v3.5.6 — Message edit on mobile, Giphy lightbox fix, modal focus
 
 **Message editing (mobile & cross-browser)**

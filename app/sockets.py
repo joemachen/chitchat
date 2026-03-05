@@ -1533,6 +1533,7 @@ def register_socket_handlers(socketio):
                 "• Right-click room → Move up, Move down, Mute notifications, Edit room, Unmute users (if muted); long-press on mobile",
                 "• Server-level roles — Super Admin sets roles (rookie, bro, fam) and permissions in Settings → Users - Roles; click Save rankings for roles, Save permissions for permission checkboxes; kick_user = server-level kick",
                 "• Settings → Profile — nick, status, visibility, away message, bio, avatar color, notification prefs, Log out",
+                "• Settings → General — Chat history: delete all your messages, or auto-delete after 7, 30, or 90 days",
                 "• Mobile: Log out in Settings tab or room list footer (scroll to bottom of Rooms/DMs); long-press room for context menu",
                 "• Ctrl+K — room switcher; Esc — close modals; destructive actions use in-app confirm dialogs",
                 "• GIF and MP4 links (Giphy, Tenor) render inline playing; muted rooms show 🔇 emoji",
