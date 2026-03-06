@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.18 — Hide Get the app button in standalone
+
+**Login page**
+- **Get the app** — Button now hidden when viewed in the standalone app (pywebview); only shown in browser. Avoids redundant "get the app" prompt for users already using the app.
+
+---
+
 ## v3.5.17 — Homer welcome DM, login Get the app, more quotes
 
 **Homer bot**
