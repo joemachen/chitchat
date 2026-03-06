@@ -33,6 +33,7 @@ class User(db.Model):
     user_status = db.Column(db.String(20), nullable=False, default="online")  # online | away | dnd
     last_seen = db.Column(db.DateTime, nullable=True)  # Updated on disconnect for /whois
     message_retention_days = db.Column(db.Integer, nullable=True)  # None = keep forever; 7/30/90 = auto-delete after N days
+    welcome_sent = db.Column(db.Boolean, nullable=False, default=False)  # Homer welcome DM sent on first login
 
     messages = db.relationship("Message", backref="user", lazy="dynamic", foreign_keys="Message.user_id")
     ignoring = db.relationship(

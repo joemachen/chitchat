@@ -754,6 +754,46 @@ def register_socket_handlers(socketio):
         logger.info("Socket connected: user_id=%s", user_id)
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
 
+        # Homer welcome DM on first login; monthly quote DM if away 30+ days
+        try:
+            homer = User.query.filter_by(username="Homer").first()
+            if not homer:
+                raise ValueError("Homer user not found")
+            if not getattr(user, "welcome_sent", False):
+                dm_room = _get_or_create_dm_room(user_id, homer.id)
+                welcome_msg = Message(
+                    room_id=dm_room.id,
+                    user_id=homer.id,
+                    content="Hey! Welcome to No Homers Club! 🍩 Type /help in any channel to see all commands. Try !Simpsons for a random quote from yours truly. For trivia, head to the Trivia room and type !trivia. — Homer S.",
+                    message_type="chat",
+                )
+                db.session.add(welcome_msg)
+                user.welcome_sent = True
+                db.session.commit()
+                _broadcast_new_message_impl(socketio, dm_room.id, welcome_msg.to_dict())
+                socketio.emit("new_message", welcome_msg.to_dict(), room=f"user_{user_id}")
+                socketio.emit("dm_room_added", {"room": dm_room.to_dict()}, room=f"user_{user_id}")
+            elif getattr(user, "last_seen", None) is not None:
+                last_seen = user.last_seen
+                last_seen_naive = last_seen.replace(tzinfo=None) if last_seen.tzinfo else last_seen
+                now = datetime.utcnow()
+                if (now - last_seen_naive).days > 30:
+                    dm_room = _get_or_create_dm_room(user_id, homer.id)
+                    quote = get_random_simpsons_quote()
+                    quote_msg = Message(
+                        room_id=dm_room.id,
+                        user_id=homer.id,
+                        content=quote,
+                        message_type="chat",
+                    )
+                    db.session.add(quote_msg)
+                    user.last_seen = now
+                    db.session.commit()
+                    _broadcast_new_message_impl(socketio, dm_room.id, quote_msg.to_dict())
+                    socketio.emit("new_message", quote_msg.to_dict(), room=f"user_{user_id}")
+        except Exception:
+            pass
+
     @socketio.on("disconnect")
     def on_disconnect(reason=None):
         user_id = _sid_to_user_id.get(request.sid)
@@ -1533,7 +1573,7 @@ def register_socket_handlers(socketio):
                 "• /m, /msg, /message <username> <text> — send a direct message to that user",
                 "• @<nickname> <message> — page/mention that user (e.g. @Joe hey!)",
                 "• /em <text> or /me <text> — third-person emote",
-                "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online)",
+                "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online); new users get a welcome DM on first login; random quote DM if away 30+ days",
                 "• In #Trivia: !trivia or !trivia X (X=1–7 rounds, 45s per question), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
                 "• Right-click (or long-press on mobile) message → Reply, Add reaction, Pin/Unpin (Fam+), Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message; on mobile: tap your message to show Edit/Reply buttons",
                 "• Right-click user → Whois, Message, Mute, Kick (admin or kick_user permission); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",

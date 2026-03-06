@@ -65,3 +65,15 @@ body {
 .server-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #52525b; }
 .server-status-dot.server-status-online { background: #4ade80; }
 .server-status-dot.server-status-offline { background: #f87171; }
+.get-app-wrap { margin-top: 0.75rem; text-align: center; }
+.get-app-btn {
+    display: inline-block;
+    padding: 0.4rem 0.75rem;
+    background: #FFD90F;
+    color: #000;
+    font-size: 0.85rem;
+    text-decoration: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.get-app-btn:hover { background: #e6c30d; }

@@ -1,5 +1,19 @@
 # Release notes
 
+## v3.5.17 — Homer welcome DM, login Get the app, more quotes
+
+**Homer bot**
+- **Welcome DM** — On first login, Homer sends a welcome DM with tips (/help, !Simpsons, Trivia room). Uses `welcome_sent` on User (migration 027).
+- **Monthly quote DM** — If user has been away 30+ days (last_seen), Homer sends a random quote DM on reconnect.
+
+**Login page**
+- **Get the app** — "⬇ Get the app" button below server status; links to GitHub releases (standalone builds) in new tab. Simpsons yellow styling.
+
+**Homer quotes**
+- 30 new Simpsons quotes added to SIMPSONS_QUOTES.
+
+---
+
 ## v3.5.16 — Standalone update check
 
 **Standalone window**

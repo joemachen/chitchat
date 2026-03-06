@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes; welcome DM on first login; random quote DM if away 30+ days), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/ or Cloudinary when CLOUDINARY_URL is set).
 
@@ -92,7 +92,7 @@ chitchat/
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color` on `users`; `room_id`, `message_type` on `messages`). Versions 001–026. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color`, `welcome_sent` on `users`; `room_id`, `message_type` on `messages`). Versions 001–027. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
 
 ### 3.3 Design principles
 
@@ -110,7 +110,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 ### 4.1 User
 
 - **Table**: `users`.
-- **Fields**: `id`, `username` (unique), `password_hash`, `created_at`, `room_order_ids` (JSON array of room ids as text), `is_super_admin`, `rank`, `away_message`, `display_name`, `status_line`, `bio`, `avatar_bg_color` (hex for letter avatar), `user_status`, `last_seen`, `message_retention_days`.
+- **Fields**: `id`, `username` (unique), `password_hash`, `created_at`, `room_order_ids` (JSON array of room ids as text), `is_super_admin`, `rank`, `away_message`, `display_name`, `status_line`, `bio`, `avatar_bg_color` (hex for letter avatar), `user_status`, `last_seen`, `message_retention_days`, `welcome_sent` (Homer welcome DM sent on first login).
 - **Relations**: `messages`, `created_rooms` (Room.created_by_id). Legacy: `ignoring` / `ignored_by` (IgnoreList) kept for cascade delete only.
 - **Notes**: No open sign-up; invite code checked in `auth.py`. Passwords hashed with Werkzeug. AcroBot and System are special users created by migration.
 
@@ -147,7 +147,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Login**: POST `/login` with username/password; session stores `user_id` and `username`; optional “remember me” sets a signed cookie (`chitchat_remember`) and optionally a token file in `instance/` for standalone.
 - **Before request**: `routes.py`’s `before_request` restores session from remember-me cookie or from disk if cookie is missing (e.g. standalone window).
 - **Socket.IO**: No separate socket auth; the client connects after loading the chat page (which requires an active session). Session is used in each socket handler via `session.get("user_id")`; connection is rejected if not authenticated (`on_connect` returns `False`).
-- **Login page server status**: Fetches `/health` on load; shows "Server online" or "Server offline"; when offline, login button disabled and prominent warning shown.
+- **Login page server status**: Fetches `/health` on load; shows "Server online" or "Server offline"; when offline, login button disabled and prominent warning shown. "Get the app" button links to GitHub releases (standalone builds).
 - **Password reset**: `/reset-password` with username, invite code, and new password (invite code required).
 - **Security**: `SECRET_KEY` and `INVITE_CODE` should be set via environment in production; default values are for development only.
 
@@ -278,14 +278,14 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.16); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.17); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account, POST /api/set-user-roles (role changes), POST /api/set-message-retention (auto-delete); before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
 | `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting, L'il Bro/Homey nicknames), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
-| `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote, get_homer_dm_reply; !Simpsons trigger in any room; DM replies. |
+| `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote, get_homer_dm_reply; !Simpsons trigger in any room; DM replies. on_connect: welcome DM on first login (welcome_sent); random quote DM if last_seen >30 days. |
 | `app/prof_frink.py` | Prof Frink trivia bot: !trivia (45s per question), !daily, !set-difficulty, !set-seasons / /set seasons, !settings; hot streaks; DM replies. |
 | `app/room_aliases.py` | resolve_alias, get_room_aliases, set_room_alias; join_room accepts alias. |
 | `app/user_private_data.py` | get_private_data, set_private_data; key/value preferences per user (Matrix-inspired). |
