@@ -30,5 +30,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if "%1"=="build" (
+    pip install pyinstaller -q
+    pyinstaller --icon=icon.ico NoHomersClub.spec
+    exit /b 0
+)
+
 python run_standalone.py
 endlocal

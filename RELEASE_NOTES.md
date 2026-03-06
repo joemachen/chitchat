@@ -1,5 +1,18 @@
 # Release notes
 
+## v3.5.10 — WebSocket default, standalone Koyeb wrapper
+
+**WebSocket**
+- **Default** — `SOCKET_POLLING_ONLY` now defaults to False; WebSocket is attempted in production. Rollback: set `CHITCHAT_SOCKET_POLLING_ONLY=1` in Koyeb environment if WebSocket fails.
+
+**Standalone window**
+- **Koyeb-only** — `run_standalone.py` now opens the Koyeb-hosted app in a pywebview window; no local Flask server. Build exe: `run-standalone.bat build` (PyInstaller with icon).
+
+**Other**
+- `.gitignore` — Added `dist/`, `build/`, `*.spec`.
+
+---
+
 ## v3.5.9 — Auto-delete HTTP API, dead code removal
 
 **Auto-delete (message retention)**

@@ -36,7 +36,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Browser**: `run.py` — sets up logging, finds an available port (5000–5019), runs `app.socketio.run(app, host="127.0.0.1", port=port, debug=False, use_reloader=False)`.
 - **Production (Koyeb)**: `wsgi.py`; `Procfile`: `python gunicorn_run.py` (runs gevent monkey_patch, migrations in subprocess, then gunicorn).
-- **Standalone window**: `run_standalone.py` — loads the same app URL in a pywebview window; remember-me token can be stored on disk when cookies are unreliable.
+- **Standalone window**: `run_standalone.py` — opens the Koyeb-hosted app in a pywebview window (no local server). Build exe: `run-standalone.bat build` (PyInstaller).
 
 ---
 
@@ -264,7 +264,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 - **Stats reset**: Deleting all messages is irreversible and affects all channels.
 - **Phase 3 (online deployment)**: Done (Koyeb + Neon Postgres). **Sound** remains optional.
 
-**Koyeb WebSocket troubleshooting**: If users see "Connecting..." and never connect, the app uses ProxyFix for reverse-proxy headers. If WebSocket upgrade fails (e.g. HTTP/2 on Koyeb), set `CHITCHAT_SOCKET_POLLING_ONLY=1` in Koyeb environment to force HTTP long-polling. Ensure the service runs a single instance (`-w 1` in Procfile) or add Redis for multi-instance Socket.IO.
+**Koyeb WebSocket troubleshooting**: WebSocket is attempted by default. If users see "Connecting..." and never connect, or WebSocket upgrade fails (e.g. HTTP/2), set `CHITCHAT_SOCKET_POLLING_ONLY=1` in Koyeb environment to force HTTP long-polling. Ensure the service runs a single instance (`-w 1` in Procfile) or add Redis for multi-instance Socket.IO.
 
 ---
 

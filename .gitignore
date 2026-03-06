@@ -12,6 +12,11 @@ __pycache__/
 # Logs (keep directory via logs/.gitkeep)
 logs/*.log
 
+# Build / PyInstaller
+dist/
+build/
+*.spec
+
 # Instance data
 instance/*.db
 instance/*.db-journal

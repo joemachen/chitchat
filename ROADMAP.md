@@ -2,7 +2,7 @@
 
 A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persistent, local-first, with Koyeb + Neon for online deployment. Flask, SocketIO, gevent, SQLite/Postgres, Vue 3.
 
-**Current state (v3.5.9):** Rooms, DMs, presence, Acrophobia (AcroBot), Prof Frink trivia, Homer quotes, System Events, server-level roles, message cache, private user data, room aliases. Login page server status. Discord-style bot isolation in user list. Role permissions HTTP save; mobile + New room; MP4 inline playback. Message edit on mobile (long-press, tap-to-show Edit/Reply). Giphy lightbox fix. Themes, typing indicators, link previews, inline reply, edit/delete, reactions, search, export, audit log.
+**Current state (v3.5.10):** Rooms, DMs, presence, Acrophobia (AcroBot), Prof Frink trivia, Homer quotes, System Events, server-level roles, message cache, private user data, room aliases. Login page server status. Discord-style bot isolation in user list. Role permissions HTTP save; mobile + New room; MP4 inline playback. Message edit on mobile (long-press, tap-to-show Edit/Reply). Giphy lightbox fix. WebSocket attempted by default in production. Standalone window opens Koyeb app (no local server); PyInstaller build via run-standalone.bat build. Themes, typing indicators, link previews, inline reply, edit/delete, reactions, search, export, audit log.
 
 ---
 
