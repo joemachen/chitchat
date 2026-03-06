@@ -1661,22 +1661,6 @@ const chitchatApp = createApp({
             state.roomOrderIds = newOrder;
             if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('save_room_order', { room_ids: newOrder });
         }
-        function moveRoomInOrder(roomId, direction) {
-            var channels = channelsInOrder.value.map(function(r) { return r.id; });
-            var dms = dmsInOrder.value.map(function(r) { return r.id; });
-            var room = state.allRooms.find(function(r) { return r.id === roomId; });
-            if (!room) return;
-            var arr = room.is_dm ? dms : channels;
-            var idx = arr.indexOf(roomId);
-            if (idx === -1) return;
-            var newIdx = direction === 'up' ? idx - 1 : idx + 1;
-            if (newIdx < 0 || newIdx >= arr.length) return;
-            arr.splice(idx, 1);
-            arr.splice(newIdx, 0, roomId);
-            var newOrder = channels.concat(dms);
-            state.roomOrderIds = newOrder;
-            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('save_room_order', { room_ids: newOrder });
-        }
         const currentUsernameVal = {{ user.username|tojson }};
         const pinnedMessageIds = computed(() => new Set((state.pinnedMessages || []).map(function(p) { return p.id; })));
         const displayMessages = computed(() => (state.messages || []).filter(function(m) { return !pinnedMessageIds.value.has(m.id); }));
@@ -1984,7 +1968,6 @@ chitchatApp.mount('#app');
     let acrobotActive = true;
     let homerActive = true;
     let frinkActive = true;
-    var settingsPendingSettings = null;
     const messagesEl = document.getElementById('messages');
     const sendForm = document.getElementById('sendForm');
     const inputEl = document.getElementById('input');
@@ -2005,7 +1988,6 @@ chitchatApp.mount('#app');
     var replyToContent = null;
     var replyToDisplayName = null;
     var pendingAttachment = null;  // { url, filename }
-    var lastReadByRoom = {}; // room_id -> last message id we've "read" (cleared highlight)
     var baseTitle = document.title || 'No Homers Club';
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) stopMentionTabFlash();
@@ -2028,11 +2010,7 @@ chitchatApp.mount('#app');
     function clearUnreadForRoom(roomId) {
         if (state.unreadMentions[roomId]) { state.unreadMentions[roomId].clear(); delete state.unreadMentions[roomId]; }
         delete state.unreadRooms[roomId];
-        lastReadByRoom[roomId] = true;
         updateUnreadBadge();
-    }
-    function isMessageUnread(roomId, msgId) {
-        return state.unreadMentions[roomId] && state.unreadMentions[roomId].has(msgId);
     }
     function updateUnreadBadge() {
         var count = 0;
@@ -3847,10 +3825,6 @@ chitchatApp.mount('#app');
         if (!state.currentRoom) return;
         state.hasMoreMessages = data.has_more === true;
         state.messages = (data.messages || []).concat(state.messages);
-    });
-
-    socket.on('user_profile', function(data) {
-        if (data.user) showProfileModal(data.user);
     });
 
     socket.on('whois_result', function(data) {

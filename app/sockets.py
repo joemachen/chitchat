@@ -930,7 +930,7 @@ def register_socket_handlers(socketio):
             emit("error", {"message": "Room not found"})
             return
         user = User.query.get(user_id)
-        # Fresh scalar query to avoid identity-map cache (set_message_retention uses direct UPDATE)
+        # Fresh scalar query to avoid identity-map cache (message_retention_days set via HTTP API)
         try:
             message_retention_days = db.session.query(User.message_retention_days).filter_by(id=user_id).scalar()
         except Exception:
@@ -2123,40 +2123,6 @@ def register_socket_handlers(socketio):
         emit("my_messages_deleted", {"deleted_count": len(msgs)})
         logger.info("User %s deleted all their messages (%d)", user_id, len(msgs))
 
-    @socketio.on("set_message_retention")
-    def on_set_message_retention(data):
-        """Set auto-delete retention: null (never), 7, 30, or 90 days."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        user = User.query.get(user_id)
-        if not user:
-            emit("error", {"message": "User not found"})
-            return
-        val = (data or {}).get("days")
-        if val is None or val == "" or val == "null":
-            days_value = None
-        else:
-            try:
-                days_value = int(val)
-                if days_value not in (7, 30, 90):
-                    emit("error", {"message": "Retention must be 7, 30, or 90 days"})
-                    return
-            except (TypeError, ValueError):
-                emit("error", {"message": "Invalid retention value"})
-                return
-        # Use direct UPDATE to ensure persistence across request/socket contexts
-        try:
-            User.query.filter_by(id=user_id).update({"message_retention_days": days_value})
-            db.session.commit()
-            db.session.remove()  # Force fresh session for next event (Flask-SocketIO reuses request context)
-            emit("message_retention_updated", {"days": days_value})
-        except Exception as e:
-            db.session.rollback()
-            logger.exception("set_message_retention failed for user %s: %s", user_id, e)
-            emit("error", {"message": "Failed to save. Run migrations (flask db upgrade) if the setting never persists."})
-
     @socketio.on("update_profile")
     def on_update_profile(data):
         """Update own profile: status_line and away_message. Post to System Events when away changes."""
@@ -2615,24 +2581,6 @@ def register_socket_handlers(socketio):
         unread_counts = _get_unread_counts(user_id)
         emit("rooms_list", {"rooms": [r.to_dict() for r in rooms], "unread_counts": unread_counts, "room_notification_muted": list(_get_notification_muted_room_ids(user_id))})
 
-    @socketio.on("get_user_profile")
-    def on_get_user_profile(data):
-        """Return user dict (id, username, created_at) for view profile."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        target_id = (data or {}).get("user_id")
-        if not target_id:
-            return
-        try:
-            target_id = int(target_id)
-        except (TypeError, ValueError):
-            return
-        user = User.query.get(target_id)
-        if user:
-            emit("user_profile", {"user": user.to_dict()})
-
     @socketio.on("get_whois")
     def on_get_whois(data):
         """Return whois_result payload for a user (by user_id). Used from message context menu."""
@@ -2809,71 +2757,6 @@ def register_socket_handlers(socketio):
             return
         set_private_data(user_id, key, value)
         emit("private_data_set", {"key": key, "value": value})
-
-    @socketio.on("set_super_admin")
-    def on_set_super_admin(data):
-        """Set or unset Super Admin for a user. Caller must be Super Admin. Broadcast user_list_updated."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("error", {"message": "Not authenticated"})
-            return
-        if not _is_super_admin(user_id):
-            emit("error", {"message": "Only admins can assign the top admin role"})
-            return
-        target_id = (data or {}).get("target_user_id")
-        is_super = (data or {}).get("is_super_admin")
-        if target_id is None:
-            emit("error", {"message": "target_user_id required"})
-            return
-        try:
-            target_id = int(target_id)
-        except (TypeError, ValueError):
-            emit("error", {"message": "Invalid target_user_id"})
-            return
-        target = User.query.get(target_id)
-        if not target:
-            emit("error", {"message": "User not found"})
-            return
-        target.is_super_admin = bool(is_super)
-        db.session.commit()
-        _audit_log(user_id, "set_super_admin", "user", target_id, {"target_username": target.username, "is_super_admin": target.is_super_admin})
-        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
-        logger.info("User %s set Super Admin for user %s to %s", user_id, target_id, target.is_super_admin)
-
-    @socketio.on("set_user_rank")
-    def on_set_user_rank(data):
-        """Set a user's rank (rookie, bro, fam, super_admin). Caller must have permission. Emits user_rank_result to requester."""
-        user_id = session.get("user_id")
-        if not user_id:
-            emit("user_rank_result", {"ok": False, "error": "Not authenticated"})
-            return
-        if not _has_permission(user_id, "set_user_rank"):
-            emit("user_rank_result", {"ok": False, "error": "Only admins can set user rankings (or your role needs this permission)"})
-            return
-        target_id = (data or {}).get("target_user_id")
-        rank = ((data or {}).get("rank") or "").strip().lower()
-        if target_id is None:
-            emit("user_rank_result", {"ok": False, "error": "target_user_id required"})
-            return
-        if rank not in ("rookie", "bro", "fam", "super_admin"):
-            emit("user_rank_result", {"ok": False, "error": "rank must be one of: rookie, bro, fam, super_admin"})
-            return
-        try:
-            target_id = int(target_id)
-        except (TypeError, ValueError):
-            emit("user_rank_result", {"ok": False, "error": "Invalid target_user_id"})
-            return
-        target = User.query.get(target_id)
-        if not target:
-            emit("user_rank_result", {"ok": False, "error": "User not found"})
-            return
-        target.rank = rank
-        target.is_super_admin = rank == "super_admin"
-        db.session.commit()
-        _audit_log(user_id, "set_user_rank", "user", target_id, {"target_username": target.username, "rank": rank})
-        socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
-        logger.info("User %s set rank for user %s to %s", user_id, target_id, rank)
-        emit("user_rank_result", {"ok": True, "target_user_id": target_id, "target_username": target.username, "rank": rank})
 
     @socketio.on("delete_user")
     def on_delete_user(data):
@@ -3116,15 +2999,6 @@ def register_socket_handlers(socketio):
         socketio.emit("frink_status", {"active": is_frink_active()})
         socketio.emit("user_list_updated", {"users": _get_users_with_online_status()})
         logger.info("User %s set Prof Frink active=%s", user_id, is_frink_active())
-
-    @socketio.on("get_bot_channels")
-    def on_get_bot_channels(data=None):
-        """Return bot channel config. Surfer Girl only."""
-        user_id = session.get("user_id")
-        if not user_id or not _is_super_admin(user_id):
-            emit("bot_channels", {"acrobot": [], "homer": None, "frink": []})
-            return
-        emit("bot_channels", _get_bot_channel_config())
 
     @socketio.on("set_bot_channels")
     def on_set_bot_channels(data):

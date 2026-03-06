@@ -1,5 +1,20 @@
 # Release notes
 
+## v3.5.9 — Auto-delete HTTP API, dead code removal
+
+**Auto-delete (message retention)**
+- **HTTP API** — Auto-delete now uses POST `/api/set-message-retention` instead of socket; explicit Save button in Settings → Chat history.
+- **API robustness** — Settings API calls use `url_for()` for URLs and handle non-JSON (HTML) responses gracefully.
+
+**Vue 3 settings**
+- **Direct method calls** — Settings handlers (Mute all, Delete my messages, AcroBot toggle, etc.) now call methods directly instead of `window.chitchat.*`; Vue 3 templates no longer depend on `window` for event handlers.
+
+**Dead code removal**
+- **Socket handlers removed** — `set_message_retention`, `set_super_admin`, `set_user_rank`, `get_bot_channels`, `get_user_profile` (client used HTTP APIs or never called these).
+- **Client** — Removed `socket.on('user_profile')` listener; removed unused JS (`moveRoomInOrder`, `settingsPendingSettings`, `lastReadByRoom`, `isMessageUnread`).
+
+---
+
 ## v3.5.8 — Cloudinary image fix, auto-delete persistence
 
 **Cloudinary**

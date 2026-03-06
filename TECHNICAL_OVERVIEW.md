@@ -61,7 +61,7 @@ chitchat/
 │   ├── logging_config.py  # File handlers for app.log and errors.log; no console by default
 │   ├── models.py          # User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, ...
 │   ├── auth.py            # Invite validation, register, login, remember token, password reset
-│   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat, /upload, /health, /export, /delete-account, /api/set-user-roles, /api/set-role-permissions
+│   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat, /upload, /health, /export, /delete-account, /api/set-user-roles, /api/set-role-permissions, /api/set-message-retention
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
 │   ├── acrophobia.py      # Acrophobia game logic (in-memory state, bot replies)
 │   ├── homer.py           # Homer bot (!Simpsons trigger, random quotes, online/offline toggle)
@@ -177,10 +177,8 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `update_room` | `on_update_room` | Super Admin or update_room | Rename room; emit `topic_updated`-style update. Protected channels: only Super Admin can rename. |
 | `delete_room` | `on_delete_room` | Super Admin or delete_room or DM participant | Block for general and protected channels unless `from_settings`; delete room; broadcast. |
 | `save_room_order` | `on_save_room_order` | Yes | Persist `room_order_ids` for user; emit `rooms_list`. |
-| `get_user_profile` | `on_get_user_profile` | Yes | Emit `user_profile` with user dict. |
 | `get_or_create_dm` | `on_get_or_create_dm` | Yes | Find or create DM room between current user and `other_user_id`; emit `dm_room`; if created, broadcast `rooms_updated`. |
 | `kick_user` | `on_kick_user` | Super Admin or kick_user | Emit `kicked_from_app` to target’s socket(s). AcroBot and Homer: Super Admin only. |
-| `set_super_admin` | `on_set_super_admin` | Super Admin only | Set/unset `is_super_admin`; broadcast `user_list_updated`. |
 | `get_acrobot_status` | `on_get_acrobot_status` | Any | Emit `acrobot_status` (active flag). |
 | `set_acrobot_active` | `on_set_acrobot_active` | Super Admin or acrobot_control | Turn AcroBot on/off; broadcast `acrobot_status` and `user_list_updated`. |
 | `reset_stats_data` | `on_reset_stats_data` | Super Admin or reset_stats | Require `confirm: "RESET"`; delete all Message rows; emit `stats_reset` to requester. |
@@ -191,7 +189,6 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `delete_message` | `on_delete_message` | Yes | Delete own message; emit `message_deleted` to room. |
 | `add_reaction` / `remove_reaction` | `on_add_reaction` / `on_remove_reaction` | Yes | Toggle emoji reaction; broadcast `reaction_updated`. |
 | `delete_my_messages` | `on_delete_my_messages` | Yes | Bulk delete own messages (confirm required); emit `messages_deleted`, `my_messages_deleted`. |
-| `set_message_retention` | `on_set_message_retention` | Yes | Set auto-delete days (7/30/90 or None); emit `message_retention_updated`. |
 | `delete_user` | `on_delete_user` | Super Admin only | Delete user and cascade; broadcast `user_list_updated`, `rooms_updated`. |
 
 ### 6.3 Send message and slash commands
@@ -223,7 +220,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 
 ### 6.6 System events
 
-- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `3.5.6`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
+- **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `3.5.9`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 
 ---
 
@@ -241,7 +238,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
   - **Protected channels**: Stats, Acrophobia, System Events (and general) have no delete button in room list; delete only via Settings (admin) with `from_settings: true`. Only Super Admin can rename protected channels. Non-admin users editing a protected channel see an alert instead of the name input but can still edit the topic.
   - **DM styling**: When `currentRoom.is_dm`, messages container has class `is-dm` (different background/border/color).
   - **Context menu**: Right-click (or long-press on mobile) on message → Reply, Add reaction, Pin/Unpin (Fam+), Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message. On mobile: tap your own message to show Edit/Reply buttons. Right-click (or long-press) on username (in messages or user list) → **Edit profile** (self only: status, away message), Whois, Message (opens/creates DM), Kick (Super Admin or kick_user permission; AcroBot/Homer: Super Admin only). Right-click on channel → Edit channel (name and topic). **Reply**: Click reply on a message to pre-fill the input with quoted text (`> @DisplayName:\n> [content]\n\n`). **Username lookup**: /whois, /ping, /msg, and @mentions use case-insensitive matching (e.g. /whois joe finds "Joe").
-  - **Settings**: Rendered in place of chat when “Settings” is open: **Profile** tab (nick, status, visibility, away message, bio, avatar color), **Appearance** tab (Theme Dark/Light, high-contrast; chat background color; font picker for system fonts), **Notifications** tab (room notification mute), **Chat history** (delete all own messages, auto-delete retention 7/30/90 days), AcroBot toggle, Homer toggle, Prof Frink toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), **Bot channels** (admin: which channels each bot can respond in), Role Permissions table (Super Admin only; Save permissions button persists via HTTP), Super Admin checkboxes, **Default channel** dropdown (Super Admin only). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
+  - **Settings**: Rendered in place of chat when “Settings” is open: **Profile** tab (nick, status, visibility, away message, bio, avatar color), **Appearance** tab (Theme Dark/Light, high-contrast; chat background color; font picker for system fonts), **Notifications** tab (room notification mute), **Chat history** (delete all own messages; auto-delete retention 7/30/90 days via HTTP API with Save button), AcroBot toggle, Homer toggle, Prof Frink toggle, Stats reset (prompt to type RESET), Channels (with delete for non-general), **Bot channels** (admin: which channels each bot can respond in), Role Permissions table (Super Admin only; Save permissions button persists via HTTP), Super Admin checkboxes, **Default channel** dropdown (Super Admin only). Reset stats emits `reset_stats_data` with `confirm: "RESET"`; on `stats_reset`, toast and optional re-join Stats room to refresh view.
 - **Toasts**: Ping and away messages shown as temporary toasts (e.g. ping-toast class, auto-remove after a few seconds).
 
 ---
@@ -249,7 +246,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 ## 8. Security and permissions
 
 - **Authentication**: All socket handlers that need a user check `session.get("user_id")`; unauthenticated connect is rejected.
-- **Super Admin** (top role, `rank='super_admin'`): Checked via `_is_super_admin(user_id)` (User.is_super_admin). Full access; only Super Admin can assign Super Admin (`set_super_admin`) and configure role permissions. Other actions use `_has_permission()`: Super Admin always allowed; else checks `role_permissions` table (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all).
+- **Super Admin** (top role, `rank='super_admin'`): Checked via `_is_super_admin(user_id)` (User.is_super_admin). Full access; Super Admin assigns roles (including Super Admin) via HTTP API `/api/set-user-roles`; configures role permissions via `/api/set-role-permissions`. Other actions use `_has_permission()`: Super Admin always allowed; else checks `role_permissions` table (create_room, update_room, delete_room, kick_user, set_user_rank, acrobot_control, homer_control, reset_stats, export_all).
 - **Room membership**: No per-room membership table; any authenticated user can join any room and send messages. Server-level kick (`kick_user`) disconnects target and redirects to login. No per-room membership (`kicked_from_app`) and does not remove from DB “membership” (there is none).
 - **Input**: Slash commands are parsed server-side; message content is stored as-is (no rich HTML from client). Frontend escapes/links content (e.g. linkify) when rendering.
 - **CORS**: `cors_allowed_origins=[]` (same-origin only by default).
@@ -280,11 +277,11 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.4); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.9); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
-| `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account, POST /api/set-user-roles (role changes); before_request (restore session from remember); context_processor (inject user). |
+| `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account, POST /api/set-user-roles (role changes), POST /api/set-message-retention (auto-delete); before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
 | `app/acrophobia.py` | _random_acronym, _game, handle_message (help, start, /start X, vote, score, submissions, DM voting, L'il Bro/Homey nicknames), advance_submit_phase, advance_vote_phase, AcroScore (persisted), in-memory _games. |
 | `app/homer.py` | Homer bot: is_homer_active, set_homer_active, get_random_simpsons_quote, get_homer_dm_reply; !Simpsons trigger in any room; DM replies. |
