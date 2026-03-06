@@ -1,5 +1,15 @@
 # Release notes
 
+## v3.5.12 — Standalone cookie persistence, build icon
+
+**Standalone window**
+- **Cookie persistence** — Session cookie now survives app restarts. Uses `private_mode=False` and platform-specific `storage_path` (e.g. `%APPDATA%\NoHomersClub` on Windows).
+
+**Build**
+- **Icon** — `--icon=icon.ico` added to Windows and macOS PyInstaller builds in GitHub Actions. Requires `icon.ico` in project root.
+
+---
+
 ## v3.5.11 — GitHub Actions standalone builds
 
 **CI/CD**

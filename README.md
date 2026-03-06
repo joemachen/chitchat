@@ -5,7 +5,7 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 ## Run
 
 - **Windows (browser):** `run.bat` — creates/activates `.venv`, installs deps, runs the server. Open http://127.0.0.1:5000 (or the next free port 5001–5019 if 5000 is in use).
-- **Windows (standalone window):** `run-standalone.bat` — opens the Koyeb-hosted app in a native pywebview window (requires `pywebview`). No local server. Build exe: `run-standalone.bat build`.
+- **Windows (standalone window):** `run-standalone.bat` — opens the Koyeb-hosted app in a native pywebview window (requires `pywebview`). No local server. Session persists between restarts. Build exe: `run-standalone.bat build`.
 - **Manual:** `python run.py` or `python run_standalone.py` from the project root (with `.venv` activated).
 
 ## Commands
