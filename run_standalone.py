@@ -18,7 +18,7 @@ except ImportError:
     requests = None
 
 # Keep in sync with app/version.py; bump as part of each release.
-CURRENT_VERSION = "3.5.18"
+CURRENT_VERSION = "3.5.19"
 
 URL = "https://boiling-stacy-joemachen-05fc3544.koyeb.app"
 RELEASES_URL = "https://github.com/joemachen/chitchat/releases"
@@ -97,6 +97,11 @@ def _banner_js(version):
 class _Api:
     def open_releases(self):
         webbrowser.open(RELEASES_URL)
+
+    def open_url(self, url: str):
+        """Open a URL in the system default browser."""
+        if url and url.startswith(("http://", "https://")):
+            webbrowser.open(url)
 
 
 if __name__ == "__main__":

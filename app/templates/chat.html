@@ -630,7 +630,8 @@
     </div>
     <div id="linkContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Link context menu">
         <button type="button" role="menuitem" data-action="copy-link">Copy link</button>
-        <button type="button" role="menuitem" data-action="open-link">Open in new tab</button>
+        <button type="button" role="menuitem" data-action="open-link" id="linkContextOpenLink">Open in new tab</button>
+        <button type="button" role="menuitem" data-action="open-in-app" id="linkContextOpenInApp" style="display: none;">Open in app</button>
     </div>
     <div id="messageContextMenu" class="context-menu" style="display: none;" role="menu" aria-label="Message context menu">
         <button type="button" role="menuitem" data-action="copy" id="messageContextCopy" style="display:none;">Copy</button>
@@ -2454,6 +2455,11 @@ chitchatApp.mount('#app');
     function showLinkContextMenu(x, y, href) {
         linkContextTarget = href;
         linkContextMenuShownAt = Date.now();
+        var isStandalone = !!(window.pywebview && window.pywebview.api && window.pywebview.api.open_url);
+        var openLinkBtn = document.getElementById('linkContextOpenLink');
+        var openInAppBtn = document.getElementById('linkContextOpenInApp');
+        if (openLinkBtn) openLinkBtn.textContent = isStandalone ? 'Open in browser' : 'Open in new tab';
+        if (openInAppBtn) openInAppBtn.style.display = isStandalone ? '' : 'none';
         var pos = clampContextMenuPosition(x, y, linkContextMenuEl);
         linkContextMenuEl.style.left = pos.x + 'px';
         linkContextMenuEl.style.top = pos.y + 'px';
@@ -2518,7 +2524,11 @@ chitchatApp.mount('#app');
         if (a && a.href && (a.target === '_blank' || a.getAttribute('target') === '_blank') && /^https?:\/\//i.test(a.href)) {
             if (Date.now() - linkContextMenuShownAt < 400) return;
             e.preventDefault();
-            window.open(a.href, '_blank', 'noopener,noreferrer');
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.open_url) {
+                window.pywebview.api.open_url(a.href);
+            } else {
+                window.open(a.href, '_blank', 'noopener,noreferrer');
+            }
         }
     });
     (function() {
@@ -2869,6 +2879,17 @@ chitchatApp.mount('#app');
             hideLinkContextMenu();
         });
         linkContextMenuEl.querySelector('[data-action="open-link"]').addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (linkContextTarget) {
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.open_url) {
+                    window.pywebview.api.open_url(linkContextTarget);
+                } else {
+                    window.open(linkContextTarget, '_blank', 'noopener,noreferrer');
+                }
+            }
+            hideLinkContextMenu();
+        });
+        linkContextMenuEl.querySelector('[data-action="open-in-app"]').addEventListener('click', function(e) {
             e.stopPropagation();
             if (linkContextTarget) window.open(linkContextTarget, '_blank', 'noopener,noreferrer');
             hideLinkContextMenu();
@@ -4545,8 +4566,20 @@ chitchatApp.mount('#app');
     (function setupImageLightbox() {
         var lb = document.getElementById('imageLightbox');
         var closeBtn = document.getElementById('imageLightboxClose');
+        var openTabEl = document.getElementById('imageLightboxOpenTab');
         if (closeBtn) closeBtn.addEventListener('click', hideImageLightbox);
         if (lb) lb.addEventListener('click', function(e) { if (e.target === lb) hideImageLightbox(); });
+        if (openTabEl) openTabEl.addEventListener('click', function(e) {
+            var url = openTabEl.href;
+            if (url && url !== '#' && /^https?:\/\//i.test(url)) {
+                e.preventDefault();
+                if (window.pywebview && window.pywebview.api && window.pywebview.api.open_url) {
+                    window.pywebview.api.open_url(url);
+                } else {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }
+            }
+        });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && lb && lb.classList.contains('visible')) hideImageLightbox();
         });
