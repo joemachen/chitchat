@@ -77,6 +77,17 @@
         })
         .catch(setOffline);
 })();
+(function() {
+    function hideGetApp() {
+        var wrap = document.querySelector('.get-app-wrap');
+        if (wrap) wrap.style.display = 'none';
+    }
+    if (window.pywebview) {
+        hideGetApp();
+    } else {
+        window.addEventListener('pywebviewready', hideGetApp);
+    }
+})();
     </script>
 </body>
 </html>
