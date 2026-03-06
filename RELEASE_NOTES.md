@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.15 — Stats leaderboard query fix
+
+**Stats**
+- **Acrophobia & Trivia leaderboards** — Bot exclusion filter now applied before `.limit()` in SQLAlchemy queries. Fixes forbidden filter-after-limit order that could cause errors or incorrect results.
+
+---
+
 ## v3.5.14 — Linux standalone build
 
 **Build**

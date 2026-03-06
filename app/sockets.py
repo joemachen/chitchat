@@ -340,9 +340,10 @@ def _get_stats():
     acro_room = Room.query.filter_by(name="Acrophobia").first()
     acro_leaderboard = []
     if acro_room:
-        acro_q = AcroScore.query.filter_by(room_id=acro_room.id).order_by(AcroScore.wins.desc()).limit(10)
+        acro_q = AcroScore.query.filter_by(room_id=acro_room.id)
         if bot_ids:
             acro_q = acro_q.filter(~AcroScore.user_id.in_(bot_ids))
+        acro_q = acro_q.order_by(AcroScore.wins.desc()).limit(10)
         acro_rows = acro_q.all()
         acro_user_ids = [r.user_id for r in acro_rows]
         acro_users = {u.id: u.username for u in User.query.filter(User.id.in_(acro_user_ids)).all()}
@@ -354,9 +355,10 @@ def _get_stats():
     trivia_room = Room.query.filter_by(name="Trivia").first()
     trivia_leaderboard = []
     if trivia_room:
-        trivia_q = TriviaScore.query.filter_by(room_id=trivia_room.id).order_by(TriviaScore.correct.desc()).limit(10)
+        trivia_q = TriviaScore.query.filter_by(room_id=trivia_room.id)
         if bot_ids:
             trivia_q = trivia_q.filter(~TriviaScore.user_id.in_(bot_ids))
+        trivia_q = trivia_q.order_by(TriviaScore.correct.desc()).limit(10)
         trivia_rows = trivia_q.all()
         trivia_user_ids = [r.user_id for r in trivia_rows]
         trivia_users = {u.id: u.username for u in User.query.filter(User.id.in_(trivia_user_ids)).all()}
