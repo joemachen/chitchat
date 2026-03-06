@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.16 — Standalone update check
+
+**Standalone window**
+- **Update check** — On startup, a background thread fetches the latest release from the GitHub API. If a newer version exists, a dismissible banner appears at the top: "Update available: vX.X.X — Download". Clicking Download opens the releases page in the system browser. Fails silently on timeout or error; retries banner injection up to 3 times for slow page loads.
+
+---
+
 ## v3.5.15 — Stats leaderboard query fix
 
 **Stats**
