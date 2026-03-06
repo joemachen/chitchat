@@ -588,6 +588,26 @@ def register_routes(app):
         db.session.commit()
         return jsonify({"ok": True})
 
+    @app.route("/api/set-message-retention", methods=["POST"])
+    def api_set_message_retention():
+        """Set own message_retention_days: 7, 30, 90, or null (never). Accepts JSON: { days: 7|30|90|null }."""
+        if not session.get("user_id"):
+            return jsonify({"ok": False, "error": "Not authenticated"}), 401
+        user = get_user_by_id(session["user_id"])
+        if not user:
+            return jsonify({"ok": False, "error": "User not found"}), 401
+        data = request.get_json(silent=True) or {}
+        days = data.get("days")
+        if days is not None and days not in (7, 30, 90):
+            return jsonify({"ok": False, "error": "days must be 7, 30, 90, or null"}), 400
+        try:
+            user.message_retention_days = int(days) if days is not None else None
+            db.session.commit()
+            return jsonify({"ok": True, "days": user.message_retention_days})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"ok": False, "error": str(e)}), 500
+
     @app.errorhandler(OperationalError)
     def handle_operational_error(e):
         """If DB error looks like missing column (e.g. rank), return friendly 'run migrations' page."""
