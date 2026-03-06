@@ -3262,12 +3262,18 @@ chitchatApp.mount('#app');
         toast.style.background = '#166534';
         toast.textContent = 'Saving…';
         getToastContainer().appendChild(toast);
-        fetch('/api/set-message-retention', {
+        fetch('{{ url_for("api_set_message_retention") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify({ days: days })
-        }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); }).then(function(res) {
+        }).then(function(r) {
+            var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+            if (ct.indexOf('application/json') === -1) {
+                return r.text().then(function() { return { ok: false, data: { error: 'Server returned HTML (status ' + r.status + '). API may be unavailable.' } }; });
+            }
+            return r.json().then(function(data) { return { ok: r.ok, data: data }; }).catch(function() { return { ok: false, data: { error: 'Server returned invalid JSON (status ' + r.status + ')' } }; });
+        }).then(function(res) {
             toast.remove();
             if (res.ok && res.data && res.data.ok) {
                 state.messageRetentionDays = res.data.days != null ? String(res.data.days) : '';
@@ -3373,12 +3379,18 @@ chitchatApp.mount('#app');
         toast.textContent = 'Saving ' + changes.length + ' role change(s)...';
         getToastContainer().appendChild(toast);
         setTimeout(function() { toast.remove(); }, 2000);
-        fetch('/api/set-user-roles', {
+        fetch('{{ url_for("api_set_user_roles") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify({ changes: changes })
-        }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); }).then(function(res) {
+        }).then(function(r) {
+            var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+            if (ct.indexOf('application/json') === -1) {
+                return r.text().then(function() { return { ok: false, status: r.status, data: { error: 'Server returned HTML (status ' + r.status + '). API may be unavailable.' } }; });
+            }
+            return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: false, status: r.status, data: { error: 'Server returned invalid JSON (status ' + r.status + ')' } }; });
+        }).then(function(res) {
             if (res.ok && res.data && res.data.ok) {
                 state.pendingRankChanges = {};
                 (res.data.results || []).forEach(function(r) {
@@ -3434,12 +3446,18 @@ chitchatApp.mount('#app');
             toast.textContent = 'Saving permissions...';
             getToastContainer().appendChild(toast);
             setTimeout(function() { toast.remove(); }, 2000);
-            fetch('/api/set-role-permissions', {
+            fetch('{{ url_for("api_set_role_permissions") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({ permissions: perms })
-            }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }); }).then(function(res) {
+            }).then(function(r) {
+                var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+                if (ct.indexOf('application/json') === -1) {
+                    return r.text().then(function() { return { ok: false, status: r.status, data: { error: 'Server returned HTML (status ' + r.status + '). API may be unavailable.' } }; });
+                }
+                return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; }).catch(function() { return { ok: false, status: r.status, data: { error: 'Server returned invalid JSON (status ' + r.status + ')' } }; });
+            }).then(function(res) {
                 if (res.ok && res.data && res.data.ok) {
                     var t = document.createElement('div');
                     t.className = 'ping-toast';
