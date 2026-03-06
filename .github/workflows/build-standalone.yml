@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller pywebview
+          pip install pyinstaller pywebview pillow
 
       - name: Build
         run: pyinstaller --windowed --onefile --name "NoHomersClub-Mac" --icon=icon.ico run_standalone.py
