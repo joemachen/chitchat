@@ -52,13 +52,11 @@ class Config:
     UPLOAD_FOLDER = BASE_DIR / "instance" / "uploads"
     MAX_CONTENT_LENGTH = int(os.environ.get("CHITCHAT_MAX_UPLOAD_MB", "5")) * 1024 * 1024  # 5 MB default
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "txt", "zip"}
-    # Koyeb: use polling only when WebSocket fails (HTTP/2). Default True in production (Postgres).
+    # Socket.IO transport: default False (attempt WebSocket). Set CHITCHAT_SOCKET_POLLING_ONLY=1
+    # to force HTTP long-polling only (e.g. if WebSocket fails behind Koyeb/proxy). Rollback:
+    # set CHITCHAT_SOCKET_POLLING_ONLY=1 in Koyeb → Service → Environment variables.
     _polling_env = os.environ.get("CHITCHAT_SOCKET_POLLING_ONLY", "").strip().lower()
-    _is_production = bool(_db_uri and "postgresql" in _db_uri)
-    SOCKET_POLLING_ONLY = (
-        _polling_env in ("1", "true", "yes")
-        or (_is_production and _polling_env not in ("0", "false", "no"))
-    )
+    SOCKET_POLLING_ONLY = _polling_env in ("1", "true", "yes")
     # Rate limit: max messages per user per minute (0 = disabled)
     MESSAGES_PER_MINUTE = int(os.environ.get("CHITCHAT_MESSAGES_PER_MINUTE", "60"))
     # Disable template caching so changes are visible during development
