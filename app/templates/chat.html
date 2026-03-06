@@ -1092,8 +1092,8 @@
                             <h2 style="font-size:1rem;margin:1.5rem 0 0.5rem;color:#818cf8;">Notification preferences</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">{{ profileMuteSummary }}</p>
                             <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
-                                <button type="button" @click="window.chitchat && window.chitchat.settingsMuteAllNotifications && window.chitchat.settingsMuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Mute all</button>
-                                <button type="button" @click="window.chitchat && window.chitchat.settingsUnmuteAllNotifications && window.chitchat.settingsUnmuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Unmute all</button>
+                                <button type="button" @click="settingsMuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Mute all</button>
+                                <button type="button" @click="settingsUnmuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Unmute all</button>
                             </div>
                             <p style="color:#71717a;font-size:0.85rem;margin:0;">Per-room mute: <a href="#" @click.prevent="state.activeSettingsTab = 'notifications'" style="color:#818cf8;">Notifications tab</a></p>
                         </template>
@@ -1104,7 +1104,7 @@
                             <h2>Chat history</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Delete your messages or set auto-delete after a period.</p>
                             <div class="user-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">
-                                <button type="button" @click="window.chitchat && window.chitchat.settingsDeleteMyMessages && window.chitchat.settingsDeleteMyMessages()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Delete all my messages now</button>
+                                <button type="button" @click="settingsDeleteMyMessages()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Delete all my messages now</button>
                                 <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="color:#a1a1aa;">Auto-delete my messages after:</span>
                                     <select v-model="state.messageRetentionDays" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
@@ -1113,7 +1113,7 @@
                                         <option value="30">30 days</option>
                                         <option value="90">90 days</option>
                                     </select>
-                                    <button type="button" @click="window.chitchat && window.chitchat.settingsSaveMessageRetention && window.chitchat.settingsSaveMessageRetention()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#3b82f6;border:none;border-radius:6px;color:#fff;cursor:pointer;">Save</button>
+                                    <button type="button" @click="settingsSaveMessageRetention()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#3b82f6;border:none;border-radius:6px;color:#fff;cursor:pointer;">Save</button>
                                 </div>
                             </div>
                             <h2>Export</h2>
@@ -1129,31 +1129,31 @@
                             <template v-if="isSuperAdmin">
                                 <h2>AcroBot</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Acrophobia game bot in the Acrophobia room. When offline, the bot will not start rounds or accept votes.</p>
-                                <div class="user-row"><label><input type="checkbox" :checked="state.acrobotActive" @change="window.chitchat && window.chitchat.settingsSetAcrobot && window.chitchat.settingsSetAcrobot($event.target.checked)"> <span>AcroBot is online</span></label></div>
+                                <div class="user-row"><label><input type="checkbox" :checked="state.acrobotActive" @change="settingsSetAcrobot($event.target.checked)"> <span>AcroBot is online</span></label></div>
                                 <h2>Homer</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Type !Simpsons in any room to get a random Simpsons quote. When offline, Homer will not respond.</p>
-                                <div class="user-row"><label><input type="checkbox" :checked="state.homerActive" @change="window.chitchat && window.chitchat.settingsSetHomer && window.chitchat.settingsSetHomer($event.target.checked)"> <span>Homer is online</span></label></div>
+                                <div class="user-row"><label><input type="checkbox" :checked="state.homerActive" @change="settingsSetHomer($event.target.checked)"> <span>Homer is online</span></label></div>
                                 <h2>Prof Frink</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Trivia bot in the Trivia room. Type !trivia for a question, !help for commands. When offline, Prof Frink will not respond.</p>
-                                <div class="user-row"><label><input type="checkbox" :checked="state.frinkActive" @change="window.chitchat && window.chitchat.settingsSetFrink && window.chitchat.settingsSetFrink($event.target.checked)"> <span>Prof Frink is online</span></label></div>
+                                <div class="user-row"><label><input type="checkbox" :checked="state.frinkActive" @change="settingsSetFrink($event.target.checked)"> <span>Prof Frink is online</span></label></div>
                                 <h2>Stats</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Reset all message data shown in the Stats room. This deletes every message in every room and cannot be undone.</p>
-                                <div class="user-row"><button type="button" @click="window.chitchat && window.chitchat.settingsResetStats && window.chitchat.settingsResetStats()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>
+                                <div class="user-row"><button type="button" @click="settingsResetStats()" style="padding:0.4rem 0.75rem;font-size:0.85rem;background:#7f1d1d;border:none;border-radius:6px;color:#fecaca;cursor:pointer;">Reset all message data (Stats)</button></div>
                                 <h2>Rooms</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Protected rooms can only be removed here. Admins can mark any room protected.</p>
                                 <div v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
                                     <span>{{ r.name }}<span v-if="r.is_protected" style="color:#71717a;"> (protected)</span></span>
                                     <span style="display:flex;gap:0.35rem;align-items:center;">
-                                        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a1a1aa;"><input type="checkbox" :checked="r.is_protected" @change="window.chitchat && window.chitchat.settingsSetRoomProtected && window.chitchat.settingsSetRoomProtected(r.id, r.name, $event.target.checked)"> Protect</label>
-                                        <button v-if="r.name !== 'general'" type="button" @click="window.chitchat && window.chitchat.settingsDeleteRoom && window.chitchat.settingsDeleteRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>
-                                        <button type="button" @click="window.chitchat && window.chitchat.settingsWipeRoom && window.chitchat.settingsWipeRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>
+                                        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a1a1aa;"><input type="checkbox" :checked="r.is_protected" @change="settingsSetRoomProtected(r.id, r.name, $event.target.checked)"> Protect</label>
+                                        <button v-if="r.name !== 'general'" type="button" @click="settingsDeleteRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#3f3f46;border:none;border-radius:4px;color:#e4e4e7;cursor:pointer;">Delete</button>
+                                        <button type="button" @click="settingsWipeRoom(r.id, r.name)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#451a03;border:none;border-radius:4px;color:#fdba74;cursor:pointer;">Wipe history</button>
                                     </span>
                                 </div>
                                 <h2>Users — Roles</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user roles (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
                                 <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
                                     <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
-                                    <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" :data-user-id="u.id" @change="window.chitchat && window.chitchat.settingsSetUserRankPending && window.chitchat.settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
+                                    <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" :data-user-id="u.id" @change="settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
                                         <option value="rookie">Rookie</option>
                                         <option value="bro">Bro</option>
                                         <option value="fam">Fam</option>
@@ -1173,16 +1173,16 @@
                                 <h2>Default room</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Room users see when they first log in.</p>
                                 <div class="user-row">
-                                    <select :value="state.defaultChannelId || ''" @change="window.chitchat && window.chitchat.settingsSetDefaultChannel && window.chitchat.settingsSetDefaultChannel($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
+                                    <select :value="state.defaultChannelId || ''" @change="settingsSetDefaultChannel($event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.9rem;">
                                         <option v-for="r in (state.allRooms || []).filter(function(x){return !x.is_dm})" :key="r.id" :value="String(r.id)">{{ r.name }}</option>
                                     </select>
                                 </div>
                                 <h2>Bot rooms</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Which rooms each bot can respond in. Comma-separated names; "all" or empty = all rooms.</p>
                                 <div class="user-row" style="flex-direction:column;align-items:stretch;gap:0.5rem;">
-                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">AcroBot:</span><input type="text" :value="(state.botChannels && state.botChannels.acrobot) ? state.botChannels.acrobot.join(', ') : ''" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('acrobot', $event.target.value)" placeholder="Acrophobia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
-                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Homer:</span><input type="text" :value="(state.botChannels && state.botChannels.homer) ? state.botChannels.homer.join(', ') : 'all'" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('homer', $event.target.value)" placeholder="all" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
-                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Prof Frink:</span><input type="text" :value="(state.botChannels && state.botChannels.frink) ? state.botChannels.frink.join(', ') : ''" @blur="window.chitchat && window.chitchat.settingsSetBotChannels && window.chitchat.settingsSetBotChannels('frink', $event.target.value)" placeholder="Trivia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
+                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">AcroBot:</span><input type="text" :value="(state.botChannels && state.botChannels.acrobot) ? state.botChannels.acrobot.join(', ') : ''" @blur="settingsSetBotChannels('acrobot', $event.target.value)" placeholder="Acrophobia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
+                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Homer:</span><input type="text" :value="(state.botChannels && state.botChannels.homer) ? state.botChannels.homer.join(', ') : 'all'" @blur="settingsSetBotChannels('homer', $event.target.value)" placeholder="all" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
+                                    <label style="display:flex;align-items:center;gap:0.5rem;"><span style="min-width:90px;">Prof Frink:</span><input type="text" :value="(state.botChannels && state.botChannels.frink) ? state.botChannels.frink.join(', ') : ''" @blur="settingsSetBotChannels('frink', $event.target.value)" placeholder="Trivia" style="flex:1;background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.35rem 0.5rem;border-radius:4px;font-size:0.9rem;"></label>
                                 </div>
                                 <h2>Role Permissions</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Super Admin can grant these permissions to Rookie, Bro, or Fam. Super Admin always has full access.</p>
@@ -1190,14 +1190,14 @@
                                     <tr><th style="text-align:left;padding:0.35rem 0.75rem 0.35rem 0;">Permission</th><th style="padding:0.35rem 0.5rem;">Rookie</th><th style="padding:0.35rem 0.5rem;">Bro</th><th style="padding:0.35rem 0.5rem;">Fam</th></tr>
                                     <tr v-for="perm in ['create_room','update_room','delete_room','kick_user','set_user_rank','acrobot_control','homer_control','frink_control','reset_stats','export_all']" :key="perm">
                                         <td style="padding:0.35rem 0.75rem 0.35rem 0;">{{ { create_room: 'Create rooms', update_room: 'Edit room names', delete_room: 'Delete rooms', kick_user: 'Kick users', set_user_rank: 'Set user rankings', acrobot_control: 'AcroBot on/off', homer_control: 'Homer on/off', frink_control: 'Prof Frink on/off', reset_stats: 'Reset Stats data', export_all: 'Export all rooms' }[perm] }}</td>
-                                        <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;vertical-align:middle;"><label style="display:flex;align-items:center;justify-content:center;cursor:pointer;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="window.chitchat && window.chitchat.settingsSetRolePermission && window.chitchat.settingsSetRolePermission(role, perm, $event.target.checked)"></label></td>
+                                        <td v-for="role in ['rookie','bro','fam']" :key="role" style="padding:0.35rem 0.5rem;vertical-align:middle;"><label style="display:flex;align-items:center;justify-content:center;cursor:pointer;"><input type="checkbox" :checked="state.rolePermissions[role] && state.rolePermissions[role][perm]" @change="settingsSetRolePermission(role, perm, $event.target.checked)"></label></td>
                                     </tr>
                                 </table>
                                 <div class="user-row" style="margin-top:0.75rem;">
                                     <button type="button" id="saveRolePermissionsBtn" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save permissions</button>
                                 </div>
                             </template>
-                            <div class="user-row" style="margin-top:1.5rem;"><button type="button" @click="window.chitchat && window.chitchat.settingsSave && window.chitchat.settingsSave()" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>
+                            <div class="user-row" style="margin-top:1.5rem;"><button type="button" @click="settingsSave()" style="padding:0.5rem 1.25rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.95rem;cursor:pointer;">Save changes</button></div>
                         </template>
                         <template v-else-if="state.activeSettingsTab === 'appearance'">
                             <h2>Appearance</h2>
@@ -1226,10 +1226,10 @@
                             <h2>Notifications</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Mute notifications for specific rooms.</p>
                             <div class="user-row" style="gap:0.5rem;margin-bottom:0.75rem;">
-                                <button type="button" @click="window.chitchat && window.chitchat.settingsMuteAllNotifications && window.chitchat.settingsMuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Mute all</button>
-                                <button type="button" @click="window.chitchat && window.chitchat.settingsUnmuteAllNotifications && window.chitchat.settingsUnmuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Unmute all</button>
+                                <button type="button" @click="settingsMuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Mute all</button>
+                                <button type="button" @click="settingsUnmuteAllNotifications()" style="padding:0.35rem 0.75rem;font-size:0.85rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;cursor:pointer;">Unmute all</button>
                             </div>
-                            <div v-for="r in channelsInOrder" :key="r.id" class="user-row"><label><input type="checkbox" :checked="state.roomNotificationMuted[r.id]" @change="window.chitchat && window.chitchat.settingsToggleRoomMute && window.chitchat.settingsToggleRoomMute(r.id, $event.target.checked)"> <span>Mute {{ r.name }}</span></label></div>
+                            <div v-for="r in channelsInOrder" :key="r.id" class="user-row"><label><input type="checkbox" :checked="state.roomNotificationMuted[r.id]" @change="settingsToggleRoomMute(r.id, $event.target.checked)"> <span>Mute {{ r.name }}</span></label></div>
                         </template>
                         <div class="settings-logout-wrap" style="margin-top:2rem;padding-top:1rem;border-top:1px solid #27272a;">
                             <form action="{% endraw %}{{ url_for('logout') }}{% raw %}" method="post" style="display:inline;">
@@ -1944,11 +1944,28 @@ const chitchatApp = createApp({
         function setFont(val) { if (window.chitchat && window.chitchat.setFont) window.chitchat.setFont(val); }
         function deleteUser(userId, username) { if (window.chitchat && window.chitchat.settingsDeleteUser) window.chitchat.settingsDeleteUser(userId, username); }
         function saveUserRanks() { if (window.chitchat && window.chitchat.settingsSaveUserRanks) window.chitchat.settingsSaveUserRanks(); }
+        function settingsMuteAllNotifications() { if (window.chitchat && window.chitchat.settingsMuteAllNotifications) window.chitchat.settingsMuteAllNotifications(); }
+        function settingsUnmuteAllNotifications() { if (window.chitchat && window.chitchat.settingsUnmuteAllNotifications) window.chitchat.settingsUnmuteAllNotifications(); }
+        function settingsDeleteMyMessages() { if (window.chitchat && window.chitchat.settingsDeleteMyMessages) window.chitchat.settingsDeleteMyMessages(); }
+        function settingsSaveMessageRetention() { if (window.chitchat && window.chitchat.settingsSaveMessageRetention) window.chitchat.settingsSaveMessageRetention(); }
+        function settingsSetAcrobot(checked) { if (window.chitchat && window.chitchat.settingsSetAcrobot) window.chitchat.settingsSetAcrobot(checked); }
+        function settingsSetHomer(checked) { if (window.chitchat && window.chitchat.settingsSetHomer) window.chitchat.settingsSetHomer(checked); }
+        function settingsSetFrink(checked) { if (window.chitchat && window.chitchat.settingsSetFrink) window.chitchat.settingsSetFrink(checked); }
+        function settingsResetStats() { if (window.chitchat && window.chitchat.settingsResetStats) window.chitchat.settingsResetStats(); }
+        function settingsSetRoomProtected(roomId, roomName, checked) { if (window.chitchat && window.chitchat.settingsSetRoomProtected) window.chitchat.settingsSetRoomProtected(roomId, roomName, checked); }
+        function settingsDeleteRoom(roomId, roomName) { if (window.chitchat && window.chitchat.settingsDeleteRoom) window.chitchat.settingsDeleteRoom(roomId, roomName); }
+        function settingsWipeRoom(roomId, roomName) { if (window.chitchat && window.chitchat.settingsWipeRoom) window.chitchat.settingsWipeRoom(roomId, roomName); }
+        function settingsSetUserRankPending(userId, rank) { if (window.chitchat && window.chitchat.settingsSetUserRankPending) window.chitchat.settingsSetUserRankPending(userId, rank); }
+        function settingsSetDefaultChannel(roomId) { if (window.chitchat && window.chitchat.settingsSetDefaultChannel) window.chitchat.settingsSetDefaultChannel(roomId); }
+        function settingsSetBotChannels(bot, value) { if (window.chitchat && window.chitchat.settingsSetBotChannels) window.chitchat.settingsSetBotChannels(bot, value); }
+        function settingsSetRolePermission(role, permission, allowed) { if (window.chitchat && window.chitchat.settingsSetRolePermission) window.chitchat.settingsSetRolePermission(role, permission, allowed); }
+        function settingsToggleRoomMute(roomId, muted) { if (window.chitchat && window.chitchat.settingsToggleRoomMute) window.chitchat.settingsToggleRoomMute(roomId, muted); }
+        function settingsSave() { if (window.chitchat && window.chitchat.settingsSave) window.chitchat.settingsSave(); }
         var mobilePresenceSheetTouchStartY = null;
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -3240,7 +3257,44 @@ chitchatApp.mount('#app');
     }
     function settingsSaveMessageRetention() {
         var days = state.messageRetentionDays ? parseInt(state.messageRetentionDays, 10) : null;
-        socket.emit('set_message_retention', { days: days });
+        var toast = document.createElement('div');
+        toast.className = 'ping-toast';
+        toast.style.background = '#166534';
+        toast.textContent = 'Saving…';
+        getToastContainer().appendChild(toast);
+        fetch('/api/set-message-retention', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ days: days })
+        }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); }).then(function(res) {
+            toast.remove();
+            if (res.ok && res.data && res.data.ok) {
+                state.messageRetentionDays = res.data.days != null ? String(res.data.days) : '';
+                var t = document.createElement('div');
+                t.className = 'ping-toast';
+                t.style.background = '#166534';
+                t.textContent = 'Auto-delete saved.';
+                getToastContainer().appendChild(t);
+                setTimeout(function() { t.remove(); }, 3000);
+            } else {
+                var err = (res.data && res.data.error) || 'Failed to save';
+                var t = document.createElement('div');
+                t.className = 'ping-toast';
+                t.style.background = '#7f1d1d';
+                t.textContent = err;
+                getToastContainer().appendChild(t);
+                setTimeout(function() { t.remove(); }, 5000);
+            }
+        }).catch(function(e) {
+            toast.remove();
+            var t = document.createElement('div');
+            t.className = 'ping-toast';
+            t.style.background = '#7f1d1d';
+            t.textContent = 'Network error: ' + (e.message || 'Could not save');
+            getToastContainer().appendChild(t);
+            setTimeout(function() { t.remove(); }, 5000);
+        });
     }
     function settingsSetAcrobot(checked) {
         acrobotActive = checked;
