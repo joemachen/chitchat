@@ -1,5 +1,19 @@
 # Release notes
 
+## v3.5.14 — Linux standalone build
+
+**Build**
+- **Linux** — Added `build-linux` job to GitHub Actions. On tag push (`v*`), builds NoHomersClub-Linux on ubuntu-latest via PyInstaller; uploads to GitHub Releases alongside Windows and macOS.
+
+---
+
+## v3.5.13 — macOS build icon fix
+
+**Build**
+- **Pillow** — Added Pillow to macOS PyInstaller build for icon.ico → .icns conversion. Fixes missing app icon on macOS standalone builds.
+
+---
+
 ## v3.5.12 — Standalone cookie persistence, build icon
 
 **Standalone window**

@@ -36,7 +36,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Browser**: `run.py` — sets up logging, finds an available port (5000–5019), runs `app.socketio.run(app, host="127.0.0.1", port=port, debug=False, use_reloader=False)`.
 - **Production (Koyeb)**: `wsgi.py`; `Procfile`: `python gunicorn_run.py` (runs gevent monkey_patch, migrations in subprocess, then gunicorn).
-- **Standalone window**: `run_standalone.py` — opens the Koyeb-hosted app in a pywebview window (no local server). Cookies persisted via `storage_path` so session survives app restarts. Build exe: `run-standalone.bat build` (PyInstaller) or push a `v*` tag to trigger GitHub Actions (Windows + macOS → GitHub Release).
+- **Standalone window**: `run_standalone.py` — opens the Koyeb-hosted app in a pywebview window (no local server). Cookies persisted via `storage_path` so session survives app restarts. Build exe: `run-standalone.bat build` (PyInstaller) or push a `v*` tag to trigger GitHub Actions (Windows, macOS, and Linux → GitHub Release).
 
 ---
 
@@ -278,7 +278,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.12); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.14); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |

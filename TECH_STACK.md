@@ -37,4 +37,4 @@
 - **Koyeb + Neon**: `Procfile` (`web: python gunicorn_run.py`). Set `DATABASE_URL`, `CHITCHAT_SECRET_KEY`, `CHITCHAT_INVITE_CODE` in Koyeb environment variables. Optional: `CHITCHAT_VERSION` for deploy announcements (posted to System Events only when version changes); `CHITCHAT_SKIP_MIGRATIONS=1` to skip migrations at startup (debug only).
 - **Gunicorn** — Production WSGI server; gevent worker for WebSocket support.
 - **psycopg2-binary** — PostgreSQL driver for Neon.
-- **GitHub Actions** — `build-standalone.yml` builds Windows (NoHomersClub.exe) and macOS (NoHomersClub-Mac) with icon on tag push (`v*`); uploads to GitHub Releases.
+- **GitHub Actions** — `build-standalone.yml` builds Windows (NoHomersClub.exe), macOS (NoHomersClub-Mac), and Linux (NoHomersClub-Linux) on tag push (`v*`); uploads to GitHub Releases.
