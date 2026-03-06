@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.11 — GitHub Actions standalone builds
+
+**CI/CD**
+- **build-standalone.yml** — On tag push (`v*`), builds Windows (NoHomersClub.exe) and macOS (NoHomersClub-Mac) via PyInstaller; uploads both to GitHub Releases.
+
+---
+
 ## v3.5.10 — WebSocket default, standalone Koyeb wrapper
 
 **WebSocket**

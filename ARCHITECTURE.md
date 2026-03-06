@@ -18,6 +18,7 @@ chitchat/
 │   ├── app.log          # General activity (start, connections)
 │   └── errors.log       # Exceptions with stack traces and local variable context
 ├── instance/            # App instance data (DB, etc.; created at runtime)
+├── .github/workflows/   # GitHub Actions (build-standalone on tag push)
 └── app/
     ├── __init__.py      # App factory (create_app)
     ├── config.py        # Configuration (invite code, DB, secret)
@@ -37,6 +38,7 @@ chitchat/
 - **Logging**: `/logs` directory; `app.log` for general activity; `errors.log` for exceptions with **full stack traces and local variable context** per frame (Recursive Learning Loop).
 - **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `UI_GUIDELINES.md`, `ROADMAP.md`, `migrations/README`.
 - **Production**: `Procfile` for Koyeb; gunicorn with gevent worker. Role permissions (Super Admin configures rookie/bro/fam) in `role_permissions` table.
+- **Standalone builds**: GitHub Actions workflow (`.github/workflows/build-standalone.yml`) builds Windows and macOS executables on tag push (`v*`); uploads to GitHub Releases.
 
 ## Data Model (Step 2)
 

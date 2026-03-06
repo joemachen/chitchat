@@ -1,0 +1,81 @@
+name: Build Standalone
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller pywebview
+
+      - name: Build
+        run: pyinstaller --noconsole --onefile --name "NoHomersClub" run_standalone.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nohomersclub-windows
+          path: dist/NoHomersClub.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller pywebview
+
+      - name: Build
+        run: pyinstaller --noconsole --onefile --name "NoHomersClub" run_standalone.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nohomersclub-macos
+          path: dist/NoHomersClub
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nohomersclub-windows
+          path: dist
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nohomersclub-macos
+          path: dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/NoHomersClub.exe
+            dist/NoHomersClub
+          generate_release_notes: true
