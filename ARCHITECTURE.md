@@ -45,6 +45,7 @@ chitchat/
 - **Users** — Registered only with a valid **Simple Invite Code** (no open sign-up).
 - **Messages** — Stored per room; SQLAlchemy + SQLite.
 - **Room mute** — Per-room mute; frontend hides muted users’ messages.
+- **Events** — Dedicated Events room with calendar grid; Event and EventInvitation models for scheduling and attendance (Fam+ CRUD).
 
 ## Real-Time (Step 3)
 
@@ -53,6 +54,7 @@ chitchat/
 - On **join room**: server sends last 50 messages (server-side room-mute filter), plus **has_more**; client can request older messages via **load_more_messages** (before_id).
 - **Typing**: client emits **user_typing** (debounced); server broadcasts to room; client shows “[User] is typing…” and clears after 5s.
 - **Link previews**: when a chat message contains a URL, server fetches OG metadata (app/link_preview.py) and attaches **link_previews** to the message payload; client renders a card with minimize.
+- **Events room**: monthly calendar grid above chat; Fam+ can create/edit/delete events; users can RSVP (going/maybe/declined) and Fam+ can invite others.
 
 ## UI (Step 4)
 

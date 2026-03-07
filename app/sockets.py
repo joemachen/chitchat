@@ -8,7 +8,7 @@ import random
 import re
 import time
 from collections import Counter
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, time, timezone, timedelta
 
 from flask import current_app, request, session
 from flask_socketio import disconnect as socketio_disconnect, emit, join_room as socketio_join_room
@@ -56,7 +56,7 @@ from app.prof_frink import (
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
 from app.message_cache import cache_append, cache_clear_room, cache_remove, cache_update, get_cached_messages, validate_message_payload
-from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, PinnedMessage, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, AuditLog, Event, EventInvitation, IgnoreList, Message, MessageReaction, MessageReport, PinnedMessage, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
 from app.room_aliases import get_room_aliases, resolve_alias, set_room_alias
 from app.user_private_data import get_all_private_data, get_private_data, set_private_data
 
@@ -832,6 +832,30 @@ def register_socket_handlers(socketio):
         rank = (getattr(u, "rank", None) or "rookie").lower()
         return rank in ("fam", "super_admin")
 
+    def _can_manage_events(user_id):
+        """Return True if user can create/edit/delete events (Fam or Super Admin)."""
+        if _is_super_admin(user_id):
+            return True
+        u = User.query.get(user_id)
+        if not u:
+            return False
+        rank = (getattr(u, "rank", None) or "rookie").lower()
+        return rank in ("fam", "super_admin")
+
+    def _get_events_for_month(room_id, year, month):
+        """Return list of event dicts for the given room and month."""
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end = date(year, month + 1, 1) - timedelta(days=1)
+        events = Event.query.filter(
+            Event.room_id == room_id,
+            Event.event_date >= start,
+            Event.event_date <= end,
+        ).order_by(Event.event_date, Event.start_time).all()
+        return [e.to_dict() for e in events]
+
     def _has_permission(user_id, permission):
         """Return True if user has permission. Surfer Girl has all; else check RolePermission for user's rank."""
         if _is_super_admin(user_id):
@@ -1080,6 +1104,9 @@ def register_socket_handlers(socketio):
             if room_obj.name.strip() == "Trivia":
                 trivia_info = get_trivia_phase_info(room_id)
                 payload["trivia"] = trivia_info if trivia_info else {"end_time": None}
+            if room_obj.name.strip() == "Events":
+                now = datetime.now(timezone.utc)
+                payload["events"] = _get_events_for_month(room_id, now.year, now.month)
             emit("room_joined", payload)
             logger.info("User %s joined room %s, history len=%s", user_id, room_id, len(history))
 
@@ -1130,6 +1157,264 @@ def register_socket_handlers(socketio):
         messages.reverse()
         history = [m.to_dict() for m in messages]
         emit("older_messages", {"messages": history, "has_more": has_more})
+
+    @socketio.on("get_events")
+    def on_get_events(data):
+        """Return events for a room and month. Fam+ can view."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        room_id = (data or {}).get("room_id")
+        year = (data or {}).get("year")
+        month = (data or {}).get("month")
+        if not room_id or year is None or month is None:
+            emit("error", {"message": "room_id, year, and month required"})
+            return
+        try:
+            room_id = int(room_id)
+            year = int(year)
+            month = int(month)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id, year, or month"})
+            return
+        room_obj = Room.query.get(room_id)
+        if not room_obj or room_obj.name.strip() != "Events":
+            emit("error", {"message": "Events room not found"})
+            return
+        if month < 1 or month > 12:
+            emit("error", {"message": "Invalid month"})
+            return
+        events = _get_events_for_month(room_id, year, month)
+        emit("events_list", {"room_id": room_id, "year": year, "month": month, "events": events})
+
+    @socketio.on("create_event")
+    def on_create_event(data):
+        """Create an event. Fam+ only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _can_manage_events(user_id):
+            emit("error", {"message": "Only Fam or admins can create events"})
+            return
+        room_id = (data or {}).get("room_id")
+        title = ((data or {}).get("title") or "").strip()
+        if not room_id or not title:
+            emit("error", {"message": "room_id and title required"})
+            return
+        try:
+            room_id = int(room_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid room_id"})
+            return
+        room_obj = Room.query.get(room_id)
+        if not room_obj or room_obj.name.strip() != "Events":
+            emit("error", {"message": "Events room not found"})
+            return
+        event_date_str = (data or {}).get("event_date")
+        if not event_date_str:
+            emit("error", {"message": "event_date required (YYYY-MM-DD)"})
+            return
+        try:
+            event_date = datetime.strptime(event_date_str[:10], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            emit("error", {"message": "Invalid event_date format"})
+            return
+        start_time = None
+        end_time = None
+        if (data or {}).get("start_time"):
+            try:
+                start_time = datetime.strptime((data or {}).get("start_time")[:5], "%H:%M").time()
+            except (ValueError, TypeError):
+                pass
+        if (data or {}).get("end_time"):
+            try:
+                end_time = datetime.strptime((data or {}).get("end_time")[:5], "%H:%M").time()
+            except (ValueError, TypeError):
+                pass
+        description = ((data or {}).get("description") or "").strip() or None
+        location = ((data or {}).get("location") or "").strip() or None
+        event = Event(
+            room_id=room_id,
+            created_by_id=user_id,
+            title=title,
+            description=description,
+            event_date=event_date,
+            start_time=start_time,
+            end_time=end_time,
+            location=location,
+        )
+        db.session.add(event)
+        db.session.commit()
+        ev_dict = event.to_dict()
+        socketio.emit("event_created", ev_dict, room=f"room_{room_id}")
+        emit("event_created", ev_dict)
+        _audit_log(user_id, "create_event", "event", event.id, {"title": title, "event_date": event_date_str})
+
+    @socketio.on("update_event")
+    def on_update_event(data):
+        """Update an event. Fam+ only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _can_manage_events(user_id):
+            emit("error", {"message": "Only Fam or admins can edit events"})
+            return
+        event_id = (data or {}).get("event_id")
+        if not event_id:
+            emit("error", {"message": "event_id required"})
+            return
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid event_id"})
+            return
+        event = Event.query.get(event_id)
+        if not event:
+            emit("error", {"message": "Event not found"})
+            return
+        room_obj = Room.query.get(event.room_id)
+        if not room_obj or room_obj.name.strip() != "Events":
+            emit("error", {"message": "Event not in Events room"})
+            return
+        if (data or {}).get("title") is not None:
+            title = str((data or {}).get("title") or "").strip()
+            if title:
+                event.title = title
+        if (data or {}).get("description") is not None:
+            event.description = str((data or {}).get("description") or "").strip() or None
+        if (data or {}).get("event_date") is not None:
+            try:
+                event.event_date = datetime.strptime((data or {}).get("event_date")[:10], "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                pass
+        if (data or {}).get("start_time") is not None:
+            val = (data or {}).get("start_time")
+            try:
+                event.start_time = datetime.strptime(str(val)[:5], "%H:%M").time() if val else None
+            except (ValueError, TypeError):
+                event.start_time = None
+        if (data or {}).get("end_time") is not None:
+            val = (data or {}).get("end_time")
+            try:
+                event.end_time = datetime.strptime(str(val)[:5], "%H:%M").time() if val else None
+            except (ValueError, TypeError):
+                event.end_time = None
+        if (data or {}).get("location") is not None:
+            event.location = str((data or {}).get("location") or "").strip() or None
+        db.session.commit()
+        ev_dict = event.to_dict()
+        socketio.emit("event_updated", ev_dict, room=f"room_{event.room_id}")
+        emit("event_updated", ev_dict)
+
+    @socketio.on("delete_event")
+    def on_delete_event(data):
+        """Delete an event. Fam+ only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _can_manage_events(user_id):
+            emit("error", {"message": "Only Fam or admins can delete events"})
+            return
+        event_id = (data or {}).get("event_id")
+        if not event_id:
+            emit("error", {"message": "event_id required"})
+            return
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid event_id"})
+            return
+        event = Event.query.get(event_id)
+        if not event:
+            emit("error", {"message": "Event not found"})
+            return
+        room_id = event.room_id
+        room_obj = Room.query.get(room_id)
+        if not room_obj or room_obj.name.strip() != "Events":
+            emit("error", {"message": "Event not in Events room"})
+            return
+        db.session.delete(event)
+        db.session.commit()
+        socketio.emit("event_deleted", {"event_id": event_id, "room_id": room_id}, room=f"room_{room_id}")
+        emit("event_deleted", {"event_id": event_id, "room_id": room_id})
+
+    @socketio.on("invite_to_event")
+    def on_invite_to_event(data):
+        """Invite a user to an event. Fam+ only."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        if not _can_manage_events(user_id):
+            emit("error", {"message": "Only Fam or admins can invite to events"})
+            return
+        event_id = (data or {}).get("event_id")
+        target_user_id = (data or {}).get("user_id")
+        if not event_id or not target_user_id:
+            emit("error", {"message": "event_id and user_id required"})
+            return
+        try:
+            event_id = int(event_id)
+            target_user_id = int(target_user_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid event_id or user_id"})
+            return
+        event = Event.query.get(event_id)
+        if not event:
+            emit("error", {"message": "Event not found"})
+            return
+        room_obj = Room.query.get(event.room_id)
+        if not room_obj or room_obj.name.strip() != "Events":
+            emit("error", {"message": "Event not in Events room"})
+            return
+        inv = EventInvitation.query.filter_by(event_id=event_id, user_id=target_user_id).first()
+        if inv:
+            inv.status = "invited"
+            db.session.commit()
+        else:
+            inv = EventInvitation(event_id=event_id, user_id=target_user_id, status="invited")
+            db.session.add(inv)
+            db.session.commit()
+        ev_dict = event.to_dict()
+        socketio.emit("event_updated", ev_dict, room=f"room_{event.room_id}")
+        emit("event_updated", ev_dict)
+
+    @socketio.on("update_invitation")
+    def on_update_invitation(data):
+        """Update own invitation status (going/maybe/declined). Any user can update their own."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        event_id = (data or {}).get("event_id")
+        status = ((data or {}).get("status") or "").strip().lower()
+        if not event_id:
+            emit("error", {"message": "event_id required"})
+            return
+        if status not in ("invited", "going", "maybe", "declined"):
+            emit("error", {"message": "status must be invited, going, maybe, or declined"})
+            return
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            emit("error", {"message": "Invalid event_id"})
+            return
+        inv = EventInvitation.query.filter_by(event_id=event_id, user_id=user_id).first()
+        if not inv:
+            inv = EventInvitation(event_id=event_id, user_id=user_id, status=status)
+            db.session.add(inv)
+        else:
+            inv.status = status
+        db.session.commit()
+        event = Event.query.get(event_id)
+        if event:
+            ev_dict = event.to_dict()
+            socketio.emit("event_updated", ev_dict, room=f"room_{event.room_id}")
+            emit("event_updated", ev_dict)
 
     @socketio.on("send_message")
     def on_send_message(data):
@@ -1575,6 +1860,7 @@ def register_socket_handlers(socketio):
                 "• /em <text> or /me <text> — third-person emote",
                 "• !Simpsons — type in any room to trigger Homer; he replies with a random Simpsons quote (when Homer is online); new users get a welcome DM on first login; random quote DM if away 30+ days",
                 "• In #Trivia: !trivia or !trivia X (X=1–7 rounds, 45s per question), !score (leaderboard), !help, !settings (Prof Frink bot); /trivia also works",
+                "• In #Events: monthly calendar above chat; Fam+ create/edit/delete events; click day to view or add; RSVP (going/maybe/declined); Fam+ can invite users",
                 "• Right-click (or long-press on mobile) message → Reply, Add reaction, Pin/Unpin (Fam+), Edit, Delete, Hide, Mute, Report, Mark unread, Whois, Send message; on mobile: tap your message to show Edit/Reply buttons",
                 "• Right-click user → Whois, Message, Mute, Kick (admin or kick_user permission); on your name: Edit profile, Set status (Online/Away/DND/Invisible)",
                 "• Right-click room → Move up, Move down, Mute notifications, Edit room, Unmute users (if muted); long-press on mobile",

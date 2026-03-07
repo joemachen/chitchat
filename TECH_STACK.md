@@ -24,6 +24,7 @@
 - **marked.js** — Markdown rendering for message content (bold, italics, code blocks); loaded from CDN.
 - **Link previews** — Server fetches Open Graph data (requests + BeautifulSoup); client renders preview cards with minimize.
 - **Typing indicators** — WebSocket `user_typing` event; “[User] is typing…” above the input.
+- **Events room** — Monthly calendar grid above chat; Fam+ CRUD for events; invitations and RSVP; responsive layout.
 - **Message pagination** — Last 50 messages on join; “Load older messages” fetches more; server-side room-mute filter.
 
 ## Tooling & Environment

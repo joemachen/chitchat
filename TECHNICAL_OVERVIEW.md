@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes; welcome DM on first login; random quote DM if away 30+ days), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, an **Events room** (monthly calendar grid above chat; Fam+ CRUD for events; invitations and RSVP), system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes; welcome DM on first login; random quote DM if away 30+ days), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia, #events), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/ or Cloudinary when CLOUDINARY_URL is set).
 
@@ -86,13 +86,13 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–026), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–028), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="gevent"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color`, `welcome_sent` on `users`; `room_id`, `message_type` on `messages`). Versions 001–027. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color`, `welcome_sent` on `users`; `room_id`, `message_type` on `messages`). Versions 001–028. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**, **Events**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
 
 ### 3.3 Design principles
 
@@ -120,22 +120,36 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Fields**: `id`, `name`, `created_at`, `created_by_id`, `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id`, `is_protected`.
 - **DM semantics**: If `dm_with_id` is set, the room is a DM between `created_by_id` and `dm_with_id`. Name is stored as `"DM"`; display name (“DM: <other_username>”) is derived on the client from `created_by_id`, `created_by_username`, `dm_with_username`, and current user id.
 - **Relations**: `created_by`, `topic_set_by`, `dm_with`, `messages` (cascade delete).
-- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events**, **Trivia** can only be deleted from Settings by an admin (backend checks `from_settings` on delete).
+- **Protected rooms**: **general** cannot be deleted. **Stats**, **Acrophobia**, **System Events**, **Trivia**, **Events** can only be deleted from Settings by an admin (backend checks `from_settings` on delete).
 
-### 4.3 Message
+### 4.3 Event
+
+- **Table**: `events`.
+- **Fields**: `id`, `room_id`, `created_by_id`, `title`, `description`, `event_date`, `start_time`, `end_time`, `location`, `created_at`, `updated_at`.
+- **Relations**: `room`, `created_by`, `invitations` (EventInvitation).
+- **Notes**: Events room only. Fam+ can create/edit/delete. Stored as structured objects, not chat messages.
+
+### 4.4 EventInvitation
+
+- **Table**: `event_invitations`.
+- **Fields**: `id`, `event_id`, `user_id`, `status` (invited|going|maybe|declined), `created_at`, `updated_at`.
+- **Relations**: `event`, `user`.
+- **Notes**: Fam+ invite users; any user can update own RSVP.
+
+### 4.5 Message
 
 - **Table**: `messages`.
 - **Fields**: `id`, `room_id`, `user_id`, `content`, `created_at`, `message_type` (`'chat'` or `'emote'`), `parent_id`, `edited_at`, `attachment_url`, `attachment_filename`, `link_previews` (JSON), plus legacy `room` (string) for backward compatibility.
 - **Relations**: `user`, `room`, `parent` (reply), `reactions` (MessageReaction).
 - **Notes**: All channel history is stored here; Stats view is computed from this table (no separate stats storage). Deleting “Stats data” means deleting all rows in `messages`.
 
-### 4.4 AppSetting
+### 4.6 AppSetting
 
 - **Table**: `app_settings`.
 - **Fields**: `key` (unique), `value` (text).
 - **Usage**: Key-value store for app-wide settings. `default_room_id` — Admin chooses which channel users see on login when no room is specified.
 
-### 4.5 IgnoreList (legacy)
+### 4.7 IgnoreList (legacy)
 
 - **Table**: `ignore_list`.
 - **Status**: Ignore functionality removed. Table retained for cascade delete when users are deleted. No UI or socket handlers use it.
@@ -191,6 +205,12 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `add_reaction` / `remove_reaction` | `on_add_reaction` / `on_remove_reaction` | Yes | Toggle emoji reaction; broadcast `reaction_updated`. |
 | `delete_my_messages` | `on_delete_my_messages` | Yes | Bulk delete own messages (confirm required); emit `messages_deleted`, `my_messages_deleted`. |
 | `delete_user` | `on_delete_user` | Super Admin only | Delete user and cascade; broadcast `user_list_updated`, `rooms_updated`. |
+| `get_events` | `on_get_events` | Yes | Emit `events_list` with events for room and month. |
+| `create_event` | `on_create_event` | Fam+ | Create event; broadcast `event_created` to room. |
+| `update_event` | `on_update_event` | Fam+ | Update event; broadcast `event_updated` to room. |
+| `delete_event` | `on_delete_event` | Fam+ | Delete event; broadcast `event_deleted` to room. |
+| `invite_to_event` | `on_invite_to_event` | Fam+ | Add/update invitation; broadcast `event_updated`. |
+| `update_invitation` | `on_update_invitation` | Yes | Update own RSVP (going/maybe/declined); broadcast `event_updated`. |
 
 ### 6.3 Send message and slash commands
 
@@ -219,7 +239,11 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 - **Stats room**: When a user joins the room named “Stats”, server emits `room_joined` with `history: []` and `stats: _get_stats()`.
 - **`_get_stats()`**: Aggregates from **Message** table: top 10 typers (message count per user), active hours (messages per hour 0–23), favorite words (top 5 users by message count, top 10 words each, stop words excluded). Also includes **Acrophobia leaderboard** (AcroScore) and **Trivia leaderboard** (TriviaScore). No separate stats table; “reset Stats data” deletes all messages.
 
-### 6.6 System events
+### 6.6 Events room
+
+- **Events room**: When a user joins the room named "Events", server emits `room_joined` with `history` (messages), `events` (current month), and normal chat flow. Calendar grid above chat; Fam+ can create/edit/delete events; any user can RSVP (going/maybe/declined); Fam+ can invite users. Responsive calendar; hybrid layout (calendar + chat).
+
+### 6.7 System events
 
 - **System Events room**: Receives messages from user “System” for “{username} came online” and “{username} went offline” (on connect/disconnect); "{username} is away: {message}" and "{username} is no longer away" when away message is set/cleared via Edit profile or /away. **Deploy announcement**: On app startup (after migrations and seed), `_post_deploy_announcement(app)` posts "Server redeployed (v{VERSION})" to System Events only when the version has changed (not on every redeploy). Version comes from `app/version.py` (env `CHITCHAT_VERSION`, default `3.5.12`). Implemented via `_post_system_event(content)` in `sockets.py` and direct Message creation in `app/__init__.py`.
 

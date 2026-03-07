@@ -2,7 +2,7 @@
 
 A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persistent, local-first, with Koyeb + Neon for online deployment. Flask, SocketIO, gevent, SQLite/Postgres, Vue 3.
 
-**Current state (v3.5.17):** Rooms, DMs, presence, Acrophobia (AcroBot), Prof Frink trivia, Homer quotes, System Events, server-level roles, message cache, private user data, room aliases. Login page server status. Discord-style bot isolation in user list. Role permissions HTTP save; mobile + New room; MP4 inline playback. Message edit on mobile (long-press, tap-to-show Edit/Reply). Giphy lightbox fix. WebSocket attempted by default in production. Standalone window opens Koyeb app (no local server); session persists between restarts; in-app update check (GitHub API, dismissible banner); PyInstaller or GitHub Actions (Windows + macOS + Linux → Release). Homer welcome DM on first login; monthly random quote DM if away 30+ days. Login page: Get the app button (releases). 30+ new Homer quotes. Themes, typing indicators, link previews, inline reply, edit/delete, reactions, search, export, audit log.
+**Current state (v3.5.20):** Rooms, DMs, presence, Acrophobia (AcroBot), Prof Frink trivia, Homer quotes, System Events, **Events room** (monthly calendar, event CRUD, invitations, Fam+ permissions, hybrid calendar+chat), server-level roles, message cache, private user data, room aliases. Login page server status. Discord-style bot isolation in user list. Role permissions HTTP save; mobile + New room; MP4 inline playback. Message edit on mobile (long-press, tap-to-show Edit/Reply). Giphy lightbox fix. WebSocket attempted by default in production. Standalone window opens Koyeb app (no local server); session persists between restarts; in-app update check (GitHub API, dismissible banner); external links open in system browser by default; PyInstaller or GitHub Actions (Windows + macOS + Linux → Release). Homer welcome DM on first login; monthly random quote DM if away 30+ days. Login page: Get the app button (releases). 30+ new Homer quotes. Themes, typing indicators, link previews, inline reply, edit/delete, reactions, search, export, audit log.
 
 ---
 
@@ -27,7 +27,7 @@ A Discord/mIRC-style chat app for you and your friends (max ~10 people). Persist
 
 - **Voice/audio chat** — Discord-style voice channels.
 - Other minigames (Trivia done).
-- Matrix-inspired: event model, state vs message, depth, validation — pick incrementally.
+- Matrix-inspired: state vs message, depth, validation — pick incrementally.
 - Phase 5: Mobile distribution — on hold.
 
 ---

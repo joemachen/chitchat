@@ -184,6 +184,33 @@
         .stats-chart-x-axis { display: flex; font-size: 0.7rem; color: #71717a; }
         .stats-chart-x-label { text-align: center; }
         .stats-chart-legend { font-size: 0.75rem; color: #71717a; margin-top: 0.25rem; }
+        .events-calendar-section { flex-shrink: 0; padding: 0.75rem 1rem; border-bottom: 1px solid #27272a; background: #1a1a1e; }
+        .events-calendar-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .events-calendar-title { font-size: 1rem; font-weight: 600; color: #e4e4e7; }
+        .events-calendar-nav { display: flex; gap: 0.25rem; align-items: center; }
+        .events-calendar-nav button { min-width: 44px; min-height: 44px; padding: 0.5rem; background: #27272a; border: 1px solid #3f3f46; border-radius: 6px; color: #e4e4e7; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+        .events-calendar-nav button:hover { background: #3f3f46; }
+        .events-calendar-nav button:active { background: #52525b; }
+        .events-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 0.75rem; }
+        .events-calendar-weekday { text-align: center; padding: 0.25rem 0; color: #71717a; font-weight: 600; }
+        .events-calendar-day { aspect-ratio: 1; min-height: 36px; padding: 0.2rem; background: #27272a; border-radius: 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        .events-calendar-day:hover { background: #3f3f46; }
+        .events-calendar-day.today { border: 2px solid #6366f1; background: #1e1e24; }
+        .events-calendar-day.other-month { color: #52525b; }
+        .events-calendar-day.has-events { font-weight: 600; color: #818cf8; }
+        .events-calendar-day .day-num { line-height: 1.2; }
+        .events-calendar-day .day-dots { display: flex; gap: 2px; margin-top: 2px; flex-wrap: wrap; justify-content: center; }
+        .events-calendar-day .day-dots span { width: 4px; height: 4px; border-radius: 50%; background: #6366f1; }
+        @media (max-width: 480px) { .events-calendar-day { min-height: 32px; font-size: 0.7rem; } .events-calendar-day .day-dots span { width: 3px; height: 3px; } }
+        .events-day-list { margin-top: 0.5rem; max-height: 120px; overflow-y: auto; }
+        .events-day-item { padding: 0.35rem 0.5rem; margin-bottom: 0.25rem; background: #27272a; border-radius: 4px; font-size: 0.85rem; cursor: pointer; border-left: 3px solid #6366f1; }
+        .events-day-item:hover { background: #3f3f46; }
+        .events-day-item .event-time { color: #71717a; font-size: 0.8rem; margin-right: 0.5rem; }
+        body.theme-light .events-calendar-section { background: #f4f4f5; border-color: #e4e4e7; }
+        body.theme-light .events-calendar-day { background: #e4e4e7; color: #18181b; }
+        body.theme-light .events-calendar-day:hover { background: #d4d4d8; }
+        body.theme-light .events-calendar-day.today { border-color: #6366f1; background: #fff; }
+        body.theme-light .events-calendar-day.other-month { color: #a1a1aa; }
         .pinned-messages-section { padding: 0.5rem 1rem; border-bottom: 1px solid #27272a; background: #1e1e24; }
         .pinned-messages-header { font-size: 0.75rem; font-weight: 600; color: #71717a; margin-bottom: 0.5rem; }
         .pinned-messages-section .msg { margin-bottom: 0.5rem; }
@@ -785,6 +812,57 @@
             <button type="button" class="app-modal-btn app-modal-btn-primary" @click="state.appPromptModal.resolve(state.appPromptModal.value)">OK</button>
         </div>
     </div>
+    <div v-if="state.eventModal" class="edit-message-modal" role="dialog" aria-label="Event" aria-modal="true" style="max-width:min(420px,calc(100vw - 2rem));">
+        <h3>{{ state.eventModal.mode === 'create' ? 'New event' : 'Edit event' }}</h3>
+        <label class="edit-profile-label">Title</label>
+        <input type="text" v-model="state.eventModal.title" placeholder="Event title…" class="edit-room-input" style="margin-bottom:0.5rem;">
+        <label class="edit-profile-label">Date</label>
+        <input type="date" v-model="state.eventModal.date" class="edit-room-input" style="margin-bottom:0.5rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+            <div><label class="edit-profile-label">Start time</label><input type="time" v-model="state.eventModal.startTime" class="edit-room-input" placeholder="--:--"></div>
+            <div><label class="edit-profile-label">End time</label><input type="time" v-model="state.eventModal.endTime" class="edit-room-input" placeholder="--:--"></div>
+        </div>
+        <label class="edit-profile-label">Location</label>
+        <input type="text" v-model="state.eventModal.location" placeholder="Location…" class="edit-room-input" style="margin-bottom:0.5rem;">
+        <label class="edit-profile-label">Description</label>
+        <textarea v-model="state.eventModal.description" placeholder="Description…" rows="3" class="edit-room-input" style="margin-bottom:0.75rem;"></textarea>
+        <div class="edit-message-actions">
+            <button type="button" class="edit-message-ok" @click="saveEvent">Save</button>
+            <button type="button" class="edit-message-cancel" @click="closeEventModal">Cancel</button>
+        </div>
+    </div>
+    <div v-if="state.eventDetailModal" class="edit-message-modal" role="dialog" aria-label="Event details" aria-modal="true" style="max-width:min(420px,calc(100vw - 2rem));">
+        <template v-if="state.eventDetailModal._multi">
+            <h3>Events on {{ formatEventDate(state.eventDetailModal.date) }}</h3>
+            <div v-for="ev in state.eventDetailModal.events" :key="ev.id" class="events-day-item" style="cursor:pointer;margin-bottom:0.5rem;" @click="state.eventDetailModal = ev">
+                <span class="event-time">{{ formatEventTime(ev) }}</span>{{ ev.title }}
+            </div>
+            <div class="edit-message-actions" style="margin-top:0.75rem;"><button type="button" class="edit-message-cancel" @click="closeEventDetailModal">Close</button></div>
+        </template>
+        <template v-else>
+            <h3>{{ state.eventDetailModal.title }}</h3>
+            <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">{{ formatEventDate(state.eventDetailModal.event_date) }} · {{ formatEventTime(state.eventDetailModal) }}</p>
+            <p v-if="state.eventDetailModal.location" style="margin:0 0 0.5rem;">📍 {{ state.eventDetailModal.location }}</p>
+            <p v-if="state.eventDetailModal.description" style="margin:0 0 0.75rem;white-space:pre-wrap;">{{ state.eventDetailModal.description }}</p>
+            <p v-if="state.eventDetailModal.invitations && state.eventDetailModal.invitations.length" style="font-size:0.85rem;color:#71717a;margin:0 0 0.5rem;">Invitees: <span v-for="(inv, i) in state.eventDetailModal.invitations" :key="inv.id">{{ i ? ', ' : '' }}{{ inv.username }}{{ inv.status && inv.status !== 'invited' ? ' (' + inv.status + ')' : '' }}</span></p>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">
+                <span style="font-size:0.85rem;color:#71717a;">RSVP:</span>
+                <span v-for="s in ['going','maybe','declined']" :key="s"><button type="button" class="edit-message-cancel" style="padding:0.25rem 0.5rem;font-size:0.85rem;" @click="updateInvitationStatus(state.eventDetailModal, s)">{{ s }}</button></span>
+            </div>
+            <div v-if="canManageEvents" style="margin-bottom:0.5rem;">
+                <span style="font-size:0.85rem;color:#71717a;">Invite: </span>
+                <select @change="onInviteUserSelect($event, state.eventDetailModal)" style="padding:0.25rem 0.5rem;background:#27272a;border:1px solid #3f3f46;border-radius:6px;color:#e4e4e7;font-size:0.85rem;">
+                    <option value="">Select user…</option>
+                    <option v-for="u in eventInviteableUsers" :key="u.id" :value="u.id">{{ u.username }}</option>
+                </select>
+            </div>
+            <div class="edit-message-actions">
+                <button v-if="canManageEvents" type="button" class="edit-message-ok" @click="openEventEditModal(state.eventDetailModal)">Edit</button>
+                <button v-if="canManageEvents" type="button" class="edit-message-cancel" style="color:#f87171;" @click="deleteEvent(state.eventDetailModal)">Delete</button>
+                <button type="button" class="edit-message-cancel" @click="closeEventDetailModal">Close</button>
+            </div>
+        </template>
+    </div>
     <header class="header" id="header" role="banner">
         <button type="button" v-show="isMobile && !state.mobileHomeView" class="mobile-back-btn" aria-label="Back" @click="goToMobileHome">←</button>
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
@@ -925,6 +1003,24 @@
                 </div>
             </div>
             <div class="messages-wrap" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+                <div v-show="showEventsView" class="events-calendar-section">
+                    <div class="events-calendar-header">
+                        <span class="events-calendar-title">{{ eventsCalendarMonthName }} {{ eventsCalendarYear }}</span>
+                        <div class="events-calendar-nav">
+                            <button type="button" title="Previous month" @click="eventsPrevMonth" aria-label="Previous month">‹</button>
+                            <button type="button" title="Today" @click="eventsGoToday" aria-label="Go to today">Today</button>
+                            <button type="button" title="Next month" @click="eventsNextMonth" aria-label="Next month">›</button>
+                            <button v-if="canManageEvents" type="button" title="Add event" @click="openEventCreateModal" style="margin-left:0.5rem;background:#6366f1;">+</button>
+                        </div>
+                    </div>
+                    <div class="events-calendar-grid">
+                        <div v-for="d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="d" class="events-calendar-weekday">{{ d }}</div>
+                        <div v-for="cell in eventsCalendarCells" :key="cell.key" :class="['events-calendar-day', { 'today': cell.isToday, 'other-month': cell.otherMonth, 'has-events': cell.count > 0 }]" @click="onEventsDayClick(cell)" role="button" tabindex="0" @keydown.enter="onEventsDayClick(cell)" @keydown.space.prevent="onEventsDayClick(cell)">
+                            <span class="day-num">{{ cell.day }}</span>
+                            <div v-if="cell.count > 0" class="day-dots"><span v-for="n in Math.min(cell.count, 3)" :key="n"></span></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="messages" id="messages" :class="{ 'is-dm': state.currentRoom && state.currentRoom.is_dm }" ref="messagesContainer">
                     <div id="loadMoreSentinel" style="height:1px;visibility:hidden;pointer-events:none;"></div>
                     <div class="load-more-wrap" id="loadMoreWrap" v-show="showMessagesView && state.hasMoreMessages && state.loadMoreAtTop"><button type="button" id="loadMoreBtn">Load older messages</button></div>
@@ -1393,7 +1489,12 @@ const state = reactive({
     appPromptModal: null,
     pinnedMessages: [],
     videoErrored: {},  // msgId-pi -> true when video fails, fallback to GIF
-    hoverBarVisibleMsgId: null  // on mobile: msg id for which hover bar is shown (tap to toggle)
+    hoverBarVisibleMsgId: null,  // on mobile: msg id for which hover bar is shown (tap to toggle)
+    events: [],
+    eventsCalendarYear: null,
+    eventsCalendarMonth: null,
+    eventModal: null,  // { mode: 'create'|'edit', event: {...}, date: 'YYYY-MM-DD' }
+    eventDetailModal: null  // event to view
 });
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
@@ -1667,6 +1768,13 @@ const chitchatApp = createApp({
         const displayMessages = computed(() => (state.messages || []).filter(function(m) { return !pinnedMessageIds.value.has(m.id); }));
         const showMessagesView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
         const showStatsView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats');
+        const showEventsView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'events');
+        const canManageEvents = computed(() => {
+            var u = (state.allUsersWithStatus || []).find(function(x) { return x.id === currentUserIdNum; });
+            if (!u) return false;
+            if (u.is_super_admin) return true;
+            return (u.rank || '').toLowerCase() === 'fam';
+        });
         const showSettingsView = computed(() => !!state.showingSettings);
         const statsTopTypers = computed(() => (state.stats && state.stats.top_typers) || []);
         const statsMaxTypers = computed(() => Math.max(1, Math.max.apply(null, statsTopTypers.value.map(function(t) { return t.count; })) || 0));
@@ -1677,6 +1785,148 @@ const chitchatApp = createApp({
             return Math.max(max, 1);
         });
         const statsDayColors = ['#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899','#f43f5e','#6366f1'];
+        const eventsCalendarMonthName = computed(function() {
+            var m = state.eventsCalendarMonth;
+            if (m == null) return '';
+            var names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            return names[m - 1] || '';
+        });
+        const eventsCalendarCells = computed(function() {
+            var y = state.eventsCalendarYear, m = state.eventsCalendarMonth;
+            if (y == null || m == null) return [];
+            var first = new Date(y, m - 1, 1);
+            var last = new Date(y, m, 0);
+            var startDow = first.getDay();
+            var daysInMonth = last.getDate();
+            var today = new Date();
+            var todayY = today.getFullYear(), todayM = today.getMonth() + 1, todayD = today.getDate();
+            var eventsByDate = {};
+            (state.events || []).forEach(function(ev) {
+                if (!ev.event_date) return;
+                eventsByDate[ev.event_date] = (eventsByDate[ev.event_date] || 0) + 1;
+            });
+            var cells = [];
+            var pad = startDow;
+            var prevMonth = m === 1 ? 12 : m - 1;
+            var prevYear = m === 1 ? y - 1 : y;
+            var prevLast = new Date(prevYear, prevMonth, 0);
+            var prevDays = prevLast.getDate();
+            for (var i = 0; i < pad; i++) {
+                var d = prevDays - pad + i + 1;
+                var dateStr = prevYear + '-' + String(prevMonth).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+                cells.push({ key: 'p'+i, day: d, date: dateStr, isToday: false, otherMonth: true, count: eventsByDate[dateStr] || 0 });
+            }
+            for (var d = 1; d <= daysInMonth; d++) {
+                var dateStr = y + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+                cells.push({ key: 'd'+d, day: d, date: dateStr, isToday: (y === todayY && m === todayM && d === todayD), otherMonth: false, count: eventsByDate[dateStr] || 0 });
+            }
+            var remaining = 42 - cells.length;
+            var nextMonth = m === 12 ? 1 : m + 1;
+            var nextYear = m === 12 ? y + 1 : y;
+            for (var i = 0; i < remaining; i++) {
+                var d = i + 1;
+                var dateStr = nextYear + '-' + String(nextMonth).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+                cells.push({ key: 'n'+i, day: d, date: dateStr, isToday: false, otherMonth: true, count: eventsByDate[dateStr] || 0 });
+            }
+            return cells;
+        });
+        function eventsPrevMonth() {
+            if (state.eventsCalendarMonth == null) return;
+            if (state.eventsCalendarMonth === 1) { state.eventsCalendarYear--; state.eventsCalendarMonth = 12; }
+            else state.eventsCalendarMonth--;
+            fetchEventsForMonth();
+        }
+        function eventsNextMonth() {
+            if (state.eventsCalendarMonth == null) return;
+            if (state.eventsCalendarMonth === 12) { state.eventsCalendarYear++; state.eventsCalendarMonth = 1; }
+            else state.eventsCalendarMonth++;
+            fetchEventsForMonth();
+        }
+        function eventsGoToday() {
+            var now = new Date();
+            state.eventsCalendarYear = now.getFullYear();
+            state.eventsCalendarMonth = now.getMonth() + 1;
+            fetchEventsForMonth();
+        }
+        function fetchEventsForMonth() {
+            if (!state.currentRoom || state.currentRoom.name !== 'Events' || state.eventsCalendarYear == null || state.eventsCalendarMonth == null) return;
+            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('get_events', { room_id: state.currentRoom.id, year: state.eventsCalendarYear, month: state.eventsCalendarMonth });
+        }
+        function onEventsDayClick(cell) {
+            if (!state.currentRoom || state.currentRoom.name !== 'Events') return;
+            var evs = (state.events || []).filter(function(e) { return e.event_date === cell.date; });
+            if (evs.length === 0 && canManageEvents.value) {
+                openEventCreateModal(cell.date);
+            } else if (evs.length === 1) {
+                state.eventDetailModal = evs[0];
+            } else if (evs.length > 1) {
+                state.eventDetailModal = { _multi: true, date: cell.date, events: evs };
+            }
+        }
+        function openEventCreateModal(dateStr) {
+            var d = dateStr || (state.eventsCalendarYear && state.eventsCalendarMonth ? state.eventsCalendarYear + '-' + String(state.eventsCalendarMonth).padStart(2,'0') + '-01' : null);
+            state.eventModal = { mode: 'create', event: null, date: d, title: '', description: '', startTime: '', endTime: '', location: '' };
+        }
+        function openEventEditModal(ev) {
+            state.eventDetailModal = null;
+            state.eventModal = { mode: 'edit', event: ev, date: ev.event_date, title: ev.title || '', description: ev.description || '', startTime: ev.start_time || '', endTime: ev.end_time || '', location: ev.location || '' };
+        }
+        function closeEventModal() { state.eventModal = null; }
+        function closeEventDetailModal() { state.eventDetailModal = null; }
+        function eventsForDate(dateStr) {
+            return (state.events || []).filter(function(e) { return e.event_date === dateStr; });
+        }
+        function saveEvent() {
+            var modal = state.eventModal;
+            if (!modal || !state.currentRoom) return;
+            var payload = { room_id: state.currentRoom.id, title: modal.title || '', event_date: modal.date, description: modal.description || '', start_time: modal.startTime || '', end_time: modal.endTime || '', location: modal.location || '' };
+            if (modal.mode === 'edit' && modal.event) payload.event_id = modal.event.id;
+            if (modal.mode === 'create') {
+                if (!payload.title.trim()) return;
+                if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('create_event', payload);
+            } else {
+                if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('update_event', { event_id: modal.event.id, title: payload.title, description: payload.description, event_date: payload.event_date, start_time: payload.start_time, end_time: payload.end_time, location: payload.location });
+            }
+            closeEventModal();
+        }
+        function deleteEvent(ev) {
+            if (!ev || !ev.id) return;
+            if (!window.chitchat || !window.chitchat.showConfirm) return;
+            window.chitchat.showConfirm('Delete this event?', function() {
+                if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('delete_event', { event_id: ev.id });
+                closeEventDetailModal();
+                closeEventModal();
+            });
+        }
+        function updateInvitationStatus(ev, status) {
+            if (!ev || !ev.id) return;
+            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('update_invitation', { event_id: ev.id, status: status });
+        }
+        const eventInviteableUsers = computed(function() {
+            var modal = state.eventDetailModal;
+            if (!modal || modal._multi) return [];
+            var invited = new Set((modal.invitations || []).map(function(i) { return i.user_id; }));
+            return (state.allUsersWithStatus || []).filter(function(u) {
+                return u.id !== currentUserIdNum && !u.is_bot && !u.is_system_user && !invited.has(u.id);
+            });
+        });
+        function onInviteUserSelect(e, ev) {
+            var uid = parseInt(e.target.value, 10);
+            if (!uid || !ev || !ev.id) return;
+            if (window.chitchat && window.chitchat.socket) window.chitchat.socket.emit('invite_to_event', { event_id: ev.id, user_id: uid });
+            e.target.value = '';
+        }
+        function formatEventTime(ev) {
+            if (ev.start_time) return ev.start_time + (ev.end_time ? ' – ' + ev.end_time : '');
+            return 'All day';
+        }
+        function formatEventDate(d) {
+            if (!d) return '';
+            var parts = d.split('-');
+            if (parts.length !== 3) return d;
+            var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return monthNames[parseInt(parts[1],10)-1] + ' ' + parseInt(parts[2],10) + ', ' + parts[0];
+        }
         function formatMessageTime(iso) {
             if (!iso) return '';
             return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true });
@@ -1811,7 +2061,7 @@ const chitchatApp = createApp({
         }
         function formatTime(iso) { if (!iso) return ''; return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short', hour12: true }); }
         const hasAnyModalOpen = computed(function() {
-            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen || state.mobilePresenceSheetOpen || state.appConfirmModal || state.appAlertModal || state.appPromptModal);
+            return !!(state.profileModalUser || state.whoisModalData || state.editMessageModal || state.editProfileModalOpen || state.editRoomModal || state.searchResultsModal || state.roomSwitcherOpen || state.mobilePresenceSheetOpen || state.appConfirmModal || state.appAlertModal || state.appPromptModal || state.eventModal || state.eventDetailModal);
         });
         const roomSwitcherFiltered = computed(function() {
             var rooms = roomsInOrder.value || [];
@@ -1837,6 +2087,8 @@ const chitchatApp = createApp({
             state.editMessageModal = null;
             state.editProfileModalOpen = false;
             state.editRoomModal = null;
+            state.eventModal = null;
+            state.eventDetailModal = null;
             state.searchResultsModal = null;
             state.roomSwitcherOpen = false;
             state.mobilePresenceSheetOpen = false;
@@ -1950,7 +2202,7 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showEventsView, showSettingsView, canManageEvents, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, eventsCalendarMonthName, eventsCalendarCells, eventsPrevMonth, eventsNextMonth, eventsGoToday, onEventsDayClick, openEventCreateModal, closeEventModal, closeEventDetailModal, saveEvent, deleteEvent, updateInvitationStatus, eventInviteableUsers, onInviteUserSelect, formatEventTime, formatEventDate, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -3829,6 +4081,16 @@ chitchatApp.mount('#app');
         } else {
             setTriviaPhase(null);
         }
+        if (state.currentRoom && state.currentRoom.name === 'Events' && data.events) {
+            state.events = data.events;
+            var now = new Date();
+            if (state.eventsCalendarYear == null) state.eventsCalendarYear = now.getFullYear();
+            if (state.eventsCalendarMonth == null) state.eventsCalendarMonth = now.getMonth() + 1;
+        } else if (!state.currentRoom || state.currentRoom.name !== 'Events') {
+            state.events = [];
+            state.eventsCalendarYear = null;
+            state.eventsCalendarMonth = null;
+        }
     });
 
     socket.on('user_typing', function(data) {
@@ -3846,6 +4108,37 @@ chitchatApp.mount('#app');
         if (!state.currentRoom) return;
         state.hasMoreMessages = data.has_more === true;
         state.messages = (data.messages || []).concat(state.messages);
+    });
+
+    socket.on('events_list', function(data) {
+        if (!state.currentRoom || state.currentRoom.id !== data.room_id) return;
+        state.events = data.events || [];
+    });
+    socket.on('event_created', function(data) {
+        if (!state.currentRoom || state.currentRoom.id !== data.room_id) return;
+        var y = state.eventsCalendarYear, m = state.eventsCalendarMonth;
+        if (y != null && m != null && data.event_date) {
+            var d = data.event_date.split('-');
+            if (parseInt(d[0], 10) === y && parseInt(d[1], 10) === m) {
+                state.events = state.events.concat([data]);
+            }
+        }
+    });
+    socket.on('event_updated', function(data) {
+        if (!state.currentRoom || state.currentRoom.id !== data.room_id) return;
+        var idx = (state.events || []).findIndex(function(e) { return e.id === data.id; });
+        if (idx >= 0) state.events[idx] = data;
+        else {
+            var y = state.eventsCalendarYear, m = state.eventsCalendarMonth;
+            if (y != null && m != null && data.event_date) {
+                var d = data.event_date.split('-');
+                if (parseInt(d[0], 10) === y && parseInt(d[1], 10) === m) state.events = (state.events || []).concat([data]);
+            }
+        }
+    });
+    socket.on('event_deleted', function(data) {
+        if (!state.currentRoom || state.currentRoom.id !== data.room_id) return;
+        state.events = (state.events || []).filter(function(e) { return e.id !== data.event_id; });
     });
 
     socket.on('whois_result', function(data) {

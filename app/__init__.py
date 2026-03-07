@@ -117,7 +117,7 @@ def _seed_default_data(app: Flask) -> None:
             if not has_any_channel:
                 db.session.add(Room(name="general", is_protected=True))
                 db.session.commit()
-            for rname in ("Stats", "Acrophobia", "System Events", "Trivia"):
+            for rname in ("Stats", "Acrophobia", "System Events", "Trivia", "Events"):
                 r = Room.query.filter_by(name=rname).first()
                 if not r:
                     db.session.add(Room(name=rname, is_protected=True))
@@ -183,7 +183,7 @@ def _seed_default_data(app: Flask) -> None:
             # Room aliases: seed default aliases for known rooms
             try:
                 from app.room_aliases import set_room_alias
-                for rname, alias in [("general", "general"), ("Acrophobia", "acrophobia"), ("Trivia", "trivia"), ("Stats", "stats"), ("System Events", "system")]:
+                for rname, alias in [("general", "general"), ("Acrophobia", "acrophobia"), ("Trivia", "trivia"), ("Stats", "stats"), ("System Events", "system"), ("Events", "events")]:
                     r = Room.query.filter_by(name=rname).first()
                     if r and r.dm_with_id is None:
                         set_room_alias(r.id, alias)

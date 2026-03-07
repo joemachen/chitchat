@@ -1,5 +1,23 @@
 # Release notes
 
+## v3.5.20 — Events room
+
+**Events room**
+- **Calendar** — Dedicated Events room with monthly calendar grid above chat (hybrid layout). Responsive; touch-friendly on mobile.
+- **Event CRUD** — Fam+ can create, edit, and delete events (title, description, date, start/end time, location).
+- **Invitations** — Fam+ can invite users to events; any user can RSVP (going/maybe/declined).
+- **Data** — Events stored as structured objects (Event, EventInvitation models); persist across chat history.
+
+---
+
+## v3.5.19 — Standalone links in system browser
+
+**Standalone window**
+- **Links** — External links (e.g. YouTube) now open in the system browser by default instead of the webview. Avoids trapping users on external pages.
+- **Link context menu** — Right-click or long-press a link: Copy link, Open in browser, Open in app (standalone only). "Open in app" opens in webview for users who prefer in-app viewing.
+
+---
+
 ## v3.5.18 — Hide Get the app button in standalone
 
 **Login page**

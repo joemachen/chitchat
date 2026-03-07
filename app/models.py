@@ -293,6 +293,71 @@ class TriviaScore(db.Model):
     __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_trivia_score"),)
 
 
+class Event(db.Model):
+    """Scheduled event in the Events room. Fam+ can CRUD."""
+    __tablename__ = "events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    event_date = db.Column(db.Date, nullable=False, index=True)
+    start_time = db.Column(db.Time, nullable=True)
+    end_time = db.Column(db.Time, nullable=True)
+    location = db.Column(db.String(256), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    room = db.relationship("Room", backref=db.backref("events", lazy="dynamic", cascade="all, delete-orphan"))
+    created_by = db.relationship("User", backref="created_events", foreign_keys=[created_by_id])
+    invitations = db.relationship("EventInvitation", backref="event", lazy="dynamic", cascade="all, delete-orphan")
+
+    def to_dict(self) -> dict:
+        invs = self.invitations.all()
+        return {
+            "id": self.id,
+            "room_id": self.room_id,
+            "created_by_id": self.created_by_id,
+            "created_by_username": self.created_by.username if self.created_by else None,
+            "title": self.title,
+            "description": self.description or "",
+            "event_date": self.event_date.isoformat() if self.event_date else None,
+            "start_time": self.start_time.strftime("%H:%M") if self.start_time else None,
+            "end_time": self.end_time.strftime("%H:%M") if self.end_time else None,
+            "location": self.location or "",
+            "created_at": _isoformat_utc(self.created_at),
+            "updated_at": _isoformat_utc(self.updated_at),
+            "invitations": [inv.to_dict() for inv in invs],
+        }
+
+
+class EventInvitation(db.Model):
+    """User invitation/attendance for an event."""
+    __tablename__ = "event_invitations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="invited")  # invited | going | maybe | declined
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("event_id", "user_id", name="uq_event_invitation"),)
+
+    user = db.relationship("User", backref="event_invitations")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "event_id": self.event_id,
+            "user_id": self.user_id,
+            "username": self.user.username if self.user else None,
+            "status": self.status,
+            "created_at": _isoformat_utc(self.created_at),
+        }
+
+
 class AppSetting(db.Model):
     """Key-value app config (e.g. default_room_id for login)."""
     __tablename__ = "app_settings"
