@@ -882,9 +882,9 @@
             </span>
         </div>
     </header>
-    <div class="status status-desktop" id="status" aria-live="polite">{{ status }}</div>
+    <div class="status status-desktop" id="status" aria-live="polite">{{ status }}<a v-if="state.connectionFailed" href="#" @click.prevent="reloadPage" style="margin-left:0.5rem;color:#818cf8;text-decoration:underline;">Reload</a></div>
     <div class="mobile-info-drawer" id="mobileInfoDrawer" aria-hidden="true">
-        <div class="mobile-info-status" id="mobileInfoStatus">{{ status }}</div>
+        <div class="mobile-info-status" id="mobileInfoStatus">{{ status }}<a v-if="state.connectionFailed" href="#" @click.prevent="reloadPage" style="margin-left:0.5rem;color:#818cf8;text-decoration:underline;">Reload</a></div>
         <div class="mobile-info-topic" id="mobileInfoTopic" v-html="channelTopicHtml"></div>
     </div>
     <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
@@ -1490,6 +1490,7 @@ const state = reactive({
     pinnedMessages: [],
     videoErrored: {},  // msgId-pi -> true when video fails, fallback to GIF
     hoverBarVisibleMsgId: null,  // on mobile: msg id for which hover bar is shown (tap to toggle)
+    connectionFailed: false,  // true when connection times out or errors; shows Reload button
     events: [],
     eventsCalendarYear: null,
     eventsCalendarMonth: null,
@@ -2202,7 +2203,8 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showEventsView, showSettingsView, canManageEvents, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, eventsCalendarMonthName, eventsCalendarCells, eventsPrevMonth, eventsNextMonth, eventsGoToday, onEventsDayClick, openEventCreateModal, closeEventModal, closeEventDetailModal, saveEvent, deleteEvent, updateInvitationStatus, eventInviteableUsers, onInviteUserSelect, formatEventTime, formatEventDate, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
+        function reloadPage() { window.location.reload(); }
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showEventsView, showSettingsView, canManageEvents, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, eventsCalendarMonthName, eventsCalendarCells, eventsPrevMonth, eventsNextMonth, eventsGoToday, onEventsDayClick, openEventCreateModal, closeEventModal, closeEventDetailModal, saveEvent, deleteEvent, updateInvitationStatus, eventInviteableUsers, onInviteUserSelect, formatEventTime, formatEventDate, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError, reloadPage };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -4001,12 +4003,14 @@ chitchatApp.mount('#app');
     var socketWasDisconnected = false;
     var connectTimeout = setTimeout(function() {
         if (status.value === 'Connecting…') {
-            setStatus('Connection taking too long. If on Koyeb or behind a proxy, set CHITCHAT_SOCKET_POLLING_ONLY=1 on the server and reload.');
+            state.connectionFailed = true;
+            setStatus('Connection taking too long. Try a hard refresh (Ctrl+Shift+R) or Reload below. If behind a proxy, ensure CHITCHAT_SOCKET_POLLING_ONLY=1 on the server.');
         }
-    }, 12000);
+    }, 30000);
 
     socket.on('connect', function() {
         clearTimeout(connectTimeout);
+        state.connectionFailed = false;
         setConnected(true);
         if (socketWasDisconnected) {
             showPingToast('Reconnected');
@@ -4020,6 +4024,7 @@ chitchatApp.mount('#app');
     socket.on('disconnect', function() { setConnected(false); setStatus('Disconnected'); socketWasDisconnected = true; });
     socket.on('connect_error', function(err) {
         clearTimeout(connectTimeout);
+        state.connectionFailed = true;
         setStatus('Connection failed' + (err && err.message ? ': ' + err.message : ''));
     });
 

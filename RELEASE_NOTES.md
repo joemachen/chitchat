@@ -1,5 +1,14 @@
 # Release notes
 
+## v3.5.21 — Connection timeout and Reload
+
+**Connection handling**
+- **Timeout** — Connection timeout increased from 12s to 30s for slow networks and proxies.
+- **Reload button** — When connection fails or times out, a Reload link appears next to the status for easy retry.
+- **Error message** — Clearer guidance: hard refresh (Ctrl+Shift+R), Reload button, and CHITCHAT_SOCKET_POLLING_ONLY=1 reminder for proxy deployments.
+
+---
+
 ## v3.5.20 — Events room
 
 **Events room**
