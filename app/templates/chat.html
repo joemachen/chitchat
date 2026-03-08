@@ -805,7 +805,7 @@
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <div class="header-brand">
             <img src="{% endraw %}{{ url_for('static', filename='logo.png') }}{% raw %}" alt="" class="header-logo" aria-hidden="true">
-            <h1 class="header-title-desktop">{% endraw %}{{ server_name|default('No Homers Club') }} v{{ version }}{% raw %} — <span class="header-username" data-user-id="{% endraw %}{{ user.id }}{% raw %}" data-username="{% endraw %}{{ user.username }}{% raw %}" title="Right-click to set status">{% endraw %}{{ user.username }}{% raw %}</span></h1>
+            <h1 class="header-title-desktop">{% endraw %}{{ server_name|default('No Homers Club') }}{% raw %} — <span class="header-username" data-user-id="{% endraw %}{{ user.id }}{% raw %}" data-username="{% endraw %}{{ user.username }}{% raw %}" title="Right-click to set status">{% endraw %}{{ user.username }}{% raw %}</span></h1>
             <span class="header-title-mobile" id="headerChannelName" aria-hidden="true">{{ mobileRoomName }}</span>
         </div>
         <button type="button" id="headerInfoBtn" class="header-info-btn" aria-label="Toggle topic and connection info" title="Topic & connection">▾</button>

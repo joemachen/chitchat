@@ -1,5 +1,11 @@
 # Release notes
 
+## v3.5.31 — Version in title only
+
+- Header no longer shows version; version remains in `<title>` only.
+
+---
+
 ## v3.5.30 — Restore PROFFRINK_PROPOSAL
 
 - Restored `PROFFRINK_PROPOSAL.md`; reverted `prof_frink.py` docstring to reference it.

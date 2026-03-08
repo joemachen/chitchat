@@ -38,7 +38,7 @@ chitchat/
 - **Logging**: `/logs` directory; `app.log` for general activity; `errors.log` for exceptions with **full stack traces and local variable context** per frame (Recursive Learning Loop).
 - **Docs**: `TECH_STACK.md`, `ARCHITECTURE.md`, `TECHNICAL_OVERVIEW.md`, `UI_GUIDELINES.md`, `ROADMAP.md`, `migrations/README`.
 - **Production**: `Procfile` for Koyeb; gunicorn with gevent worker. Role permissions (Super Admin configures rookie/bro/fam) in `role_permissions` table.
-- **Standalone builds**: GitHub Actions workflow (`.github/workflows/build-standalone.yml`) builds Windows, macOS, and Linux executables on tag push (`v*`); uploads to GitHub Releases. Standalone window checks GitHub releases API on startup and shows a dismissible update banner when a newer version exists; Settings → General includes a Version section (standalone only) with current version and update status. Title bar and header show version (e.g. `No Homers Club v3.5.29`). Login page has "Get the app" button linking to releases.
+- **Standalone builds**: GitHub Actions workflow (`.github/workflows/build-standalone.yml`) builds Windows, macOS, and Linux executables on tag push (`v*`); uploads to GitHub Releases. Standalone window checks GitHub releases API on startup and shows a dismissible update banner when a newer version exists; Settings → General includes a Version section (standalone only) with current version and update status. Title bar shows version (e.g. `No Homers Club v3.5.31`); header shows app name and username only. Login page has "Get the app" button linking to releases.
 
 ## Data Model (Step 2)
 
