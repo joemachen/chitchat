@@ -18,7 +18,7 @@ except ImportError:
     requests = None
 
 # Keep in sync with app/version.py; bump as part of each release.
-CURRENT_VERSION = "3.5.26"
+CURRENT_VERSION = "3.5.28"
 
 URL = "https://boiling-stacy-joemachen-05fc3544.koyeb.app"
 RELEASES_URL = "https://github.com/joemachen/chitchat/releases"
@@ -106,7 +106,7 @@ class _Api:
 
 if __name__ == "__main__":
     window = webview.create_window(
-        "No Homers Club",
+        f"No Homers Club v{CURRENT_VERSION}",
         URL,
         width=1100,
         height=750,

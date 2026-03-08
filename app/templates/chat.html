@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}">
-    <title>No Homers Club — {{ user.username }}</title>
+    <title>No Homers Club v{{ version }} — {{ user.username }}</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -805,7 +805,7 @@
         <button type="button" id="menuToggleBtn" class="mobile-menu-btn" aria-label="Toggle rooms">☰</button>
         <div class="header-brand">
             <img src="{% endraw %}{{ url_for('static', filename='logo.png') }}{% raw %}" alt="" class="header-logo" aria-hidden="true">
-            <h1 class="header-title-desktop">{% endraw %}{{ server_name|default('No Homers Club') }}{% raw %} — <span class="header-username" data-user-id="{% endraw %}{{ user.id }}{% raw %}" data-username="{% endraw %}{{ user.username }}{% raw %}" title="Right-click to set status">{% endraw %}{{ user.username }}{% raw %}</span></h1>
+            <h1 class="header-title-desktop">{% endraw %}{{ server_name|default('No Homers Club') }} v{{ version }}{% raw %} — <span class="header-username" data-user-id="{% endraw %}{{ user.id }}{% raw %}" data-username="{% endraw %}{{ user.username }}{% raw %}" title="Right-click to set status">{% endraw %}{{ user.username }}{% raw %}</span></h1>
             <span class="header-title-mobile" id="headerChannelName" aria-hidden="true">{{ mobileRoomName }}</span>
         </div>
         <button type="button" id="headerInfoBtn" class="header-info-btn" aria-label="Toggle topic and connection info" title="Topic & connection">▾</button>
@@ -1115,6 +1115,19 @@
                             <p style="color:#71717a;font-size:0.85rem;margin:0;">Per-room mute: <a href="#" @click.prevent="state.activeSettingsTab = 'notifications'" style="color:#818cf8;">Notifications tab</a></p>
                         </template>
                         <template v-else-if="state.activeSettingsTab === 'general'">
+                            <template v-if="isStandalone">
+                                <h2>Version</h2>
+                                <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Current version: v{{ version }}</p>
+                                <div class="user-row" style="align-items:center;gap:0.5rem;">
+                                    <span v-if="state.versionStatus === 'checking'" style="color:#a1a1aa;">Checking for updates…</span>
+                                    <span v-else-if="state.versionStatus === 'current'" style="color:#22c55e;">You're up to date</span>
+                                    <span v-else-if="state.versionStatus === 'update-available'" style="display:flex;align-items:center;gap:0.5rem;">
+                                        <span style="color:#f59e0b;">Update available: {{ state.latestVersion }}</span>
+                                        <a href="#" @click.prevent="window.pywebview && window.pywebview.api && window.pywebview.api.open_releases && window.pywebview.api.open_releases()" style="font-size:0.9rem;color:#818cf8;font-weight:600;">Download</a>
+                                    </span>
+                                    <span v-else-if="state.versionStatus === 'error'" style="color:#71717a;">Could not check for updates</span>
+                                </div>
+                            </template>
                             <h2>Account</h2>
                             <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Permanently delete your account and all your messages. Required for App Store compliance.</p>
                             <div class="user-row"><a href="/delete-account" style="color:#f87171;font-size:0.9rem;">Delete my account</a></div>
@@ -1168,15 +1181,17 @@
                                 </div>
                                 <h2>Users — Roles</h2>
                                 <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 0.5rem;">Only admins can set user roles (lowest to highest: Rookie, Bro, Fam, Super Admin). Admins can configure permissions for each role below.</p>
-                                <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-                                    <span style="min-width:120px;">{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
-                                    <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" :data-user-id="u.id" @change="settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
-                                        <option value="rookie">Rookie</option>
-                                        <option value="bro">Bro</option>
-                                        <option value="fam">Fam</option>
-                                        <option value="super_admin">Super Admin</option>
-                                    </select>
-                                    <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
+                                <div v-for="u in (state.allUsersWithStatus || []).filter(function(x){return x.username !== 'AcroBot' && x.username !== 'System' && x.username !== 'Homer' && x.username !== 'Prof Frink'})" :key="u.id" class="user-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+                                    <span>{{ u.username }}<span v-if="u.online" style="color:#4ade80;">●</span><span v-if="u.id === currentUserId"> (you)</span></span>
+                                    <span style="display:flex;gap:0.35rem;align-items:center;">
+                                        <select :disabled="u.id === currentUserId" :value="((state.pendingRankChanges || {})[u.id] || u.rank || 'rookie').toLowerCase()" :data-user-id="u.id" @change="settingsSetUserRankPending(u.id, $event.target.value)" style="background:#27272a;border:1px solid #3f3f46;color:#e4e4e7;padding:0.25rem 0.5rem;border-radius:4px;font-size:0.9rem;">
+                                            <option value="rookie">Rookie</option>
+                                            <option value="bro">Bro</option>
+                                            <option value="fam">Fam</option>
+                                            <option value="super_admin">Super Admin</option>
+                                        </select>
+                                        <button v-if="u.id !== currentUserId" type="button" @click.stop="deleteUser(u.id, u.username)" style="padding:0.25rem 0.5rem;font-size:0.8rem;background:#7f1d1d;border:none;border-radius:4px;color:#fecaca;cursor:pointer;">Delete</button>
+                                    </span>
                                 </div>
                                 <div class="user-row" style="margin-top:0.75rem;">
                                     <button type="button" id="saveRolesBtn" style="padding:0.5rem 1rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:0.9rem;cursor:pointer;">Save roles</button>
@@ -1409,9 +1424,23 @@ const state = reactive({
     appAlertModal: null,
     appPromptModal: null,
     pinnedMessages: [],
+    versionStatus: null,  // null | 'current' | 'update-available' | 'checking' | 'error'
+    latestVersion: null,
+    versionCheckDone: false,
     videoErrored: {},  // msgId-pi -> true when video fails, fallback to GIF
     hoverBarVisibleMsgId: null  // on mobile: msg id for which hover bar is shown (tap to toggle)
 });
+const RELEASES_API = 'https://api.github.com/repos/joemachen/chitchat/releases/latest';
+const RELEASES_URL = 'https://github.com/joemachen/chitchat/releases';
+function parseVersion(s) {
+    var m = String(s || '').replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)/);
+    return m ? [parseInt(m[1],10), parseInt(m[2],10), parseInt(m[3],10)] : [0,0,0];
+}
+function versionLess(a, b) {
+    var va = parseVersion(a), vb = parseVersion(b);
+    for (var i = 0; i < 3; i++) { if (va[i] < vb[i]) return true; if (va[i] > vb[i]) return false; }
+    return false;
+}
 function _dmOtherUsername(r, currentUserId) {
     if (!r || !r.is_dm) return null;
     return r.created_by_id === currentUserId ? (r.dm_with_username || '?') : (r.created_by_username || '?');
@@ -1611,6 +1640,24 @@ const chitchatApp = createApp({
             if (window.chitchat && window.chitchat.closeSidebars) window.chitchat.closeSidebars();
         }
         const isSuperAdminFlag = {{ 'true' if user.is_super_admin else 'false' }};
+        const isStandalone = !!(typeof window !== 'undefined' && window.pywebview && window.pywebview.api && window.pywebview.api.open_url);
+        const currentVersion = {{ version|tojson }};
+        function checkStandaloneVersion() {
+            if (!isStandalone || state.versionCheckDone) return;
+            state.versionStatus = 'checking';
+            fetch(RELEASES_API).then(function(r) { return r.json(); }).then(function(data) {
+                var tag = data && data.tag_name;
+                if (tag && versionLess(currentVersion, tag)) {
+                    state.versionStatus = 'update-available';
+                    state.latestVersion = tag;
+                } else {
+                    state.versionStatus = 'current';
+                }
+            }).catch(function() { state.versionStatus = 'error'; }).finally(function() { state.versionCheckDone = true; });
+        }
+        watch(function() { return state.activeSettingsTab; }, function(tab) {
+            if (tab === 'general' && isStandalone) checkStandaloneVersion();
+        });
         const userPermissionsObj = {{ (user_permissions|default({}))|tojson|safe }};
         function hasUnread(r) {
             if (state.currentRoom && r.id === state.currentRoom.id && !state.showingSettings) return false;
@@ -2025,7 +2072,7 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, hasSpoilersInRoom, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, isStandalone, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, hasSpoilersInRoom, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError, checkStandaloneVersion };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };

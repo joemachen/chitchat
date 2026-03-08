@@ -39,5 +39,5 @@
 - **Gunicorn** — Production WSGI server; gevent worker for WebSocket support.
 - **psycopg2-binary** — PostgreSQL driver for Neon.
 - **GitHub Actions** — `build-standalone.yml` builds Windows (NoHomersClub.exe), macOS (NoHomersClub-Mac), and Linux (NoHomersClub-Linux) on tag push (`v*`); uploads to GitHub Releases.
-- **Standalone update check** — `run_standalone.py` fetches GitHub releases API on startup; shows dismissible banner when a newer version exists; Download opens releases page in system browser.
+- **Standalone update check** — `run_standalone.py` fetches GitHub releases API on startup; shows dismissible banner when a newer version exists; Download opens releases page in system browser. Settings → General (standalone only) includes Version section with current version and update status.
 - **Homer bot** — Welcome DM on first login; random quote DM if user inactive 30+ days. Login page: "Get the app" button to GitHub releases.

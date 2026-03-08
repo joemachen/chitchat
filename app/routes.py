@@ -438,6 +438,7 @@ def register_routes(app):
         except Exception:
             message_retention_days = None
         user_perms = _user_permissions(user)
+        from app.version import VERSION
         return render_template(
             "chat.html",
             user=user,
@@ -447,6 +448,7 @@ def register_routes(app):
             server_name=getattr(Config, "SERVER_NAME", "No Homers Club"),
             user_permissions=user_perms,
             socket_polling_only=getattr(Config, "SOCKET_POLLING_ONLY", False),
+            version=VERSION,
         )
 
     @app.route("/delete-account", methods=["GET", "POST"])

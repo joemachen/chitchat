@@ -1,5 +1,19 @@
 # Release notes
 
+## v3.5.28 — Version display, Settings polish
+
+**Version in title bar**
+- Title bar and header show app version (e.g. `No Homers Club v3.5.28 — username`) in both web and standalone.
+
+**Standalone**
+- Window title includes version.
+- Settings → General: new **Version** section (standalone only) with current version, update status (You're up to date / Update available), and Download link to GitHub releases.
+
+**Settings**
+- Users — Roles: role dropdown and Delete button right-aligned to match Rooms section layout.
+
+---
+
 ## v3.5.27 — Help spoiler examples render as plain text
 
 **Message parser**
