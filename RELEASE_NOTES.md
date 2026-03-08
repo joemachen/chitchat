@@ -1,5 +1,14 @@
 # Release notes
 
+## v3.5.23 — Categorized /help
+
+**/help**
+- Restructured into four sections: Chat & Presence, Navigation & Settings, Fun & Media, Admin & Roles.
+- Spoilers section now includes blur-to-reveal explanation and examples: `||text||`, `||URL||`; tip for Reveal all spoilers button.
+- Commands use inline code formatting; section headers use emojis.
+
+---
+
 ## v3.5.22 — Spoilers
 
 **Spoilers**
