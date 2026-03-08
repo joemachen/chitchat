@@ -1,5 +1,13 @@
 # Release notes
 
+## v3.5.25 — Protect URLs in code and escaped form
+
+**Message parser**
+- **Backticks** — URLs inside inline code are no longer parsed as spoilers or media; they render as plain text.
+- **Backslash escape** — URLs like `https:\/\/example.com` render as plain text; skip spoiler and media processing.
+
+---
+
 ## v3.5.24 — Spoiler escape
 
 **Spoilers**

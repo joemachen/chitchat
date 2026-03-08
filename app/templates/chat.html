@@ -1770,7 +1770,13 @@ const chitchatApp = createApp({
             }
             var raw = msg.content || '';
             var escapedPipesPlaceholder = '\u200B\u200BESCPIPES\u200B\u200B';
+            var protectedBlocks = [];
             raw = raw.replace(/\\\|\|/g, escapedPipesPlaceholder);
+            raw = raw.replace(/(https?):\\\/\\\/([^\s<>"']+)/g, function(m, scheme, rest) {
+                var idx = protectedBlocks.length;
+                protectedBlocks.push({ type: 'escurl', text: m });
+                return '\u200B\u200BPROTECT' + idx + '\u200B\u200B';
+            });
             var spoilerParts = [];
             var idx = 0;
             function isImageUrl(s) {
@@ -1798,6 +1804,12 @@ const chitchatApp = createApp({
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
             for (var i = 0; i < spoilerParts.length; i++) html = html.replace(new RegExp('\u200B\u200BSPOILER' + i + '\u200B\u200B', 'g'), spoilerParts[i]);
             html = html.split(escapedPipesPlaceholder).join('||');
+            var codeBlockPrefix = '\u200B\u200BCODE';
+            html = html.replace(/<code>([\s\S]*?)<\/code>/gi, function(m, inner) {
+                var idx = protectedBlocks.length;
+                protectedBlocks.push({ type: 'code', html: '<code>' + inner + '</code>' });
+                return codeBlockPrefix + idx + '\u200B\u200B';
+            });
             // Replace marked's autolink <a href="GIF_URL">...</a> with inline playing GIF
             html = html.replace(/<a href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi, function(match, url) {
                 if (isGifUrl(url)) {
@@ -1822,6 +1834,11 @@ const chitchatApp = createApp({
                 }
                 return '<a href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>';
             });
+            for (var pi = 0; pi < protectedBlocks.length; pi++) {
+                var pb = protectedBlocks[pi];
+                if (pb.type === 'escurl') html = html.split('\u200B\u200BPROTECT' + pi + '\u200B\u200B').join(esc(pb.text));
+                else if (pb.type === 'code') html = html.split(codeBlockPrefix + pi + '\u200B\u200B').join(pb.html);
+            }
             return html;
         }
         function isMessageRoomHidden(msg) {
