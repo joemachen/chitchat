@@ -1,5 +1,11 @@
 # Release notes
 
+## v3.5.32 — Standalone version sync
+
+- `run_standalone.py` `CURRENT_VERSION` was out of sync (3.5.28); now matches `app/version.py`. Standalone window title and update check now show correct version.
+
+---
+
 ## v3.5.31 — Version in title only
 
 - Header no longer shows version; version remains in `<title>` only.
