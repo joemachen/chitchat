@@ -1,5 +1,13 @@
 # Release notes
 
+## v3.5.24 — Spoiler escape
+
+**Spoilers**
+- **Escape** — Type `\|\|` to render literal pipes instead of a spoiler.
+- **/help** — Examples now use escaped pipes so they display as literal `||` syntax.
+
+---
+
 ## v3.5.23 — Categorized /help
 
 **/help**

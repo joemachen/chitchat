@@ -1769,6 +1769,8 @@ const chitchatApp = createApp({
                 return '<em>* ' + esc(msg.username || '?') + ' ' + linked + '</em>';
             }
             var raw = msg.content || '';
+            var escapedPipesPlaceholder = '\u200B\u200BESCPIPES\u200B\u200B';
+            raw = raw.replace(/\\\|\|/g, escapedPipesPlaceholder);
             var spoilerParts = [];
             var idx = 0;
             function isImageUrl(s) {
@@ -1795,6 +1797,7 @@ const chitchatApp = createApp({
             });
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
             for (var i = 0; i < spoilerParts.length; i++) html = html.replace(new RegExp('\u200B\u200BSPOILER' + i + '\u200B\u200B', 'g'), spoilerParts[i]);
+            html = html.split(escapedPipesPlaceholder).join('||');
             // Replace marked's autolink <a href="GIF_URL">...</a> with inline playing GIF
             html = html.replace(/<a href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi, function(match, url) {
                 if (isGifUrl(url)) {
