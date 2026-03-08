@@ -1,5 +1,11 @@
 # Release notes
 
+## v3.5.30 — Restore PROFFRINK_PROPOSAL
+
+- Restored `PROFFRINK_PROPOSAL.md`; reverted `prof_frink.py` docstring to reference it.
+
+---
+
 ## v3.5.29 — Dead code removal, doc cleanup, logo
 
 **Chat**

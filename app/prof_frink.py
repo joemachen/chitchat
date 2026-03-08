@@ -655,7 +655,7 @@ def _filter_by_seasons(questions: list[tuple], seasons: Optional[list[int]]) -> 
 def fetch_trivia_question() -> Optional[TriviaQuestion]:
     """
     Fetch one random trivia question.
-    Uses placeholder data. API contract for simpsons-trivia.com integration when available.
+    Uses placeholder data. See PROFFRINK_PROPOSAL.md for API contract when simpsons-trivia.com exposes an endpoint.
     """
     questions = list(PLACEHOLDER_TRIVIA)
     questions = _filter_by_difficulty(questions, _frink_difficulty)
