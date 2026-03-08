@@ -60,6 +60,7 @@ chitchat/
 - **UI guidelines** (`UI_GUIDELINES.md`): Custom confirm/alert/prompt modals; edit modals with responsive dimensions; design tokens for dark/light themes.
 - **Display name** (from /nick) and **status** (from /status) shown in whois; message header shows display name when set. **Letter avatars** — circular avatars with user initial and colored background (customizable in Settings → Profile).
 - **Load older messages** button at top of message list; **typing indicator** above the input; **link preview** cards with minimize per message.
+- **Spoilers** — Wrap text or image URLs in `||double pipes||`; frosted-glass overlay until click to reveal; **Reveal all spoilers** button when room has spoilers.
 
 ## Design Principles
 

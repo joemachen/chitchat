@@ -1,5 +1,16 @@
 # Release notes
 
+## v3.5.22 — Spoilers
+
+**Spoilers**
+- **Syntax** — Wrap text or image URLs in `||double pipes||` (e.g. `||spoiler text||` or `||https://image.png||`).
+- **Frosted overlay** — Hidden content shows a blur overlay until clicked; click to reveal.
+- **Reveal all** — One-click button unveils every spoiler in the room when any exist.
+- **Image support** — PNG, JPG, GIF, WebP, SVG; imgur, ibb.co, Discord CDN; Tenor/Giphy use media proxy.
+- **Accessibility** — Keyboard (Enter/Space) and screen-reader support.
+
+---
+
 ## v3.5.18 — Hide Get the app button in standalone
 
 **Login page**

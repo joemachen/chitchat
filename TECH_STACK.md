@@ -22,6 +22,7 @@
 
 - **Vue 3 (CDN)** — Composition API, reactive state; single template `chat.html`. No build step.
 - **marked.js** — Markdown rendering for message content (bold, italics, code blocks); loaded from CDN.
+- **Spoilers** — `||text||` or `||image URL||` syntax; frosted-glass overlay; click to reveal; Reveal all spoilers button per room.
 - **Link previews** — Server fetches Open Graph data (requests + BeautifulSoup); client renders preview cards with minimize.
 - **Typing indicators** — WebSocket `user_typing` event; “[User] is typing…” above the input.
 - **Message pagination** — Last 50 messages on join; “Load older messages” fetches more; server-side room-mute filter.

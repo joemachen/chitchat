@@ -1584,6 +1584,7 @@ def register_socket_handlers(socketio):
                 "• Mobile: Log out in Settings tab or room list footer (scroll to bottom of Rooms/DMs); long-press room for context menu",
                 "• Ctrl+K — room switcher; Esc — close modals; destructive actions use in-app confirm dialogs",
                 "• GIF and MP4 links (Giphy, Tenor) render inline playing; muted rooms show 🔇 emoji",
+                "• Spoilers: wrap text or image URLs in ||double pipes|| (e.g. ||spoiler text|| or ||https://image.png||); click to reveal; use Reveal all spoilers to unveil everything in the room",
                 "",
                 "**In Acrophobia room**",
                 "• /help or /msg acrobot help — AcroBot help & rules",

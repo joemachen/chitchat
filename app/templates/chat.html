@@ -191,6 +191,15 @@
         .msg-content { word-break: break-word; user-select: text; -webkit-user-select: text; }
         .msg-content a { color: #818cf8; text-decoration: none; }
         .msg-content a:hover { text-decoration: underline; }
+        .msg-content .spoiler { position: relative; display: inline; cursor: pointer; border-radius: 4px; }
+        .msg-content .spoiler .spoiler-overlay { position: absolute; inset: 0; background: rgba(15, 15, 18, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.8em; color: #71717a; user-select: none; }
+        .msg-content .spoiler.spoiler-revealed .spoiler-overlay { display: none; }
+        .msg-content .spoiler .spoiler-content { opacity: 0; }
+        .msg-content .spoiler.spoiler-revealed .spoiler-content { opacity: 1; }
+        .msg-content .spoiler.spoiler-block { display: inline-block; max-width: 280px; vertical-align: top; }
+        .msg-content .spoiler.spoiler-block .spoiler-content img { max-width: 280px; max-height: 200px; border-radius: 6px; display: block; }
+        .messages.spoilers-revealed .msg-content .spoiler .spoiler-overlay { display: none; }
+        .messages.spoilers-revealed .msg-content .spoiler .spoiler-content { opacity: 1; }
         .msg.emote .msg-content { font-style: italic; color: #a1a1aa; }
         .msg.action .msg-content { font-style: italic; color: #c4b5fd; }
         .msg.msg-system .msg-content { font-style: italic; color: #94a3b8; }
@@ -297,6 +306,9 @@
         .load-more-wrap { padding: 0.5rem 1rem; text-align: center; border-bottom: 1px solid #27272a; }
         .load-more-wrap button { padding: 0.4rem 0.8rem; font-size: 0.85rem; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 6px; cursor: pointer; }
         .load-more-wrap button:hover { background: #3f3f46; color: #e4e4e7; }
+        .spoiler-reveal-wrap { padding: 0.5rem 1rem; text-align: center; border-bottom: 1px solid #27272a; }
+        .spoiler-reveal-btn { padding: 0.4rem 0.9rem; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+        .spoiler-reveal-btn:hover { background: rgba(99, 102, 241, 0.3); color: #c7d2fe; }
         .msg-link-preview { margin-top: 0.5rem; border-radius: 6px; overflow: hidden; background: #1e1e24; border: 1px solid #27272a; max-width: 400px; }
         .msg-link-preview.minimized { max-height: 2rem; }
         .msg-link-preview.minimized .link-preview-body { display: none; }
@@ -426,6 +438,9 @@
         body.theme-light .msg.msg-system .msg-content { color: #64748b; }
         body.theme-light .msg.msg-system .msg-header .msg-username { color: #94a3b8; }
         body.theme-light .msg.action .msg-content { color: #6d28d9; }
+        body.theme-light .msg-content .spoiler .spoiler-overlay { background: rgba(228, 228, 231, 0.85); color: #52525b; }
+        body.theme-light .spoiler-reveal-btn { background: rgba(99, 102, 241, 0.15); color: #6366f1; border-color: rgba(99, 102, 241, 0.35); }
+        body.theme-light .spoiler-reveal-btn:hover { background: rgba(99, 102, 241, 0.25); color: #4f46e5; }
         body.theme-light .form-wrap { background: #e4e4e7; border-color: #d4d4d8; }
         body.theme-light .form-wrap input, body.theme-light .form-wrap textarea { background: #fff; border-color: #d4d4d8; color: #18181b; }
         body.theme-light .acro-timer, body.theme-light .trivia-timer { background: #fafafa; border-color: #d4d4d8; color: #6366f1; }
@@ -925,9 +940,10 @@
                 </div>
             </div>
             <div class="messages-wrap" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
-                <div class="messages" id="messages" :class="{ 'is-dm': state.currentRoom && state.currentRoom.is_dm }" ref="messagesContainer">
+                <div class="messages" id="messages" :class="{ 'is-dm': state.currentRoom && state.currentRoom.is_dm, 'spoilers-revealed': state.revealAllSpoilers }" ref="messagesContainer">
                     <div id="loadMoreSentinel" style="height:1px;visibility:hidden;pointer-events:none;"></div>
                     <div class="load-more-wrap" id="loadMoreWrap" v-show="showMessagesView && state.hasMoreMessages && state.loadMoreAtTop"><button type="button" id="loadMoreBtn">Load older messages</button></div>
+                    <div class="spoiler-reveal-wrap" v-show="showMessagesView && hasSpoilersInRoom && !state.revealAllSpoilers"><button type="button" class="spoiler-reveal-btn" @click="state.revealAllSpoilers = true">Reveal all spoilers</button></div>
                     <div v-if="showMessagesView && state.pinnedMessages && state.pinnedMessages.length" class="pinned-messages-section">
                         <div class="pinned-messages-header">📌 Pinned</div>
                         <article v-for="msg in state.pinnedMessages" :key="'pinned-'+msg.id" :id="'msg-' + msg.id" :class="['msg', 'msg-pinned', { own: msg.user_id === currentUserId, emote: msg.message_type === 'emote', action: msg.message_type === 'action', 'msg-system': (msg.username || '') === 'System', 'hover-bar-visible': msg.user_id === currentUserId && state.hoverBarVisibleMsgId === msg.id }]" :data-msg-id="msg.id" :data-user-id="msg.user_id">
@@ -1346,6 +1362,7 @@ const state = reactive({
     triviaTimerSeconds: null,
     triviaFormUrgent: false,
     hiddenMessageIds: [],  // Synced from localStorage for reactive hide/unhide
+    revealAllSpoilers: false,  // One-click reveal all spoilers in current room
     activeSettingsTab: 'profile',
     acrobotActive: true,
     homerActive: true,
@@ -1666,6 +1683,10 @@ const chitchatApp = createApp({
         const pinnedMessageIds = computed(() => new Set((state.pinnedMessages || []).map(function(p) { return p.id; })));
         const displayMessages = computed(() => (state.messages || []).filter(function(m) { return !pinnedMessageIds.value.has(m.id); }));
         const showMessagesView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() !== 'stats');
+        const hasSpoilersInRoom = computed(function() {
+            var c = function(m) { return (m && m.content && String(m.content).indexOf('||') !== -1); };
+            return (state.messages || []).some(c) || (state.pinnedMessages || []).some(c);
+        });
         const showStatsView = computed(() => !state.showingSettings && state.currentRoom && state.currentRoom.name && state.currentRoom.name.toLowerCase() === 'stats');
         const showSettingsView = computed(() => !!state.showingSettings);
         const statsTopTypers = computed(() => (state.stats && state.stats.top_typers) || []);
@@ -1748,7 +1769,32 @@ const chitchatApp = createApp({
                 return '<em>* ' + esc(msg.username || '?') + ' ' + linked + '</em>';
             }
             var raw = msg.content || '';
+            var spoilerParts = [];
+            var idx = 0;
+            function isImageUrl(s) {
+                var u = (s || '').trim();
+                if (!/^https?:\/\/[^\s]+$/i.test(u)) return false;
+                return /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(u) || /imgur\.com|i\.imgur\.com|ibb\.co|cdn\.discordapp\.com\/attachments/i.test(u);
+            }
+            raw = raw.replace(/\|\|([\s\S]*?)\|\|/g, function(match, inner) {
+                var placeholder = '\u200B\u200BSPOILER' + idx + '\u200B\u200B';
+                var innerTrim = (inner || '').trim();
+                var innerHtml;
+                if (isImageUrl(innerTrim)) {
+                    var imgSrc = innerTrim.replace(/[.,;:)]+$/, '');
+                    var proxySrc = /^\//.test(imgSrc) || (window.location.origin && imgSrc.indexOf(window.location.origin) === 0) ? imgSrc : (/tenor\.com|media\d*\.tenor\.com|giphy\.com|media\.giphy\.com|media\d*\.giphy\.com|i\.giphy\.com/i.test(imgSrc) ? '/media-proxy?url=' + encodeURIComponent(imgSrc) : imgSrc);
+                    innerHtml = '<img src="' + escA(proxySrc) + '" alt="Spoiler" loading="lazy">';
+                    spoilerParts[idx] = '<span class="spoiler spoiler-block" role="button" tabindex="0" aria-label="Spoiler image, click to reveal"><span class="spoiler-overlay">Click to reveal</span><span class="spoiler-content">' + innerHtml + '</span></span>';
+                } else {
+                    innerHtml = typeof marked !== 'undefined' ? marked.parse(inner) : esc(inner);
+                    innerHtml = innerHtml.replace(/^<p>|<\/p>$/g, '').replace(/<\/p>\s*<p>/g, '\n');
+                    spoilerParts[idx] = '<span class="spoiler" role="button" tabindex="0" aria-label="Spoiler, click to reveal"><span class="spoiler-overlay">Click to reveal</span><span class="spoiler-content">' + innerHtml + '</span></span>';
+                }
+                idx++;
+                return placeholder;
+            });
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
+            for (var i = 0; i < spoilerParts.length; i++) html = html.replace(new RegExp('\u200B\u200BSPOILER' + i + '\u200B\u200B', 'g'), spoilerParts[i]);
             // Replace marked's autolink <a href="GIF_URL">...</a> with inline playing GIF
             html = html.replace(/<a href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi, function(match, url) {
                 if (isGifUrl(url)) {
@@ -1950,7 +1996,7 @@ const chitchatApp = createApp({
         function mobilePresenceSheetTouchStart(e) { if (e.touches && e.touches[0]) mobilePresenceSheetTouchStartY = e.touches[0].clientY; }
         function mobilePresenceSheetTouchMove(e) { if (mobilePresenceSheetTouchStartY !== null && e.touches && e.touches[0] && e.touches[0].clientY - mobilePresenceSheetTouchStartY > 60) { state.mobilePresenceSheetOpen = false; mobilePresenceSheetTouchStartY = null; } }
         function mobilePresenceSheetTouchEnd() { mobilePresenceSheetTouchStartY = null; }
-        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
+        return { status, connected, state, typingText, channelTopicHtml, channelTopicEmpty, mobileRoomName, showChannelTopic, botUsers, onlineUsers, offlineUsers, userStatusClass, userDisplayLabel, getAvatarInitial, getAvatarBgColor, getMessageAvatarColor, currentUserId: currentUserIdNum, isSuperAdmin: isSuperAdminFlag, channelsInOrder, dmsInOrder, hasUnread, isRoomActive, roomDisplayName, canEditRoom, canDeleteRoom, canCreateRoom, onRoomClick, onEditRoom, onDeleteRoom, onRoomDragStart, onRoomDragEnd, onRoomDragOver, onRoomDragLeave, onRoomDrop, displayMessages, showMessagesView, hasSpoilersInRoom, showStatsView, showSettingsView, statsTopTypers, statsMaxTypers, statsActiveHours, statsMaxCount, statsDayColors, formatMessageTime, formatFavoriteWords, formatHourLabel, formatProfileDate, formatWhoisDate, formatWhoisConnected, formatTime, hasAnyModalOpen, roomSwitcherFiltered, hideProfileModal, hideWhoisModal, hideAllModals, hideSearchResultsModal, hideEditMessageModal, hideEditProfileModal, hideEditRoomModal, onSearchResultClick, saveEditMessage, saveEditProfile, saveEditRoom, onEditMessageKeydown, onEditProfileKeydown, onEditRoomKeydown, onRoomSwitcherKeydown, onRoomSwitcherSelect, getMessageDisplayName, getMessageContentHtml, linkPreviewsForMessage, linkPreviewsForInlineVideo, toggleVideoPlay, isMessageRoomHidden, messageMentionsMe, isMessageUserHidden, isMessageMentioned, onUnhideMessage, onScrollToMessage, onToggleReaction, onShowReactionPicker, onEditMessage, onReplyToMessage, onLinkPreviewMinimize, setTheme, setBgColor, setFont, deleteUser, saveUserRanks, settingsMuteAllNotifications, settingsUnmuteAllNotifications, settingsDeleteMyMessages, settingsSaveMessageRetention, settingsSetAcrobot, settingsSetHomer, settingsSetFrink, settingsResetStats, settingsSetRoomProtected, settingsDeleteRoom, settingsWipeRoom, settingsSetUserRankPending, settingsSetDefaultChannel, settingsSetBotChannels, settingsSetRolePermission, settingsToggleRoomMute, settingsSave, isMobile, goToMobileHome, mobilePresenceSheetTouchStart, mobilePresenceSheetTouchMove, mobilePresenceSheetTouchEnd, userCreatedAtFormatted, loadProfileTab, profileUserStatus, profileTimeConnected, profileStatsPreview, profileMuteSummary, setProfileVisibility, saveProfileNick, saveProfileStatus, saveProfileAway, saveProfileBio, saveProfileAvatarColor, onVideoError };
     }
 });
 chitchatApp.config.errorHandler = function(err, instance, info) { console.error('Vue error:', err, info); };
@@ -2502,6 +2548,13 @@ chitchatApp.mount('#app');
     }
     messagesEl.addEventListener('click', function(e) {
         if (e.button !== 0) return;
+        var spoilerEl = e.target.closest('.spoiler');
+        if (spoilerEl && !spoilerEl.classList.contains('spoiler-revealed')) {
+            spoilerEl.classList.add('spoiler-revealed');
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
         var msgEl = e.target.closest('.msg[data-msg-id]');
         if (msgEl && msgEl.classList.contains('own') && !e.target.closest('.msg-hover-bar')) {
             var mid = parseInt(msgEl.getAttribute('data-msg-id'), 10);
@@ -2529,6 +2582,13 @@ chitchatApp.mount('#app');
             } else {
                 window.open(a.href, '_blank', 'noopener,noreferrer');
             }
+        }
+    });
+    messagesEl.addEventListener('keydown', function(e) {
+        var spoilerEl = e.target.closest('.spoiler');
+        if (spoilerEl && !spoilerEl.classList.contains('spoiler-revealed') && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            spoilerEl.classList.add('spoiler-revealed');
         }
     });
     (function() {
@@ -3553,6 +3613,7 @@ chitchatApp.mount('#app');
         }
         state.mobileHomeView = false;
         if (window.chitchat && window.chitchat.closeSidebars) window.chitchat.closeSidebars();
+        state.revealAllSpoilers = false;
         var room = state.allRooms.find(function(r) { return r.id === roomId; });
         if (room) {
             state.currentRoom = room;
