@@ -1431,7 +1431,6 @@ const state = reactive({
     hoverBarVisibleMsgId: null  // on mobile: msg id for which hover bar is shown (tap to toggle)
 });
 const RELEASES_API = 'https://api.github.com/repos/joemachen/chitchat/releases/latest';
-const RELEASES_URL = 'https://github.com/joemachen/chitchat/releases';
 function parseVersion(s) {
     var m = String(s || '').replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)/);
     return m ? [parseInt(m[1],10), parseInt(m[2],10), parseInt(m[3],10)] : [0,0,0];
@@ -4127,31 +4126,6 @@ chitchatApp.mount('#app');
         }
     });
 
-    socket.on('user_rank_result', function(res) {
-        if (res && res.ok) {
-            var rankLabel = { rookie: 'Rookie', bro: 'Bro', fam: 'Fam', super_admin: 'Super Admin' }[(res.rank || '').toLowerCase()] || res.rank;
-            var toast = document.createElement('div');
-            toast.className = 'ping-toast';
-            toast.style.background = '#166534';
-            toast.textContent = rankLabel + ' set for ' + (res.target_username || 'user');
-            getToastContainer().appendChild(toast);
-            setTimeout(function() { toast.remove(); }, 3000);
-            if (res.target_user_id !== undefined) {
-                var p = Object.assign({}, state.pendingRankChanges || {});
-                delete p[res.target_user_id];
-                state.pendingRankChanges = p;
-            }
-        } else {
-            var msg = (res && res.error) || 'Failed to save rank';
-            var toast = document.createElement('div');
-            toast.className = 'ping-toast';
-            toast.style.background = '#7f1d1d';
-            toast.textContent = msg;
-            getToastContainer().appendChild(toast);
-            setTimeout(function() { toast.remove(); }, 5000);
-        }
-    });
-
     socket.on('profile_updated', function(data) {
         if (data.status_line !== undefined) { currentUserStatusLine = data.status_line || ''; state.userStatusLine = currentUserStatusLine; }
         if (data.away_message !== undefined) { currentUserAwayMessage = data.away_message || ''; state.userAwayMessage = currentUserAwayMessage; }
@@ -4284,11 +4258,6 @@ chitchatApp.mount('#app');
 
     socket.on('my_messages_deleted', function(data) {
         setStatus('Deleted ' + (data.deleted_count || 0) + ' of your messages.');
-    });
-
-    socket.on('message_retention_updated', function(data) {
-        state.messageRetentionDays = data.days != null ? String(data.days) : '';
-        setStatus('Auto-delete setting updated.');
     });
 
     socket.on('user_mentioned', function(data) {

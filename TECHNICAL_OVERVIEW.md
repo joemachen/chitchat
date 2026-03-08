@@ -86,7 +86,7 @@ chitchat/
 - **`create_app()`** in `app/__init__.py`:
   1. Creates Flask app, loads `app.config.Config`.
   2. Ensures `instance` path exists.
-  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–026), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
+  3. Inits Flask-SQLAlchemy, runs **Flask-Migrate `upgrade()`** (Alembic migrations 001–027), then **`_seed_default_data(app)`**, then **`_post_deploy_announcement(app)`** (posts deploy announcement to System Events only when version changes).
   4. Registers HTTP routes via `register_routes(app)`.
   5. Creates SocketIO app (`async_mode="gevent"`, loggers disabled).
   6. Registers socket handlers via `register_socket_handlers(socketio)`.

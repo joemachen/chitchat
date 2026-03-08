@@ -1,5 +1,22 @@
 # Release notes
 
+## v3.5.29 — Dead code removal, doc cleanup, logo
+
+**Chat**
+- Removed unused `RELEASES_URL` constant, `user_rank_result` and `message_retention_updated` socket handlers (server uses HTTP APIs for roles and message retention).
+
+**Docs**
+- Removed redundant docs: `DOC_REVIEW_REPORT.md`, `PROFFRINK_PROPOSAL.md`, `TENOR_GIF_MP4_TROUBLESHOOTING.md`, `VUE_REFACTOR_PLAN.md`.
+- Updated `prof_frink.py` docstring to remove reference to deleted PROFFRINK_PROPOSAL.
+- TECHNICAL_OVERVIEW: migration range 001–027.
+- ARCHITECTURE, ROADMAP: version and current state.
+
+**Assets**
+- Replaced placeholder logo with No Homers Club branding (Homer + no symbol).
+- Removed unused dev files: `test_help_parse.html`, `test_help_parse.js`.
+
+---
+
 ## v3.5.28 — Version display, Settings polish
 
 **Version in title bar**
