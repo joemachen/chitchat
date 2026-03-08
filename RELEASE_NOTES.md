@@ -1,5 +1,13 @@
 # Release notes
 
+## v3.5.27 — Help spoiler examples render as plain text
+
+**Message parser**
+- Backtick placeholders now use ASCII SOH instead of Unicode zero-width spaces so marked.js does not alter them.
+- Spoiler examples in `/help` (e.g. `||spoiler text||`, `||https://giphy.com/...||`) now display as plain text in code blocks instead of click-to-reveal spoilers.
+
+---
+
 ## v3.5.26 — Help spoiler examples without backslashes
 
 **/help**

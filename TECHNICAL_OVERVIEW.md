@@ -53,7 +53,7 @@ chitchat/
 ├── run.bat / run-standalone.bat
 ├── .github/workflows/     # build-standalone.yml: PyInstaller on tag push → GitHub Release
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–026
+├── migrations/            # Flask-Migrate (Alembic) versions 001–027
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
@@ -278,7 +278,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `wsgi.py` | Gunicorn entry; imports app from run. |
 | `app/__init__.py` | App factory, DB init, Flask-Migrate upgrade, seed, deploy announcement, SocketIO init, register routes and sockets. |
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
-| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.17); used for deploy announcements. |
+| `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.27); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
 | `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
