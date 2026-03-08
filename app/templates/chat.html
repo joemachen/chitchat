@@ -1771,6 +1771,12 @@ const chitchatApp = createApp({
             var raw = msg.content || '';
             var escapedPipesPlaceholder = '\u200B\u200BESCPIPES\u200B\u200B';
             var protectedBlocks = [];
+            var backtickProtected = [];
+            raw = raw.replace(/`([^`]+)`/g, function(m, inner) {
+                var i = backtickProtected.length;
+                backtickProtected.push(inner);
+                return '`\u200B\u200BBT' + i + '\u200B\u200B`';
+            });
             raw = raw.replace(/\\\|\|/g, escapedPipesPlaceholder);
             raw = raw.replace(/(https?):\\\/\\\/([^\s<>"']+)/g, function(m, scheme, rest) {
                 var idx = protectedBlocks.length;
@@ -1804,6 +1810,7 @@ const chitchatApp = createApp({
             var html = typeof marked !== 'undefined' ? marked.parse(raw) : esc(raw);
             for (var i = 0; i < spoilerParts.length; i++) html = html.replace(new RegExp('\u200B\u200BSPOILER' + i + '\u200B\u200B', 'g'), spoilerParts[i]);
             html = html.split(escapedPipesPlaceholder).join('||');
+            for (var bi = 0; bi < backtickProtected.length; bi++) html = html.split('\u200B\u200BBT' + bi + '\u200B\u200B').join(esc(backtickProtected[bi]));
             var codeBlockPrefix = '\u200B\u200BCODE';
             html = html.replace(/<code>([\s\S]*?)<\/code>/gi, function(m, inner) {
                 var idx = protectedBlocks.length;

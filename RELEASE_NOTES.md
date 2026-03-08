@@ -1,5 +1,13 @@
 # Release notes
 
+## v3.5.26 — Help spoiler examples without backslashes
+
+**/help**
+- Spoiler examples now display as `||text||` and `||url||` (no backslashes).
+- Backtick content is protected from spoiler/media parsing before processing.
+
+---
+
 ## v3.5.25 — Protect URLs in code and escaped form
 
 **Message parser**
