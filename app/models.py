@@ -293,6 +293,54 @@ class TriviaScore(db.Model):
     __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_trivia_score"),)
 
 
+class Poll(db.Model):
+    """A timed poll created via !poll command in a room."""
+    __tablename__ = "polls"
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, ForeignKey("rooms.id"), nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, ForeignKey("users.id"), nullable=False)
+    message_id = db.Column(db.Integer, ForeignKey("messages.id"), nullable=True)
+    question = db.Column(db.String(300), nullable=False)
+    options = db.Column(db.JSON, nullable=False)           # ["Option A", "Option B", ...]
+    votes = db.Column(db.JSON, nullable=False, default=dict)  # {"0": [uid,...], "1": [...]}
+    duration = db.Column(db.Integer, nullable=False, default=60)
+    ends_at = db.Column(db.DateTime, nullable=False)
+    closed = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def votes_count(self):
+        return [len(self.votes.get(str(i), [])) for i in range(len(self.options))]
+
+    def total_votes(self):
+        return sum(len(v) for v in self.votes.values())
+
+    def winner_idx(self):
+        counts = self.votes_count()
+        return counts.index(max(counts)) if counts else None
+
+    def to_payload(self, viewer_id=None):
+        counts = self.votes_count()
+        total = self.total_votes()
+        voted_option = None
+        if viewer_id is not None:
+            for i, uids in self.votes.items():
+                if viewer_id in uids:
+                    voted_option = int(i)
+                    break
+        return {
+            "id": self.id,
+            "question": self.question,
+            "options": self.options,
+            "votes_count": counts,
+            "total": total,
+            "ends_at": _isoformat_utc(self.ends_at),
+            "closed": self.closed,
+            "duration": self.duration,
+            "voted_option": voted_option,
+        }
+
+
 class AppSetting(db.Model):
     """Key-value app config (e.g. default_room_id for login)."""
     __tablename__ = "app_settings"

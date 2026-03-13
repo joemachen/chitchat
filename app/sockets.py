@@ -56,7 +56,7 @@ from app.prof_frink import (
 from app.link_preview import get_previews_for_message_content
 from app.logging_config import get_logger
 from app.message_cache import cache_append, cache_clear_room, cache_remove, cache_update, get_cached_messages, validate_message_payload
-from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, PinnedMessage, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
+from app.models import AcroScore, AppSetting, AuditLog, IgnoreList, Message, MessageReaction, MessageReport, PinnedMessage, Poll, RolePermission, Room, RoomMute, TriviaScore, User, UserRoomRead, UserRoomNotificationMute, _isoformat_utc, db
 from app.room_aliases import get_room_aliases, resolve_alias, set_room_alias
 from app.user_private_data import get_all_private_data, get_private_data, set_private_data
 
@@ -75,6 +75,7 @@ _rate_limit_timestamps = {}
 _sid_to_connected_at = {}  # sid -> time.time() when connected
 _sid_to_remote_addr = {}  # sid -> IP string
 _user_id_to_room = {}  # user_id -> (room_id, room_name) for rich presence
+_active_polls = {}  # room_id -> poll_id (one active poll per room)
 
 
 def _is_valid_hex_color(s: str) -> bool:
@@ -726,10 +727,110 @@ def _periodic_presence_broadcast(socketio):
     gevent.spawn_later(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
 
 
+def _parse_poll_command(content):
+    """Parse /poll command text. Returns (question, options, duration) or raises ValueError."""
+    rest = content[5:].strip()  # strip "/poll "
+    if not rest:
+        raise ValueError("Usage: !poll \"Question?\" Option A, Option B [--duration N]")
+    # Extract optional --duration N at the end
+    duration = 60
+    dur_match = re.search(r'\s*--duration\s+(\d+)\s*$', rest, re.IGNORECASE)
+    if dur_match:
+        duration = max(15, min(300, int(dur_match.group(1))))
+        rest = rest[:dur_match.start()].strip()
+    # Extract question (quoted or up to first comma)
+    if rest.startswith('"'):
+        end_q = rest.find('"', 1)
+        if end_q == -1:
+            raise ValueError("Unclosed quote in poll question")
+        question = rest[1:end_q].strip()
+        rest = rest[end_q + 1:].strip().lstrip(',').strip()
+    else:
+        parts = rest.split(',', 1)
+        if len(parts) < 2:
+            raise ValueError("Usage: !poll Question? Option A, Option B [--duration N]")
+        question = parts[0].strip()
+        rest = parts[1].strip()
+    if not question:
+        raise ValueError("Poll question cannot be empty")
+    options = [o.strip() for o in rest.split(',') if o.strip()]
+    if len(options) < 2:
+        raise ValueError("A poll needs at least 2 options")
+    if len(options) > 5:
+        raise ValueError("A poll can have at most 5 options")
+    return question, options, duration
+
+
+def _poll_msg_dict(poll, base_dict, viewer_id=None):
+    """Augment a message to_dict() with poll payload."""
+    d = dict(base_dict)
+    d["poll"] = poll.to_payload(viewer_id=viewer_id)
+    return d
+
+
+def _close_poll(poll_id, room_id, app_obj, socket_io):
+    """Gevent timer callback: mark poll closed, broadcast final results."""
+    with app_obj.app_context():
+        poll = Poll.query.get(poll_id)
+        if poll is None or poll.closed:
+            return
+        poll.closed = True
+        db.session.commit()
+        _active_polls.pop(room_id, None)
+        counts = poll.votes_count()
+        total = poll.total_votes()
+        winner = poll.winner_idx()
+        socket_io.emit("poll_ended", {
+            "poll_id": poll_id,
+            "room_id": room_id,
+            "votes_count": counts,
+            "total": total,
+            "winner_idx": winner,
+        }, room=f"room_{room_id}")
+        logger.info("Poll %s in room %s closed. Total votes: %s", poll_id, room_id, total)
+
+
+def _augment_history_with_polls(history, viewer_id=None):
+    """For any poll messages in a history list, look up and attach live poll payload."""
+    msg_ids = [m["id"] for m in history if m.get("message_type") == "poll" and m.get("id")]
+    if not msg_ids:
+        return history
+    polls_by_msg = {p.message_id: p for p in Poll.query.filter(Poll.message_id.in_(msg_ids)).all()}
+    result = []
+    for m in history:
+        if m.get("message_type") == "poll" and m.get("id") in polls_by_msg:
+            m = dict(m)
+            poll = polls_by_msg[m["id"]]
+            m["poll_id"] = poll.id
+            m["poll"] = poll.to_payload(viewer_id=viewer_id)
+        result.append(m)
+    return result
+
+
+def _rearm_open_polls(app_obj, socket_io):
+    """On startup: close expired polls and re-arm timers for polls still within their window."""
+    with app_obj.app_context():
+        now = datetime.utcnow()
+        open_polls = Poll.query.filter_by(closed=False).all()
+        for poll in open_polls:
+            if poll.ends_at <= now:
+                poll.closed = True
+                _active_polls.pop(poll.room_id, None)
+            else:
+                _active_polls[poll.room_id] = poll.id
+                remaining = (poll.ends_at - now).total_seconds()
+                gevent.spawn_later(remaining, _close_poll, poll.id, poll.room_id, app_obj, socket_io)
+        if open_polls:
+            db.session.commit()
+        logger.info("Poll startup check: %s open poll(s) processed", len(open_polls))
+
+
 def register_socket_handlers(socketio):
     """Register SocketIO event handlers."""
     gevent.spawn_later(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
     _start_daily_trivia_scheduler(socketio)
+    app = current_app._get_current_object()
+    gevent.spawn_later(2, _rearm_open_polls, app, socketio)
 
     def _post_system_event(content: str):
         """Post a system message to the System Events room."""
@@ -1063,6 +1164,7 @@ def register_socket_handlers(socketio):
                 db.session.add(UserRoomRead(user_id=user_id, room_id=room_id, last_message_id=last_msg_id))
             db.session.commit()
             unread_counts = _get_unread_counts(user_id)
+            history = _augment_history_with_polls(history, viewer_id=user_id)
             payload = {
                 "room": room_obj.to_dict(),
                 "history": history,
@@ -1082,6 +1184,53 @@ def register_socket_handlers(socketio):
                 payload["trivia"] = trivia_info if trivia_info else {"end_time": None}
             emit("room_joined", payload)
             logger.info("User %s joined room %s, history len=%s", user_id, room_id, len(history))
+
+    @socketio.on("cast_poll_vote")
+    def on_cast_poll_vote(data):
+        """Cast a vote on an active poll. One vote per user per poll."""
+        user_id = session.get("user_id")
+        if not user_id:
+            emit("error", {"message": "Not authenticated"})
+            return
+        poll_id = (data or {}).get("poll_id")
+        option_idx = (data or {}).get("option_idx")
+        if poll_id is None or option_idx is None:
+            emit("error", {"message": "Invalid poll vote data"})
+            return
+        poll = Poll.query.get(poll_id)
+        if not poll:
+            emit("error", {"message": "Poll not found"})
+            return
+        if poll.closed:
+            emit("error", {"message": "This poll has already closed"})
+            return
+        option_idx = int(option_idx)
+        if option_idx < 0 or option_idx >= len(poll.options):
+            emit("error", {"message": "Invalid option"})
+            return
+        # Check if user already voted in any option
+        for uids in poll.votes.values():
+            if user_id in uids:
+                emit("error", {"message": "You already voted in this poll"})
+                return
+        # Record vote
+        votes = dict(poll.votes)
+        key = str(option_idx)
+        votes[key] = votes.get(key, []) + [user_id]
+        poll.votes = votes
+        db.session.commit()
+        counts = poll.votes_count()
+        total = poll.total_votes()
+        # Broadcast live update to room
+        socketio.emit("poll_updated", {
+            "poll_id": poll.id,
+            "room_id": poll.room_id,
+            "votes_count": counts,
+            "total": total,
+        }, room=f"room_{poll.room_id}")
+        # Acknowledge to voter with their chosen option
+        emit("poll_vote_ack", {"poll_id": poll.id, "option_idx": option_idx})
+        logger.info("User %s voted option %s on poll %s", user_id, option_idx, poll_id)
 
     @socketio.on("user_typing")
     def on_user_typing(data):
@@ -1585,6 +1734,7 @@ def register_socket_handlers(socketio):
                 "• Mobile: Log out in Settings tab or room list footer; long-press room for context menu",
                 "",
                 "🎉 **Fun & Media**",
+                "• `!poll \"Question?\" A, B, C [--duration N]` — start a timed poll (15–300s, default 60s); one active poll per room at a time",
                 "• `!Simpsons` — Homer replies with a random quote (when online); new users get welcome DM; random quote DM if away 30+ days",
                 "• `!trivia [1-7]` — In #Trivia: 1–7 rounds, 45s per question; `!score` (leaderboard), `!help`, `!settings` (Prof Frink); `/trivia` also works",
                 "• **Acrophobia** — `/start [1-7]` start a round; `/vote N` vote for submission N; `/score` leaderboard; `/msg acrobot help` for rules",
@@ -1737,6 +1887,55 @@ def register_socket_handlers(socketio):
             }
             emit("topic_updated", payload, room=f"room_{room_id}")
             logger.info("User %s set topic in room %s", user.username, room_id)
+            return
+
+        # /poll "Question?" Option A, Option B [--duration N] — create a timed poll
+        if content.lower().startswith("/poll "):
+            if _active_polls.get(room_id):
+                emit("error", {"message": "A poll is already active in this room. Wait for it to finish."})
+                return
+            try:
+                question, options, duration = _parse_poll_command(content)
+            except ValueError as ve:
+                emit("error", {"message": str(ve)})
+                return
+            now = datetime.utcnow()
+            poll = Poll(
+                room_id=room_id,
+                created_by_id=user_id,
+                question=question,
+                options=options,
+                votes={},
+                duration=duration,
+                ends_at=now + timedelta(seconds=duration),
+                closed=False,
+                created_at=now,
+            )
+            db.session.add(poll)
+            db.session.flush()  # get poll.id before commit
+            msg = Message(
+                room_id=room_id,
+                user_id=user_id,
+                content=question,
+                message_type="poll",
+                created_at=now,
+            )
+            # Store poll_id in a JSON field we add to the message content key pattern
+            # We store it as "poll_id" on the message dict via a workaround:
+            # the actual poll_id is stored in message content as a JSON tag and resolved on read.
+            # Simpler: use a dedicated column. Since we don't have one, encode in content.
+            # Best approach: just reference via message_id on Poll after commit.
+            db.session.add(msg)
+            db.session.commit()
+            poll.message_id = msg.id
+            db.session.commit()
+            _active_polls[room_id] = poll.id
+            msg_dict = msg.to_dict()
+            msg_dict["poll_id"] = poll.id
+            msg_dict["poll"] = poll.to_payload(viewer_id=user_id)
+            _broadcast_new_message_impl(socketio, room_id, msg_dict)
+            gevent.spawn_later(duration, _close_poll, poll.id, room_id, current_app._get_current_object(), socketio)
+            logger.info("User %s started poll %s in room %s (%ss)", user.username, poll.id, room_id, duration)
             return
 
         # Acrophobia room: game commands and submissions (no user message saved; channel configurable)
