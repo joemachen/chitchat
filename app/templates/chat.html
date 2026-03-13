@@ -2649,7 +2649,7 @@ chitchatApp.mount('#app');
             return;
         }
         var a = e.target.closest('a[href]');
-        if (a && a.href && (a.target === '_blank' || a.getAttribute('target') === '_blank') && /^https?:\/\//i.test(a.href)) {
+        if (a && a.href && /^https?:\/\//i.test(a.href)) {
             if (Date.now() - linkContextMenuShownAt < 400) return;
             e.preventDefault();
             if (window.pywebview && window.pywebview.api && window.pywebview.api.open_url) {
