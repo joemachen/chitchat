@@ -309,6 +309,27 @@
         .spoiler-reveal-wrap { padding: 0.5rem 1rem; text-align: center; border-bottom: 1px solid #27272a; }
         .spoiler-reveal-btn { padding: 0.4rem 0.9rem; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
         .spoiler-reveal-btn:hover { background: rgba(99, 102, 241, 0.3); color: #c7d2fe; }
+        .poll-card { margin-top: 0.5rem; background: #1e1e24; border: 1px solid #3f3f46; border-radius: 10px; padding: 0.75rem 1rem; max-width: 380px; }
+        .poll-card.poll-closed { opacity: 0.8; }
+        .poll-question { font-weight: 600; color: #e4e4e7; margin-bottom: 0.6rem; font-size: 0.95rem; }
+        .poll-option { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
+        .poll-opt-btn { flex-shrink: 0; min-width: 90px; padding: 0.3rem 0.7rem; font-size: 0.85rem; border-radius: 6px; border: 1px solid #6366f1; background: transparent; color: #a5b4fc; cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+        .poll-opt-btn:hover:not(:disabled) { background: rgba(99,102,241,0.2); }
+        .poll-opt-btn.voted { background: rgba(99,102,241,0.3); color: #c7d2fe; border-color: #818cf8; font-weight: 600; }
+        .poll-opt-btn.winner { border-color: #34d399; color: #6ee7b7; background: rgba(52,211,153,0.15); }
+        .poll-opt-btn:disabled { cursor: default; }
+        .poll-bar-wrap { flex: 1; background: #27272a; border-radius: 4px; height: 6px; overflow: hidden; }
+        .poll-bar { height: 100%; background: #6366f1; border-radius: 4px; transition: width 0.4s ease; }
+        .poll-bar.winner-bar { background: #34d399; }
+        .poll-pct { font-size: 0.78rem; color: #71717a; min-width: 36px; text-align: right; }
+        .poll-footer { margin-top: 0.5rem; font-size: 0.8rem; color: #71717a; display: flex; justify-content: space-between; align-items: center; }
+        body.theme-light .poll-card { background: #f4f4f5; border-color: #d4d4d8; }
+        body.theme-light .poll-question { color: #18181b; }
+        body.theme-light .poll-opt-btn { color: #6366f1; border-color: #6366f1; }
+        body.theme-light .poll-opt-btn.winner { color: #059669; border-color: #059669; background: rgba(5,150,105,0.1); }
+        body.theme-light .poll-bar-wrap { background: #e4e4e7; }
+        body.theme-light .poll-pct { color: #71717a; }
+        body.theme-light .poll-footer { color: #71717a; }
         .msg-link-preview { margin-top: 0.5rem; border-radius: 6px; overflow: hidden; background: #1e1e24; border: 1px solid #27272a; max-width: 400px; }
         .msg-link-preview.minimized { max-height: 2rem; }
         .msg-link-preview.minimized .link-preview-body { display: none; }
@@ -974,7 +995,23 @@
                             <div class="msg-quote" v-if="msg.parent_id && (msg.parent_content != null || msg.parent_username != null)" :data-parent-id="String(msg.parent_id)" title="Jump to original message" @click="onScrollToMessage(msg.parent_id)">
                                 <strong>{{ (msg.parent_display_name && msg.parent_display_name.trim()) ? msg.parent_display_name : (msg.parent_username || '?') }}</strong>: {{ (msg.parent_content || '').slice(0, 200) }}{{ (msg.parent_content || '').length > 200 ? '…' : '' }}
                             </div>
-                            <div class="msg-content" v-html="getMessageContentHtml(msg)"></div>
+                            <div class="msg-content" v-if="msg.message_type !== 'poll'" v-html="getMessageContentHtml(msg)"></div>
+                            <div class="poll-card" :class="{ 'poll-closed': getPollData(msg).closed }" v-if="msg.message_type === 'poll' && msg.poll">
+                                <div class="poll-question">📊 {{ getPollData(msg).question }}</div>
+                                <div class="poll-option" v-for="(opt, idx) in getPollData(msg).options" :key="idx">
+                                    <button type="button" class="poll-opt-btn"
+                                        :class="{ voted: getPollVote(msg) === idx, winner: getPollData(msg).closed && isPollWinner(getPollData(msg), idx) }"
+                                        :disabled="getPollVote(msg) !== null || getPollData(msg).closed"
+                                        @click.stop="castPollVote(msg.poll_id || (msg.poll && msg.poll.id), idx)">{{ opt }}</button>
+                                    <div class="poll-bar-wrap"><div class="poll-bar" :class="{ 'winner-bar': getPollData(msg).closed && isPollWinner(getPollData(msg), idx) }" :style="{ width: getPollPct(getPollData(msg), idx) + '%' }"></div></div>
+                                    <span class="poll-pct">{{ getPollPct(getPollData(msg), idx) }}%</span>
+                                </div>
+                                <div class="poll-footer">
+                                    <span v-if="!getPollData(msg).closed">⏱ {{ getPollCountdown(getPollData(msg)) }}</span>
+                                    <span v-else>Poll closed</span>
+                                    <span>{{ getPollData(msg).total || 0 }} vote{{ getPollData(msg).total === 1 ? '' : 's' }}</span>
+                                </div>
+                            </div>
                             <div class="msg-inline-videos" v-if="linkPreviewsForInlineVideo(msg).length"><a v-for="(p, pi) in linkPreviewsForInlineVideo(msg)" :key="'iv'+pi" :href="p.url || ''" target="_blank" rel="noopener noreferrer"><video v-if="!state.videoErrored[msg.id+'-'+pi]" :src="p.videoSrc" class="msg-inline-gif" muted playsinline autoplay loop preload="metadata" title="Click to pause" @click.stop.prevent="toggleVideoPlay($event.target)" @error="onVideoError(msg.id, pi)"></video><img v-else-if="p.gifSrc" :src="p.gifSrc" class="msg-inline-gif" alt="GIF" loading="lazy"><span v-else class="msg-inline-fallback">Open video</span></a></div>
                             <div class="msg-attachment" v-if="msg.attachment_url">
                                 <a v-if="['png','jpg','jpeg','gif','webp','svg'].indexOf((msg.attachment_filename || '').split('.').pop().toLowerCase()) !== -1" :href="msg.attachment_url" target="_blank" rel="noopener noreferrer"><img :src="msg.attachment_url" :alt="msg.attachment_filename || ''"></a>
@@ -1428,7 +1465,10 @@ const state = reactive({
     latestVersion: null,
     versionCheckDone: false,
     videoErrored: {},  // msgId-pi -> true when video fails, fallback to GIF
-    hoverBarVisibleMsgId: null  // on mobile: msg id for which hover bar is shown (tap to toggle)
+    hoverBarVisibleMsgId: null,  // on mobile: msg id for which hover bar is shown (tap to toggle)
+    pollData: {},      // poll_id -> live poll payload (updated by poll_updated / poll_ended events)
+    myPollVotes: {},   // poll_id -> option_idx the current user voted for
+    pollTick: 0        // incremented every second to drive countdown reactivity
 });
 const RELEASES_API = 'https://api.github.com/repos/joemachen/chitchat/releases/latest';
 function parseVersion(s) {
@@ -1922,6 +1962,42 @@ const chitchatApp = createApp({
         function formatHourLabel(h) { return h === 0 ? '12am' : h === 12 ? '12pm' : (h > 12 ? h - 12 : h) + (h < 12 ? 'am' : 'pm'); }
         function toggleVideoPlay(el) { if (el && el.paused) el.play(); else if (el) el.pause(); }
         function onVideoError(msgId, pi) { if (msgId != null && pi != null) state.videoErrored[msgId + '-' + pi] = true; }
+        // Poll helpers
+        function getPollData(msg) {
+            var pid = msg.poll_id || (msg.poll && msg.poll.id);
+            return (pid && state.pollData[pid]) ? state.pollData[pid] : (msg.poll || {});
+        }
+        function getPollVote(msg) {
+            void state.pollTick;  // reactive dependency for countdown
+            var pid = msg.poll_id || (msg.poll && msg.poll.id);
+            if (pid == null) return null;
+            var v = state.myPollVotes[pid];
+            return (v !== undefined) ? v : ((getPollData(msg).voted_option !== undefined) ? getPollData(msg).voted_option : null);
+        }
+        function getPollPct(pollPayload, idx) {
+            var total = pollPayload.total || 0;
+            if (!total) return 0;
+            var counts = pollPayload.votes_count || [];
+            return Math.round((counts[idx] || 0) / total * 100);
+        }
+        function isPollWinner(pollPayload, idx) {
+            var counts = pollPayload.votes_count || [];
+            if (!counts.length) return false;
+            var max = Math.max.apply(null, counts);
+            return max > 0 && counts[idx] === max;
+        }
+        function getPollCountdown(pollPayload) {
+            void state.pollTick;
+            if (!pollPayload.ends_at) return '';
+            var remaining = Math.max(0, Math.floor((new Date(pollPayload.ends_at) - Date.now()) / 1000));
+            if (remaining <= 0) return 'closing…';
+            var m = Math.floor(remaining / 60), s = remaining % 60;
+            return m > 0 ? m + 'm ' + s + 's' : s + 's';
+        }
+        function castPollVote(pollId, optionIdx) {
+            if (!socket || pollId == null || optionIdx == null) return;
+            socket.emit('cast_poll_vote', { poll_id: pollId, option_idx: optionIdx });
+        }
         function formatProfileDate(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : ''; }
         function formatWhoisDate(iso) { return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : ''; }
         function formatWhoisConnected(connectedAt, connectedSeconds) {
@@ -3344,6 +3420,9 @@ chitchatApp.mount('#app');
         }
     }
 
+    // Drive poll countdown re-renders every second
+    setInterval(function() { state.pollTick++; }, 1000);
+
     function applyChatBackgroundColor() {
         var val = localStorage.getItem('chatBgColor') || '#0f0f12';
         state.bgColor = val;
@@ -3946,6 +4025,13 @@ chitchatApp.mount('#app');
             if (searchDrawerEl) searchDrawerEl.classList.remove('open');
         } else {
             state.messages = data.history || [];
+            // Seed live poll data from history so cards are immediately up-to-date
+            (state.messages || []).forEach(function(m) {
+                if (m.message_type === 'poll' && m.poll && m.poll.id != null) {
+                    state.pollData[m.poll.id] = m.poll;
+                    if (m.poll.voted_option != null) state.myPollVotes[m.poll.id] = m.poll.voted_option;
+                }
+            });
             state.pinnedMessages = data.pinned_messages || [];
             messagesEl.classList.toggle('is-dm', !!(state.currentRoom && state.currentRoom.is_dm));
             sendForm.style.display = '';
@@ -4213,6 +4299,10 @@ chitchatApp.mount('#app');
         }
         if (!msg.message_type) msg.message_type = 'chat';
         if (msg.room_id == null && state.currentRoom) msg.room_id = state.currentRoom.id;
+        if (msg.message_type === 'poll' && msg.poll && msg.poll.id != null) {
+            state.pollData[msg.poll.id] = msg.poll;
+            if (msg.poll.voted_option != null) state.myPollVotes[msg.poll.id] = msg.poll.voted_option;
+        }
         state.messages.push(msg);
         nextTick(function() {
             if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -4220,6 +4310,29 @@ chitchatApp.mount('#app');
         if (messageMentionsMe(msg.content) && msg.user_id !== currentUserId) {
             startMentionTabFlash();
         }
+    });
+
+    socket.on('poll_updated', function(data) {
+        if (!data || data.poll_id == null) return;
+        var existing = state.pollData[data.poll_id] || {};
+        state.pollData[data.poll_id] = Object.assign({}, existing, {
+            votes_count: data.votes_count,
+            total: data.total,
+        });
+    });
+    socket.on('poll_ended', function(data) {
+        if (!data || data.poll_id == null) return;
+        var existing = state.pollData[data.poll_id] || {};
+        state.pollData[data.poll_id] = Object.assign({}, existing, {
+            votes_count: data.votes_count,
+            total: data.total,
+            closed: true,
+            winner_idx: data.winner_idx,
+        });
+    });
+    socket.on('poll_vote_ack', function(data) {
+        if (!data || data.poll_id == null || data.option_idx == null) return;
+        state.myPollVotes[data.poll_id] = data.option_idx;
     });
 
     socket.on('message_edited', function(msg) {
