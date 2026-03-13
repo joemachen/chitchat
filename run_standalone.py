@@ -18,7 +18,7 @@ except ImportError:
     requests = None
 
 # Keep in sync with app/version.py; bump as part of each release.
-CURRENT_VERSION = "3.5.32"
+CURRENT_VERSION = "3.5.33"
 
 URL = "https://boiling-stacy-joemachen-05fc3544.koyeb.app"
 RELEASES_URL = "https://github.com/joemachen/chitchat/releases"
