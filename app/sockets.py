@@ -807,8 +807,11 @@ def _augment_history_with_polls(history, viewer_id=None):
     return result
 
 
-def _rearm_open_polls(app_obj, socket_io):
+def _rearm_open_polls(socket_io):
     """On startup: close expired polls and re-arm timers for polls still within their window."""
+    app_obj = getattr(socket_io, "app", None)
+    if not app_obj:
+        return
     with app_obj.app_context():
         now = datetime.utcnow()
         open_polls = Poll.query.filter_by(closed=False).all()
@@ -829,8 +832,7 @@ def register_socket_handlers(socketio):
     """Register SocketIO event handlers."""
     gevent.spawn_later(PRESENCE_BROADCAST_INTERVAL, _periodic_presence_broadcast, socketio)
     _start_daily_trivia_scheduler(socketio)
-    app = current_app._get_current_object()
-    gevent.spawn_later(2, _rearm_open_polls, app, socketio)
+    gevent.spawn_later(2, _rearm_open_polls, socketio)
 
     def _post_system_event(content: str):
         """Post a system message to the System Events room."""
