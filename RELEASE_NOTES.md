@@ -1,5 +1,11 @@
 # Release notes
 
+## v3.5.35 — Hotfix: server startup crash
+
+- Fixed `RuntimeError: Working outside of application context` crash on Koyeb deploy introduced in v3.5.34. `_rearm_open_polls` was calling `current_app._get_current_object()` before any Flask app context was available; now uses `socketio.app` (same pattern as the trivia scheduler).
+
+---
+
 ## v3.5.34 — Polls
 
 - New `!poll "Question?" Option A, Option B, C [--duration N]` command creates a timed poll in any room (15–300s, default 60s).
