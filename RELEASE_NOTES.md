@@ -1,5 +1,22 @@
 # Release notes
 
+## v3.5.34 — Polls
+
+- New `!poll "Question?" Option A, Option B, C [--duration N]` command creates a timed poll in any room (15–300s, default 60s).
+- Poll card renders inline in the message feed with live progress bars, percentage labels, and a countdown timer.
+- Votes are cast by clicking an option button — one vote per user per poll, enforced server-side.
+- Real-time tally updates broadcast to all room members instantly.
+- Poll closes automatically when the timer expires; winner option highlighted in green.
+- One active poll per room at a time. Open polls survive server restarts.
+
+---
+
+## v3.5.33 — External links open in browser (standalone)
+
+- Clicking YouTube, Reddit, or any external link in the standalone app now opens it in the system browser instead of inside the app window.
+
+---
+
 ## v3.5.32 — Standalone version sync
 
 - `run_standalone.py` `CURRENT_VERSION` was out of sync (3.5.28); now matches `app/version.py`. Standalone window title and update check now show correct version.
