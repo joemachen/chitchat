@@ -85,8 +85,8 @@ def register_user(username: str, password: str, invite_code: str) -> tuple[User 
         return None, "Invalid invite code."
     if not username or not username.strip():
         return None, "Username required."
-    if not password or len(password) < 4:
-        return None, "Password must be at least 4 characters."
+    if not password or len(password) < 8:
+        return None, "Password must be at least 8 characters."
     username = username.strip()
     if User.query.filter_by(username=username).first():
         return None, "Username already taken."
