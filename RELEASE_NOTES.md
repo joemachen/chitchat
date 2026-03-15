@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.38 — Fix poll black screen (missing return exports)
+
+- Fixed critical bug: poll helper functions (`getPollData`, `getPollVote`, `getPollPct`, `isPollWinner`, `getPollCountdown`, `castPollVote`) were defined in the Vue component but omitted from the `return {}` object, making them invisible to the template. Any room containing a poll message would crash Vue's render and go permanently black.
+- Added `v-if="msg.message_type !== 'poll'"` guard to the pinned-messages section's `msg-content` div to match the guard already present in the main message list.
+
+---
+
 ## v3.5.37 — Fix polls table missing on Neon DB
 
 - Added startup safety check: if the `polls` table is missing (e.g. because Alembic recorded the migration as applied but a prior crash prevented the table from being created), it is now created directly on boot via `Poll.__table__.create(checkfirst=True)`

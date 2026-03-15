@@ -13,7 +13,7 @@ chitchat/
 ├── wsgi.py              # Gunicorn entry point; gevent monkey_patch before imports
 ├── Procfile             # Koyeb: web: python gunicorn_run.py
 ├── requirements.txt    # Python dependencies (flask-migrate, gunicorn, psycopg2-binary)
-├── migrations/          # Flask-Migrate (Alembic) — versions/001–027, env.py
+├── migrations/          # Flask-Migrate (Alembic) — versions/001–028, env.py
 ├── logs/                # Runtime logs (git-ignored except .gitkeep)
 │   ├── app.log          # General activity (start, connections)
 │   └── errors.log       # Exceptions with stack traces and local variable context
@@ -43,7 +43,8 @@ chitchat/
 ## Data Model (Step 2)
 
 - **Users** — Registered only with a valid **Simple Invite Code** (no open sign-up).
-- **Messages** — Stored per room; SQLAlchemy + SQLite.
+- **Messages** — Stored per room; SQLAlchemy + SQLite. `message_type` can be `’chat’`, `’emote’`, or `’poll’`.
+- **Polls** — `polls` table (migration 028). Timed polls created via `!poll`; one active poll per room; votes stored as JSON; auto-closes via gevent timer.
 - **Room mute** — Per-room mute; frontend hides muted users’ messages.
 
 ## Real-Time (Step 3)
