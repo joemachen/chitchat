@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.39 — Security hardening (password + message length)
+
+- Minimum password length increased from 4 to 8 characters (new registrations only; existing accounts unaffected)
+- Message content cap tightened from 50,000 to 4,000 characters
+
+---
+
 ## v3.5.38 — Fix poll black screen (missing return exports)
 
 - Fixed critical bug: poll helper functions (`getPollData`, `getPollVote`, `getPollPct`, `isPollWinner`, `getPollCountdown`, `castPollVote`) were defined in the Vue component but omitted from the `return {}` object, making them invisible to the template. Any room containing a poll message would crash Vue's render and go permanently black.

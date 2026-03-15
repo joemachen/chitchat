@@ -6,7 +6,7 @@ from app.models import Message
 
 # Config
 CACHE_SIZE = 100  # Messages per room
-MAX_CONTENT_LEN = 50_000  # Reject oversized payloads (Matrix-inspired validation)
+MAX_CONTENT_LEN = 4_000  # Reject oversized payloads
 
 _cache: dict[int, deque[dict]] = {}
 _lock = Lock()
