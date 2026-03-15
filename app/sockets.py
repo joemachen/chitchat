@@ -1892,6 +1892,9 @@ def register_socket_handlers(socketio):
             return
 
         # /poll "Question?" Option A, Option B [--duration N] — create a timed poll
+        if content.strip().lower() == "/poll":
+            emit("error", {"message": "Usage: !poll \"Question?\" Option A, Option B [--duration N]"})
+            return
         if content.lower().startswith("/poll "):
             if _active_polls.get(room_id):
                 emit("error", {"message": "A poll is already active in this room. Wait for it to finish."})
@@ -1901,43 +1904,43 @@ def register_socket_handlers(socketio):
             except ValueError as ve:
                 emit("error", {"message": str(ve)})
                 return
-            now = datetime.utcnow()
-            poll = Poll(
-                room_id=room_id,
-                created_by_id=user_id,
-                question=question,
-                options=options,
-                votes={},
-                duration=duration,
-                ends_at=now + timedelta(seconds=duration),
-                closed=False,
-                created_at=now,
-            )
-            db.session.add(poll)
-            db.session.flush()  # get poll.id before commit
-            msg = Message(
-                room_id=room_id,
-                user_id=user_id,
-                content=question,
-                message_type="poll",
-                created_at=now,
-            )
-            # Store poll_id in a JSON field we add to the message content key pattern
-            # We store it as "poll_id" on the message dict via a workaround:
-            # the actual poll_id is stored in message content as a JSON tag and resolved on read.
-            # Simpler: use a dedicated column. Since we don't have one, encode in content.
-            # Best approach: just reference via message_id on Poll after commit.
-            db.session.add(msg)
-            db.session.commit()
-            poll.message_id = msg.id
-            db.session.commit()
-            _active_polls[room_id] = poll.id
-            msg_dict = msg.to_dict()
-            msg_dict["poll_id"] = poll.id
-            msg_dict["poll"] = poll.to_payload(viewer_id=user_id)
-            _broadcast_new_message_impl(socketio, room_id, msg_dict)
-            gevent.spawn_later(duration, _close_poll, poll.id, room_id, current_app._get_current_object(), socketio)
-            logger.info("User %s started poll %s in room %s (%ss)", user.username, poll.id, room_id, duration)
+            try:
+                now = datetime.utcnow()
+                poll = Poll(
+                    room_id=room_id,
+                    created_by_id=user_id,
+                    question=question,
+                    options=options,
+                    votes={},
+                    duration=duration,
+                    ends_at=now + timedelta(seconds=duration),
+                    closed=False,
+                    created_at=now,
+                )
+                db.session.add(poll)
+                db.session.flush()
+                msg = Message(
+                    room_id=room_id,
+                    user_id=user_id,
+                    content=question,
+                    message_type="poll",
+                    created_at=now,
+                )
+                db.session.add(msg)
+                db.session.commit()
+                poll.message_id = msg.id
+                db.session.commit()
+                _active_polls[room_id] = poll.id
+                msg_dict = msg.to_dict()
+                msg_dict["poll_id"] = poll.id
+                msg_dict["poll"] = poll.to_payload(viewer_id=user_id)
+                _broadcast_new_message_impl(socketio, room_id, msg_dict)
+                gevent.spawn_later(duration, _close_poll, poll.id, room_id, current_app._get_current_object(), socketio)
+                logger.info("User %s started poll %s in room %s (%ss)", user.username, poll.id, room_id, duration)
+            except Exception as e:
+                db.session.rollback()
+                logger.exception("Poll creation failed for user %s in room %s", user_id, room_id)
+                emit("error", {"message": f"Poll creation failed: {e}"})
             return
 
         # Acrophobia room: game commands and submissions (no user message saved; channel configurable)

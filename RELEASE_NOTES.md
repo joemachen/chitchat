@@ -1,5 +1,13 @@
 # Release notes
 
+## v3.5.36 — Poll reliability fix
+
+- `!poll` with no arguments now shows a usage error instead of posting as a plain message
+- Poll creation errors (e.g. DB errors) are now surfaced to the user rather than silently swallowed by the socket handler
+- Added rollback on poll creation failure to prevent orphaned DB state
+
+---
+
 ## v3.5.35 — Hotfix: server startup crash
 
 - Fixed `RuntimeError: Working outside of application context` crash on Koyeb deploy introduced in v3.5.34. `_rearm_open_polls` was calling `current_app._get_current_object()` before any Flask app context was available; now uses `socketio.app` (same pattern as the trivia scheduler).
