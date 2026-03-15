@@ -66,6 +66,21 @@ except BaseException as e:
                 except Exception as mig_err:
                     print(f"[gunicorn_run] MIGRATION FAILED (continuing): {mig_err}", flush=True)
                     traceback.print_exc()
+            # Belt-and-suspenders: create any missing tables that Alembic may have
+            # recorded as applied but never actually created (e.g. due to a startup crash).
+            print("[gunicorn_run] ensuring all tables exist...", flush=True)
+            try:
+                from app.models import db
+                from sqlalchemy import inspect as sa_inspect
+                inspector = sa_inspect(db.engine)
+                existing = set(inspector.get_table_names())
+                from app.models import Poll
+                if "polls" not in existing:
+                    print("[gunicorn_run] polls table missing — creating directly...", flush=True)
+                    Poll.__table__.create(db.engine, checkfirst=True)
+                    print("[gunicorn_run] polls table created OK", flush=True)
+            except Exception as tbl_err:
+                print(f"[gunicorn_run] table ensure failed (non-fatal): {tbl_err}", flush=True)
             print("[gunicorn_run] seeding...", flush=True)
             _seed_default_data(app)
             _run_message_retention_cleanup(app)
