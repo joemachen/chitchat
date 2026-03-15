@@ -10,7 +10,7 @@ This document is a detailed technical overview of the ChitChat codebase for revi
 
 - **Invite-only**: No open sign-up; registration requires a preconfigured invite code.
 - **Local-first by default**: Runs on `127.0.0.1` with SQLite; same codebase deploys online (Koyeb + Neon Postgres).
-- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes; welcome DM on first login; random quote DM if away 30+ days), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), spoilers (||text|| or ||image URL||; frosted overlay, click to reveal, Reveal all spoilers button), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
+- **Feature set**: Multi-room chat with history, DMs (1:1 rooms), presence (online/away/dnd/invisible), slash commands, room topics, edit profile (status, away message, bio, avatar color; announces in System Events; auto-replies to DMs when away), letter avatars (Discord-style initials with customizable background), an in-room stats view, system events (join/leave/online/offline; deploy announcements with release notes only when version changes), an Acrophobia minigame bot, a Homer bot (!Simpsons for random quotes; welcome DM on first login; random quote DM if away 30+ days), a Prof Frink trivia bot (#Trivia: !trivia, !trivia X for 1–7 rounds, 45s per question, !daily, !set-difficulty, !set-seasons or /set seasons; hot streaks; DM replies), **timed polls** (`!poll "Question?" A, B, C [--duration N]`; one active poll per room; live vote counts; auto-closes after duration), message edit/delete, pinned messages (max 2 per room; Fam/Super Admin), file/image uploads, link previews (OG metadata; GIF and MP4 URLs render inline playing with click-to-pause for Giphy/Tenor), spoilers (||text|| or ||image URL||; frosted overlay, click to reveal, Reveal all spoilers button), custom confirm/alert/prompt modals (no native dialogs), room reorder (Move up/down in context menu; drag-and-drop on desktop), muted rooms (🔇 emoji), room context menu with Unmute users (for muted users like System), **room aliases** (#general, #acrophobia), **message cache** (last 100 per room for fast join/reconnect), **private user data** (key/value preferences), and admin moderation with role permissions (kick, room CRUD, assign Super Admin, reset stats).
 
 **Explicitly out of scope for now**: Sound/notifications. File/image uploads are supported (instance/uploads/ or Cloudinary when CLOUDINARY_URL is set).
 
@@ -53,14 +53,14 @@ chitchat/
 ├── run.bat / run-standalone.bat
 ├── .github/workflows/     # build-standalone.yml: PyInstaller on tag push → GitHub Release
 ├── requirements.txt
-├── migrations/            # Flask-Migrate (Alembic) versions 001–027
+├── migrations/            # Flask-Migrate (Alembic) versions 001–028
 ├── instance/              # Created at runtime; SQLite DB and remember token
 ├── logs/                  # app.log, errors.log (logging_config)
 ├── app/
 │   ├── __init__.py        # App factory, DB init, migrations, SocketIO init, route/socket registration
 │   ├── config.py          # Config class (SECRET_KEY, DB, INVITE_CODE, session)
 │   ├── logging_config.py  # File handlers for app.log and errors.log; no console by default
-│   ├── models.py          # User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, ...
+│   ├── models.py          # User, Room, Message, Poll, UserPrivateData, RoomAlias, AcroScore, AppSetting, ...
 │   ├── auth.py            # Invite validation, register, login, remember token, password reset
 │   ├── routes.py          # HTTP: /, /login, /register, /reset-password, /logout, /chat, /upload, /health, /export, /delete-account, /api/set-user-roles, /api/set-role-permissions, /api/set-message-retention
 │   ├── sockets.py         # All SocketIO handlers and presence/stats helpers
@@ -92,7 +92,7 @@ chitchat/
   6. Registers socket handlers via `register_socket_handlers(socketio)`.
   7. Attaches `app.socketio` and returns the app.
 
-- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color`, `welcome_sent` on `users`; `room_id`, `message_type` on `messages`). Versions 001–027. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin.
+- **Migrations**: Flask-Migrate (Alembic); schema changes are applied with raw SQL `ALTER TABLE` and existence checks (e.g. `topic`, `topic_set_by_id`, `topic_set_at`, `dm_with_id` on `rooms`; `room_order_ids`, `is_super_admin`, `away_message`, `avatar_bg_color`, `welcome_sent` on `users`; `room_id`, `message_type` on `messages`). Versions 001–028. Ensures default rooms and bots exist: **general**, **Stats**, **Acrophobia**, **System Events**, **Trivia**; users **AcroBot**, **System**, **Homer**, and **Prof Frink**; and optionally promotes user “Joe” to Super Admin. `gunicorn_run.py` includes a belt-and-suspenders check after migrations: if the `polls` table is absent (e.g. Alembic recorded the migration as applied during a crashed deploy), it is created directly via `Poll.__table__.create(checkfirst=True)`.
 
 ### 3.3 Design principles
 
@@ -129,13 +129,21 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 - **Relations**: `user`, `room`, `parent` (reply), `reactions` (MessageReaction).
 - **Notes**: All channel history is stored here; Stats view is computed from this table (no separate stats storage). Deleting “Stats data” means deleting all rows in `messages`.
 
-### 4.4 AppSetting
+### 4.4 Poll
+
+- **Table**: `polls` (migration 028).
+- **Fields**: `id`, `room_id`, `created_by_id`, `message_id` (FK to the `poll`-type message that anchors it in chat), `question` (String 300), `options` (JSON array of strings), `votes` (JSON dict `{"0": [uid, ...], "1": [...], ...}`), `duration` (seconds, 15–300, default 60), `ends_at` (DateTime), `closed` (Boolean), `created_at`.
+- **Lifecycle**: Created by `!poll "Question?" A, B [--duration N]` in `on_send_message`. A `gevent.spawn_later` timer fires `_close_poll()` at `ends_at`, marks it closed, and broadcasts `poll_ended`. One active poll per room at a time (enforced via `_active_polls` in-memory dict). On server restart, `_rearm_open_polls()` closes expired polls and re-arms timers for still-active ones.
+- **Voting**: `cast_poll_vote` socket event; one vote per user per poll. Broadcasts `poll_updated` to the room with live counts after each vote.
+- **Rendering**: Messages with `message_type="poll"` render as a poll card (CSS `.poll-card`) in Vue, with vote buttons, progress bars, and a countdown timer. Cards are read-only once `closed=True`.
+
+### 4.6 AppSetting
 
 - **Table**: `app_settings`.
 - **Fields**: `key` (unique), `value` (text).
 - **Usage**: Key-value store for app-wide settings. `default_room_id` — Admin chooses which channel users see on login when no room is specified.
 
-### 4.5 IgnoreList (legacy)
+### 4.7 IgnoreList (legacy)
 
 - **Table**: `ignore_list`.
 - **Status**: Ignore functionality removed. Table retained for cascade delete when users are deleted. No UI or socket handlers use it.
@@ -186,6 +194,7 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 | `get_role_permissions` | `on_get_role_permissions` | Super Admin only | Emit `role_permissions` for Settings UI (includes `default_room_id`). |
 | `set_role_permission` | `on_set_role_permission` | Super Admin only | Update role permission; broadcast `role_permissions`. |
 | `set_default_room` | `on_set_default_room` | Super Admin only | Set default channel for login; persist in `app_settings`; broadcast `role_permissions`. |
+| `cast_poll_vote` | `on_cast_poll_vote` | Yes | Cast a vote on an active poll; one vote per user per poll. Broadcasts `poll_updated` to room. Emits `poll_vote_ack` to voter. |
 | `edit_message` | `on_edit_message` | Yes | Edit own message; emit `message_edited` to room. |
 | `delete_message` | `on_delete_message` | Yes | Delete own message; emit `message_deleted` to room. |
 | `add_reaction` / `remove_reaction` | `on_add_reaction` / `on_remove_reaction` | Yes | Toggle emoji reaction; broadcast `reaction_updated`. |
@@ -200,10 +209,11 @@ All entities are in `app/models.py` (Flask-SQLAlchemy, SQLite).
 2. **`/away [message]`** — Set or clear `user.away_message`; post emote “is away: …” or “is no longer away”; persist and emit.
 3. **`/whois <username>`** — Look up user (case-insensitive); emit `whois_result` to requester only (includes online, IP, connected_at for Super Admin).
 4. **`/topic <text>`** — Set `room.topic`, topic_set_by_id, topic_set_at; emit `topic_updated` to room.
-5. **Acrophobia room** — If room name is “Acrophobia”, call `acrophobia.handle_message`; if consumed, persist and emit bot messages; if round started, schedule submit-phase timer.
-6. **`/ping <username>`** — Emit `user_pinged` to room (username case-insensitive); if target has `away_message`, emit `away_message` to sender only.
-7. **`/em <text>` / `/me <text>`** — Treat as emote; persist as `message_type='emote'` and emit.
-8. **Otherwise** — Persist as normal chat message and emit `new_message`.
+5. **`/poll “Question?” A, B [--duration N]`** — Create a timed poll (15–300s, default 60s). Persists a `Poll` row and a `message_type='poll'` message; broadcasts poll card to room; fires `_close_poll` timer via `gevent.spawn_later`. One active poll per room enforced. `!` prefix also works (normalized to `/` before command dispatch).
+6. **Acrophobia room** — If room name is “Acrophobia”, call `acrophobia.handle_message`; if consumed, persist and emit bot messages; if round started, schedule submit-phase timer.
+7. **`/ping <username>`** — Emit `user_pinged` to room (username case-insensitive); if target has `away_message`, emit `away_message` to sender only.
+8. **`/em <text>` / `/me <text>`** — Treat as emote; persist as `message_type='emote'` and emit.
+9. **Otherwise** — Persist as normal chat message and emit `new_message`.
 
 All persisted messages (including help and emotes) are stored in `messages` and broadcast to `room_{room_id}`.
 
@@ -280,7 +290,7 @@ All persisted messages (including help and emotes) are stored in `messages` and 
 | `app/config.py` | SECRET_KEY, DB URI, INVITE_CODE, session/remember duration. |
 | `app/version.py` | VERSION from CHITCHAT_VERSION env (default 3.5.32); used for deploy announcements. |
 | `app/logging_config.py` | File handlers for app.log and errors.log; get_logger(). |
-| `app/models.py` | User, Room, Message, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
+| `app/models.py` | User, Room, Message, Poll, UserPrivateData, RoomAlias, AcroScore, AppSetting, IgnoreList (legacy), MessageReaction, UserRoomRead, UserRoomNotificationMute, MessageReport, AuditLog, RolePermission, RoomMute; to_dict() where needed. |
 | `app/auth.py` | Invite validation, register_user, get_user_by_credentials, remember token (create/load/save to disk), reset_password. |
 | `app/routes.py` | Index, login, register, reset-password, logout, chat, upload, health, export, delete-account, POST /api/set-user-roles (role changes), POST /api/set-message-retention (auto-delete); before_request (restore session from remember); context_processor (inject user). |
 | `app/sockets.py` | Presence globals, _get_stats, _get_users_with_online_status, _rooms_sorted_for_user (channels + DMs filtered/deduplicated per user), _user_by_username (case-insensitive lookup), Acrophobia timer scheduling, _post_system_event, all @socketio.on handlers. |
