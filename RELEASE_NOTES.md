@@ -1,5 +1,11 @@
 # Release notes
 
+## v3.5.37 — Fix polls table missing on Neon DB
+
+- Added startup safety check: if the `polls` table is missing (e.g. because Alembic recorded the migration as applied but a prior crash prevented the table from being created), it is now created directly on boot via `Poll.__table__.create(checkfirst=True)`
+
+---
+
 ## v3.5.36 — Poll reliability fix
 
 - `!poll` with no arguments now shows a usage error instead of posting as a plain message
