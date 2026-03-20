@@ -1,5 +1,11 @@
 # Release notes
 
+## v3.5.41 — CI: opt into Node.js 24 for GitHub Actions
+
+- Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to the build workflow to resolve Node.js 20 deprecation warnings on `actions/checkout`, `actions/setup-python`, and `actions/upload-artifact`. GitHub enforces Node.js 24 by default from June 2026.
+
+---
+
 ## v3.5.40 — Rich link previews (YouTube, Reddit, generic)
 
 - YouTube links now show channel name, video duration, and a full-width banner thumbnail. Uses YouTube's InnerTube API — no API key required.
