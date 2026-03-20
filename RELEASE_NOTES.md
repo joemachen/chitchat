@@ -1,5 +1,16 @@
 # Release notes
 
+## v3.5.40 — Rich link previews (YouTube, Reddit, generic)
+
+- YouTube links now show channel name, video duration, and a full-width banner thumbnail. Uses YouTube's InnerTube API — no API key required.
+- Reddit links now show the subreddit (`r/...`) and poster info alongside title and thumbnail.
+- All other links now show `og:site_name` as a small label above the title.
+- Base thumbnail height increased from 80px → 140px for all non-YouTube previews.
+- Fixed missing light-mode styles for link preview cards.
+- Added `CLAUDE.md` — living project rules document for AI-assisted development sessions.
+
+---
+
 ## v3.5.39 — Security hardening (password + message length)
 
 - Minimum password length increased from 4 to 8 characters (new registrations only; existing accounts unaffected)

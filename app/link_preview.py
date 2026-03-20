@@ -1,9 +1,9 @@
 """
 Fetch Open Graph metadata from a URL for link previews. Used when messages contain URLs.
-Supports YouTube and Reddit via oEmbed when OG fetch fails.
+Supports YouTube (via InnerTube) and Reddit via oEmbed when OG fetch fails.
 """
 import re
-from urllib.parse import urljoin, urlparse, quote
+from urllib.parse import urljoin, urlparse, quote, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
@@ -20,6 +20,12 @@ USER_AGENT = (
 # oEmbed endpoints
 YOUTUBE_OEMBED = "https://www.youtube.com/oembed?url={url}&format=json"
 REDDIT_OEMBED = "https://www.reddit.com/oembed?url={url}"
+
+# YouTube InnerTube API (no API key required)
+YOUTUBE_INNERTUBE = "https://www.youtube.com/youtubei/v1/player"
+_YOUTUBE_INNERTUBE_CTX = {
+    "context": {"client": {"clientName": "WEB", "clientVersion": "2.20240101.00.00"}}
+}
 
 
 def _is_youtube_url(url: str) -> bool:
@@ -46,8 +52,88 @@ def _is_reddit_url(url: str) -> bool:
         return False
 
 
+def _extract_youtube_video_id(url: str) -> str | None:
+    """Extract YouTube video ID from watch, shorts, embed, or youtu.be URLs."""
+    try:
+        parsed = urlparse(url)
+        netloc = (parsed.netloc or "").lower()
+        if "youtu.be" in netloc:
+            return parsed.path.lstrip("/").split("/")[0] or None
+        if "youtube.com" in netloc:
+            qs = parse_qs(parsed.query)
+            if "v" in qs:
+                return qs["v"][0]
+            parts = [p for p in parsed.path.split("/") if p]
+            if len(parts) >= 2 and parts[0] in ("shorts", "embed", "v"):
+                return parts[1]
+        return None
+    except Exception:
+        return None
+
+
+def _format_duration(seconds_str: str | None) -> str | None:
+    """Format a seconds string like '213' into '3:33', or '3661' into '1:01:01'."""
+    try:
+        secs = int(seconds_str or 0)
+    except (ValueError, TypeError):
+        return None
+    if secs <= 0:
+        return None
+    h, rem = divmod(secs, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def _extract_reddit_subreddit(url: str) -> str | None:
+    """Extract subreddit name (without r/ prefix) from a Reddit URL, or None."""
+    try:
+        parts = [p for p in urlparse(url).path.split("/") if p]
+        if len(parts) >= 2 and parts[0] == "r":
+            return parts[1]
+        return None
+    except Exception:
+        return None
+
+
+def _fetch_youtube_innertube(url: str) -> dict | None:
+    """Fetch YouTube metadata via InnerTube API (no API key needed).
+    Returns title, channel_name, duration, image, or None on failure."""
+    video_id = _extract_youtube_video_id(url)
+    if not video_id:
+        return None
+    try:
+        resp = requests.post(
+            YOUTUBE_INNERTUBE,
+            json={**_YOUTUBE_INNERTUBE_CTX, "videoId": video_id},
+            timeout=FETCH_TIMEOUT,
+            headers={"User-Agent": USER_AGENT},
+        )
+        resp.raise_for_status()
+        vd = resp.json().get("videoDetails") or {}
+        title = (vd.get("title") or "").strip()[:300]
+        channel = (vd.get("author") or "").strip()[:200]
+        duration = _format_duration(vd.get("lengthSeconds"))
+        thumbs = vd.get("thumbnail", {}).get("thumbnails", [])
+        best = max(thumbs, key=lambda t: t.get("width", 0), default=None)
+        image = best["url"] if best else None
+        if not title and not image:
+            return None
+        result: dict = {"url": url, "provider": "youtube"}
+        if title:
+            result["title"] = title
+        if channel:
+            result["channel_name"] = channel
+        if duration:
+            result["duration"] = duration
+        if image:
+            result["image"] = image
+        return result
+    except Exception:
+        return None
+
+
 def _fetch_youtube_preview(url: str) -> dict | None:
-    """Fetch YouTube video metadata via oEmbed. Returns preview dict or None."""
+    """Fetch YouTube video metadata via oEmbed (fallback). Returns preview dict or None."""
     if not _is_youtube_url(url):
         return None
     try:
@@ -59,9 +145,12 @@ def _fetch_youtube_preview(url: str) -> dict | None:
         thumb = data.get("thumbnail_url")
         if not title and not thumb:
             return None
-        result = {"url": url}
+        result: dict = {"url": url, "provider": "youtube"}
         if title:
             result["title"] = title
+        channel = (data.get("author_name") or "").strip()[:200]
+        if channel:
+            result["channel_name"] = channel
         if thumb:
             result["image"] = thumb
         return result
@@ -83,7 +172,10 @@ def _fetch_reddit_preview(url: str) -> dict | None:
         author = (data.get("author_name") or data.get("authorName") or "").strip()
         if not title and not thumb:
             return None
-        result = {"url": url}
+        result: dict = {"url": url, "provider": "reddit"}
+        subreddit = _extract_reddit_subreddit(url)
+        if subreddit:
+            result["subreddit"] = subreddit
         if title:
             result["title"] = title
         if author:
@@ -124,8 +216,8 @@ def _fetch_html(url: str) -> str | None:
 
 def fetch_og_preview(url: str) -> dict | None:
     """
-    Fetch URL and extract og:title, og:description, og:image. Returns a dict with
-    title, description, image, url (all optional strings), or None on error/timeout.
+    Fetch URL and extract og:title, og:description, og:image, og:site_name. Returns a dict with
+    title, description, image, site_name, url (all optional strings), or None on error/timeout.
     For Reddit, tries old.reddit.com first (server-rendered HTML with OG tags).
     """
     if not url or not url.startswith(("http://", "https://")):
@@ -149,6 +241,7 @@ def fetch_og_preview(url: str) -> dict | None:
         title = meta.get("og:title") or (soup.title.string.strip() if soup.title and soup.title.string else None)
         description = meta.get("og:description")
         image = meta.get("og:image")
+        site_name = meta.get("og:site_name")
         if not title and not description and not image:
             return None
         result = {"url": url}
@@ -160,6 +253,8 @@ def fetch_og_preview(url: str) -> dict | None:
             img_url = image if image.startswith(("http://", "https://")) else urljoin(url, image)
             if img_url.startswith(("http://", "https://")):
                 result["image"] = img_url
+        if site_name:
+            result["site_name"] = site_name[:100]
         return result
     except Exception:
         return None
@@ -183,16 +278,25 @@ def _extract_all_urls(text: str, max_urls: int = 3) -> list[str]:
 
 
 def get_previews_for_message_content(content: str, max_previews: int = 3) -> list[dict]:
-    """Extract all URLs from content and return OG preview dicts (up to max_previews).
-    Uses oEmbed for YouTube and Reddit when OG fetch fails."""
+    """Extract all URLs from content and return rich preview dicts (up to max_previews).
+    YouTube uses InnerTube (with oEmbed fallback). Reddit enriches OG results with
+    provider/subreddit metadata. Generic URLs use OG tags."""
     urls = _extract_all_urls(content or "", max_urls=max_previews)
     previews = []
     for url in urls:
-        p = fetch_og_preview(url)
-        if not p and _is_youtube_url(url):
-            p = _fetch_youtube_preview(url)
-        if not p and _is_reddit_url(url):
-            p = _fetch_reddit_preview(url)
+        if _is_youtube_url(url):
+            p = _fetch_youtube_innertube(url) or _fetch_youtube_preview(url)
+        elif _is_reddit_url(url):
+            p = fetch_og_preview(url)
+            if p:
+                p["provider"] = "reddit"
+                sub = _extract_reddit_subreddit(url)
+                if sub:
+                    p.setdefault("subreddit", sub)
+            else:
+                p = _fetch_reddit_preview(url)
+        else:
+            p = fetch_og_preview(url)
         if p:
             previews.append(p)
     return previews
