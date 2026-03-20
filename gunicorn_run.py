@@ -61,6 +61,24 @@ except BaseException as e:
                     )
                     if result.returncode != 0:
                         print(f"[gunicorn_run] MIGRATION FAILED (rc={result.returncode}) - see output above", flush=True)
+                        print("[gunicorn_run] attempting stamp head to fix alembic_version...", flush=True)
+                        try:
+                            stamp_script = """
+from run import app
+from flask_migrate import stamp
+app.app_context().push()
+stamp(revision='head')
+print('[gunicorn_run] stamp head OK', flush=True)
+"""
+                            stamp_result = subprocess.run(
+                                [sys.executable, "-u", "-c", stamp_script],
+                                env=mig_env,
+                                timeout=15,
+                            )
+                            if stamp_result.returncode != 0:
+                                print("[gunicorn_run] stamp head FAILED - manual intervention needed", flush=True)
+                        except Exception as stamp_err:
+                            print(f"[gunicorn_run] stamp head FAILED: {stamp_err}", flush=True)
                 except subprocess.TimeoutExpired:
                     print("[gunicorn_run] MIGRATION TIMEOUT (45s) - continuing; run /run-migrations later", flush=True)
                 except Exception as mig_err:
