@@ -339,7 +339,25 @@
         .msg-link-preview .link-preview-body { padding: 0.5rem; }
         .msg-link-preview .link-preview-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
         .msg-link-preview .link-preview-desc { font-size: 0.8rem; color: #a1a1aa; margin-bottom: 0.35rem; }
-        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 80px; width: auto; height: auto; object-fit: cover; border-radius: 4px; display: block; cursor: pointer; }
+        .msg-link-preview .link-preview-img { max-width: 100%; max-height: 140px; width: auto; height: auto; object-fit: cover; border-radius: 4px; display: block; cursor: pointer; }
+        /* Site name label (generic links) */
+        .msg-link-preview .link-preview-site { font-size: 0.7rem; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
+        /* Reddit subreddit label */
+        .msg-link-preview .link-preview-subreddit { font-size: 0.75rem; color: #71717a; margin-bottom: 0.15rem; }
+        /* YouTube full-width banner layout */
+        .msg-link-preview.yt-preview .link-preview-body { padding: 0; }
+        .msg-link-preview.yt-preview .link-preview-img { max-height: none; height: 180px; width: 100%; object-fit: cover; border-radius: 0; }
+        .msg-link-preview.yt-preview .link-preview-meta { padding: 0.4rem 0.6rem 0.5rem; }
+        .msg-link-preview.yt-preview .link-preview-title { margin-bottom: 0.15rem; }
+        .msg-link-preview.yt-preview .link-preview-channel { font-size: 0.75rem; color: #71717a; display: flex; align-items: center; gap: 0.4rem; }
+        .msg-link-preview.yt-preview .link-preview-duration { display: inline-block; background: rgba(0,0,0,0.75); color: #fff; font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.3rem; border-radius: 3px; letter-spacing: 0.03em; flex-shrink: 0; }
+        /* Light mode overrides for link previews */
+        body.theme-light .msg-link-preview { background: #f4f4f5; border-color: #d4d4d8; }
+        body.theme-light .msg-link-preview .link-preview-title { color: #18181b; }
+        body.theme-light .msg-link-preview .link-preview-desc { color: #52525b; }
+        body.theme-light .msg-link-preview .link-preview-site { color: #71717a; }
+        body.theme-light .msg-link-preview .link-preview-subreddit { color: #52525b; }
+        body.theme-light .msg-link-preview.yt-preview .link-preview-channel { color: #52525b; }
         .status { padding: 0.25rem 1rem; font-size: 0.85rem; color: #71717a; }
         .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
         .room-list {
@@ -628,6 +646,7 @@
             .msg-link-preview { max-width: 100% !important; }
             .msg-link-preview:not(.minimized) .link-preview-body { display: block !important; }
             .msg-link-preview .link-preview-img { max-height: 160px; }
+            .msg-link-preview.yt-preview .link-preview-img { height: 200px; max-height: none; }
             .room-list.open .panel-resizer { display: none; }
             .room-list { padding-bottom: 72px; box-sizing: border-box; }
             .room-list .room-list-footer-sticky { padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)); }
@@ -1020,9 +1039,31 @@
                             </div>
                             <div class="msg-edited" v-if="msg.edited_at">edited {{ formatMessageTime(msg.edited_at) }}</div>
                             <div class="msg-link-previews" v-if="linkPreviewsForMessage(msg).length">
-                                <div v-for="(p, pi) in linkPreviewsForMessage(msg)" :key="pi" class="msg-link-preview" :data-url="p.url || ''">
+                                <div v-for="(p, pi) in linkPreviewsForMessage(msg)" :key="pi" :class="['msg-link-preview', { 'yt-preview': isYoutubePreview(p) }]" :data-url="p.url || ''">
                                     <div class="link-preview-header"><a :href="p.url || ''" target="_blank" rel="noopener noreferrer">{{ (p.url || '').replace(/^https?:\/\//, '') }}</a><button type="button" class="link-preview-minimize" title="Minimize" @click="onLinkPreviewMinimize($event)">−</button></div>
-                                    <div class="link-preview-body"> <div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div> <div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div> <img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt=""> </div>
+                                    <template v-if="isYoutubePreview(p)">
+                                        <div class="link-preview-body">
+                                            <img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt="" loading="lazy">
+                                            <div class="link-preview-meta">
+                                                <div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div>
+                                                <div v-if="p.channel_name || p.duration" class="link-preview-channel">
+                                                    <span v-if="p.channel_name">{{ p.channel_name }}</span>
+                                                    <span v-if="p.duration" class="link-preview-duration">{{ p.duration }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template v-else-if="isRedditPreview(p)">
+                                        <div class="link-preview-body">
+                                            <div v-if="p.subreddit" class="link-preview-subreddit">r/{{ p.subreddit }}</div>
+                                            <div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div>
+                                            <div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div>
+                                            <img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt="" loading="lazy">
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div class="link-preview-body"> <div v-if="p.site_name && p.site_name.trim()" class="link-preview-site">{{ p.site_name }}</div> <div v-if="p.title && p.title.trim()" class="link-preview-title">{{ p.title }}</div> <div v-if="p.description && p.description.trim()" class="link-preview-desc">{{ p.description }}</div> <img v-if="p.image && p.image.trim()" class="link-preview-img" :src="p.image" alt=""> </div>
+                                    </template>
                                 </div>
                             </div>
                             <div class="msg-reactions" :data-msg-id="msg.id">
@@ -1823,6 +1864,18 @@ const chitchatApp = createApp({
             if (Array.isArray(raw)) previews = raw;
             else if (typeof raw === 'string') { try { var p = JSON.parse(raw); previews = Array.isArray(p) ? p : []; } catch (e) {} }
             return previews.filter(function(p) { return !isGifUrl(p && p.url); });
+        }
+        function isYoutubePreview(p) {
+            if (!p || !p.url) return false;
+            if (p.provider === 'youtube') return true;
+            var u = (p.url || '').toLowerCase();
+            return u.indexOf('youtube.com') !== -1 || u.indexOf('youtu.be') !== -1;
+        }
+        function isRedditPreview(p) {
+            if (!p || !p.url) return false;
+            if (p.provider === 'reddit') return true;
+            var u = (p.url || '').toLowerCase();
+            return u.indexOf('reddit.com') !== -1 || u.indexOf('redd.it') !== -1;
         }
         function linkPreviewsForInlineVideo(msg) {
             var raw = msg && msg.link_previews;
