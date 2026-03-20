@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.42 — Fix black screen (missing Vue return exports)
+
+- Fixed critical bug: `isYoutubePreview` and `isRedditPreview` functions were defined in Vue `setup()` but not included in the `return {}` object, making them invisible to the template. Any room with link preview messages would crash Vue's render → black screen.
+- Added mistake rule to `CLAUDE.md` to prevent this recurring pattern (same class of bug as v3.5.38).
+
+---
+
 ## v3.5.41 — CI: opt into Node.js 24 for GitHub Actions
 
 - Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to the build workflow to resolve Node.js 20 deprecation warnings on `actions/checkout`, `actions/setup-python`, and `actions/upload-artifact`. GitHub enforces Node.js 24 by default from June 2026.

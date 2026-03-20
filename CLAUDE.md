@@ -134,7 +134,5 @@ Copy `.env.example` to `.env` — never commit `.env`.
 
 > When you make a mistake, document it below with a short title and rule so future sessions avoid repeating it.
 
-<!-- Example format:
-### [YYYY-MM-DD] Short description of mistake
-**Rule:** What to do instead and why.
--->
+### [2026-03-19] Vue functions used in template but not returned from setup()
+**Rule:** Every function or reactive variable referenced in the `chat.html` Vue template **must** be included in the `return { ... }` block at the end of `setup()`. Missing returns cause a silent render crash → black screen. This has happened twice now (v3.5.38 polls, v3.5.40 link previews). After adding any new function used in the template, always verify it appears in the return object.
