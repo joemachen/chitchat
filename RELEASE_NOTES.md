@@ -1,5 +1,12 @@
 # Release notes
 
+## v3.5.43 — Fix migration error + pin Python version
+
+- Fixed Koyeb deployment migration error: Neon DB had stale `028_events` in `alembic_version` but actual head is `028_polls`. Added auto-stamp to head on migration failure in `gunicorn_run.py` — corrects the metadata so subsequent deploys migrate cleanly.
+- Added `.python-version` file (3.13) to silence Koyeb build warnings about unspecified Python version.
+
+---
+
 ## v3.5.42 — Fix black screen (missing Vue return exports)
 
 - Fixed critical bug: `isYoutubePreview` and `isRedditPreview` functions were defined in Vue `setup()` but not included in the `return {}` object, making them invisible to the template. Any room with link preview messages would crash Vue's render → black screen.
